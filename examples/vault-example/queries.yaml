@@ -1,0 +1,138 @@
+# Retrieval eval set (§8.5): question → expected node ids with minimum tiers.
+# `brain eval` scores recall (expected id present at any tier), tier placement
+# (present at >= min_tier, where stub < summary < full), and token budget.
+# CI fails on regression against the committed baseline.
+
+defaults:
+  budget_tokens: 4000
+  hops: 3
+
+queries:
+  - name: frontend-direct
+    query: "what frontend does the garden tracker use"
+    expect:
+      - { id: htmx-server-rendered-ui, min_tier: full }
+      - { id: react-spa-frontend, min_tier: stub }
+
+  - name: supersedes-chain-terminal
+    query: "jquery prototype ui"
+    # Hits the START of the 3-link supersedes chain; the terminal successor
+    # must be present regardless of budget (§5.3 hard rule).
+    expect:
+      - { id: jquery-prototype-ui, min_tier: stub }
+      - { id: react-spa-frontend, min_tier: stub }
+      - { id: htmx-server-rendered-ui, min_tier: stub }
+
+  - name: hr-zones-why
+    query: "why did I switch to heart rate zone training"
+    expect:
+      - { id: heart-rate-zone-training, min_tier: full }
+      - { id: pace-based-training, min_tier: stub }
+      - { id: aerobic-base-deficit, min_tier: stub }
+
+  - name: bread-steam
+    query: "how do I get steam when baking bread in the oven"
+    expect:
+      - { id: dutch-oven-steam-method, min_tier: summary }
+      - { id: oven-tray-steam-method, min_tier: stub }
+
+  - name: backups-after-incident
+    query: "backup strategy after the disk died"
+    expect:
+      - { id: restic-offsite-backups, min_tier: summary }
+      - { id: disk-failure-march-2026, min_tier: stub }
+      - { id: zfs-mirror-pool, min_tier: stub }
+
+  - name: reverse-proxy
+    query: "reverse proxy https certificates"
+    expect:
+      - { id: caddy-reverse-proxy, min_tier: summary }
+      - { id: automatic-https-requirement, min_tier: stub }
+      - { id: nginx-reverse-proxy, min_tier: stub }
+
+  - name: person-lookup
+    query: "who tests the garden app"
+    expect:
+      - { id: alex-chen-beta-tester, min_tier: summary }
+
+  - name: alias-only-hit
+    query: "when did boris get fed"
+    # "boris" appears only in aliases of the starter node.
+    expect:
+      - { id: rye-starter-boris, min_tier: summary }
+
+  - name: watering
+    query: "soil moisture watering recommendations"
+    expect:
+      - { id: plant-watering-model, min_tier: summary }
+      - { id: soil-moisture-sensors, min_tier: stub }
+
+  - name: conflict-training-order
+    query: "should I build climbing or flat mileage first"
+    expect:
+      - { id: vert-before-volume, min_tier: summary }
+      - { id: flat-mileage-base-first, min_tier: summary }
+    expect_conflicts:
+      - [vert-before-volume, flat-mileage-base-first]
+
+  - name: conflict-offline
+    query: "offline logging conflicts with server state"
+    expect:
+      - { id: local-first-sync, min_tier: summary }
+      - { id: server-authoritative-state, min_tier: summary }
+    expect_conflicts:
+      - [local-first-sync, server-authoritative-state]
+
+  - name: database-choice
+    query: "which database does the garden tracker use"
+    expect:
+      - { id: sqlite-single-file-db, min_tier: full }
+      - { id: postgres-container-db, min_tier: stub }
+
+  - name: race-fueling
+    query: "race day fueling plan"
+    expect:
+      - { id: race-nutrition-plan, min_tier: summary }
+      - { id: gel-every-thirty-minutes, min_tier: stub }
+
+  - name: fermentation-temp
+    query: "dough temperature during bulk fermentation"
+    expect:
+      - { id: fermentation-temperature-control, min_tier: summary }
+      - { id: thanksgiving-flat-loaf-2025, min_tier: stub }
+
+  - name: lab-hardware
+    query: "what hardware runs the home lab"
+    expect:
+      - { id: beelink-mini-pc, min_tier: summary }
+      - { id: home-lab, min_tier: stub }
+
+  - name: remote-access
+    query: "wireguard remote access to lab services"
+    expect:
+      - { id: wireguard-mesh-access, min_tier: summary }
+      - { id: single-public-ip, min_tier: stub }
+
+  - name: morning-schedule
+    query: "morning schedule preferences"
+    expect:
+      - { id: morning-runs-only, min_tier: stub }
+      - { id: morning-focus-blocks, min_tier: stub }
+
+  - name: feature-request
+    query: "csv export feature request"
+    expect:
+      - { id: csv-export-request, min_tier: summary }
+      - { id: alex-chen-beta-tester, min_tier: stub }
+
+  - name: injury-limit
+    query: "how much hard descending am I allowed each week"
+    expect:
+      - { id: joint-load-weekly-limit, min_tier: summary }
+      - { id: ankle-sprain-may-2026, min_tier: stub }
+
+  - name: unanswerable
+    query: "quantum chromodynamics lattice simulation parameters"
+    # Nothing in the vault matches; the correct behavior is an empty or
+    # catalog-fallback pack, never fabricated context (§5.6).
+    expect: []

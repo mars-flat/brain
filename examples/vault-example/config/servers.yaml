@@ -1,0 +1,5 @@
+# Synthetic upstream MCP server inventory. The concrete schema is defined at
+# P3 with the gateway (§4.2); this placeholder exists so the example vault has
+# the full directory shape. The REAL inventory lives in your private vault.
+
+servers: []

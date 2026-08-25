@@ -1,0 +1,18 @@
+# Synthetic policy for the example vault (§4.5). First match wins; the
+# default rule must be last. The REAL policy lives in your private vault's
+# config/, never in the public repo (§9.2).
+
+- match: { tool: "brain.*", kind: read }
+  effect: allow
+
+- match: { surface: [discord], kind: write }
+  effect: confirm
+  reason: "medium-trust surface, write operation"
+
+- match: { surface: [discord], tool: ["shell.*", "fs.write", "*.delete_*"] }
+  effect: deny
+
+- match: { kind: read }
+  effect: allow
+
+- default: confirm
