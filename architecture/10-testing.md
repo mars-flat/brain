@@ -83,7 +83,7 @@ flowchart LR
 
 Deployment itself is `az vm run-command invoke` against the VM (the Azure analog of SSM run) executing `docker compose pull && up -d`. No inbound port, no SSH key in CI.
 
-**Branch protection:** all checks required, no force-push to `main`, secret-scanning push protection on. *Required signed commits was dropped at P0* — the implementing agent's commits are unsigned and the branch is single-writer; revisit if human collaborators arrive. Direct pushes to `main` remain allowed (no required-PR rule): the workflow is agent-driven trunk development, and required checks still gate any PR.
+**Branch protection:** no force-push or deletion of `main` (admins included), secret-scanning push protection on, private vulnerability reporting on. Two P0 deviations, both recorded here deliberately: *required signed commits was dropped* (the implementing agent's commits are unsigned and the branch is single-writer), and *checks all run on every push but are not marked Required yet* — GitHub's required-status-checks refuse direct pushes of SHAs that haven't already passed checks on another branch, which breaks agent-driven trunk development. Flip checks to Required (and move to a push-branch-then-promote flow) at P5, when deploys hang off `main` and always-green stops being optional.
 
 ---
 
