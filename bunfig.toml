@@ -1,0 +1,4 @@
+# Reproducible installs (§9.3): exact versions land in package.json; CI adds
+# --frozen-lockfile --ignore-scripts. Lifecycle scripts are off by default in Bun.
+[install]
+exact = true

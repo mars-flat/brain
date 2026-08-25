@@ -1,0 +1,23 @@
+{
+  "name": "brain",
+  "private": true,
+  "license": "MIT",
+  "workspaces": [
+    "packages/*",
+    "adapters/*"
+  ],
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "depcruise": "bunx --bun depcruise packages adapters --config .dependency-cruiser.cjs",
+    "check": "bun run lint && bun run typecheck && bun run depcruise && bun test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.10",
+    "@types/bun": "1.4.0",
+    "dependency-cruiser": "18.2.0",
+    "typescript": "7.0.2"
+  }
+}
