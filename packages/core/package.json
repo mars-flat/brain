@@ -1,0 +1,16 @@
+{
+  "name": "@brain/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure domain logic (§3): traversal, packing, scoring. No I/O, no clock, no randomness — enforced by dependency-cruiser.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@brain/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "fast-check": "4.9.0"
+  }
+}

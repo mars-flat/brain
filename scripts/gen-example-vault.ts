@@ -18,9 +18,9 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { renderNote } from "@brain/brainstore";
 import {
   EDGE_RELATIONS,
-  type EdgeRelation,
   type NodeFrontmatter,
   validateNodeFrontmatter,
 } from "@brain/contracts";
@@ -1321,80 +1321,11 @@ const NODES: NodeSpec[] = [
   },
 ];
 
-// ── Rendering ──────────────────────────────────────────────────────────────
-
-function yamlScalar(s: string): string {
-  return JSON.stringify(s);
-}
-
-function yamlList(items: string[]): string {
-  return `[${items.map(yamlScalar).join(", ")}]`;
-}
-
-function foldSummary(summary: string): string {
-  const words = summary.split(/\s+/);
-  const lines: string[] = [];
-  let line = "";
-  for (const w of words) {
-    if (line && (line + " " + w).length > 76) {
-      lines.push(line);
-      line = w;
-    } else {
-      line = line ? `${line} ${w}` : w;
-    }
-  }
-  if (line) lines.push(line);
-  return lines.map((l) => `  ${l}`).join("\n");
-}
+// ── Rendering — the canonical renderer from @brain/brainstore ──────────────
 
 function renderNode(spec: NodeSpec): string {
   const { body, ...fm } = spec;
-  const out: string[] = ["---"];
-  out.push(`id: ${fm.id}`);
-  out.push(`type: ${fm.type}`);
-  out.push(`title: ${yamlScalar(fm.title)}`);
-  if (fm.aliases?.length) out.push(`aliases: ${yamlList(fm.aliases)}`);
-  if (fm.tags?.length) out.push(`tags: [${fm.tags.join(", ")}]`);
-  out.push(`created: ${fm.created}`);
-  out.push(`updated: ${fm.updated}`);
-  out.push(`status: ${fm.status}`);
-  if (fm.confidence) out.push(`confidence: ${fm.confidence}`);
-  if (fm.provenance) out.push(`provenance: ${fm.provenance}`);
-  if (fm.sources?.length) out.push(`sources: ${yamlList(fm.sources)}`);
-
-  const edgeLines: string[] = [];
-  for (const rel of EDGE_RELATIONS) {
-    const targets = fm[rel];
-    if (targets?.length) edgeLines.push(`${rel}: ${yamlList(targets)}`);
-  }
-  if (edgeLines.length) {
-    out.push("");
-    out.push(...edgeLines);
-  }
-
-  out.push("");
-  out.push("summary: >");
-  out.push(foldSummary(fm.summary));
-  out.push("---");
-  out.push("");
-
-  if (body) {
-    out.push("## Detail");
-    out.push("");
-    out.push(body);
-    out.push("");
-  }
-
-  const linkLines = (EDGE_RELATIONS as readonly EdgeRelation[])
-    .filter((rel) => fm[rel]?.length)
-    .map((rel) => `- ${rel} → ${(fm[rel] as string[]).join(", ")}`);
-  if (linkLines.length) {
-    out.push("## Links");
-    out.push(...linkLines);
-    out.push("");
-  }
-
-  return out.join("\n");
+  return renderNote(fm, body ? `## Detail\n\n${body}` : "");
 }
 
 function renderEpisode(ep: EpisodeSpec): string {

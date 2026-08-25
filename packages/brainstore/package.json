@@ -1,0 +1,17 @@
+{
+  "name": "@brain/brainstore",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Vault read/write + SQLite FTS5 index (§5.11). Bun-native: bun:sqlite and Bun.YAML, no storage dependencies.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@brain/contracts": "workspace:*",
+    "@brain/core": "workspace:*"
+  },
+  "devDependencies": {
+    "fast-check": "4.9.0"
+  }
+}

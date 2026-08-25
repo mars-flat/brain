@@ -16,7 +16,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.10",
+    "@brain/brainstore": "workspace:*",
     "@brain/contracts": "workspace:*",
+    "@brain/core": "workspace:*",
     "@types/bun": "1.4.0",
     "dependency-cruiser": "18.2.0",
     "typescript": "6.0.3"
