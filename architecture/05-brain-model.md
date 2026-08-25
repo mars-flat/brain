@@ -11,7 +11,7 @@ An llm-wiki that ingests chat transcripts automatically and retrieves by graph t
 ```mermaid
 flowchart TB
     subgraph L0["Layer 0 — Episodic, immutable"]
-        EP["episodes/2026/08/24-tool-gateway-design.md<br/>raw transcript + tool calls, append-only"]
+        EP["episodes/2026/08/2026-08-24-tool-gateway-design.md<br/>raw transcript + tool calls, append-only"]
     end
     subgraph L1["Layer 1 — Semantic graph, LLM-owned"]
         N1["nodes/decision/gateway-on-ec2.md"]
@@ -116,6 +116,8 @@ The two bold rules are the correctness guarantees of the entire memory system:
 Without these, a memory system confidently hands you last month's answer. With them, it hands you the current answer and shows its work. Both are enforced as **property-based tests** (§8.3), not merely intended.
 
 Inverse edges (`superseded_by`, `causes`, …) are **derived into SQLite at index time**, never written to disk. One direction on disk, both directions in the index.
+
+Two notational details fixed at P0: episode files are named with the **full date in the basename** (`episodes/2026/08/2026-08-24-tool-gateway-design.md`) — date-sharded folders alone would let basenames collide across months, and basenames are the identifier. And `sources:` frontmatter is the canonical provenance notation — the indexer materializes each entry as a `derived_from` edge, so notes rarely write `derived_from` explicitly.
 
 ### 5.4 Example subgraph
 

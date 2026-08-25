@@ -83,7 +83,7 @@ flowchart LR
 
 Deployment itself is `az vm run-command invoke` against the VM (the Azure analog of SSM run) executing `docker compose pull && up -d`. No inbound port, no SSH key in CI.
 
-**Branch protection:** all checks required, no force-push to `main`, signed commits, secret-scanning push protection on.
+**Branch protection:** all checks required, no force-push to `main`, secret-scanning push protection on. *Required signed commits was dropped at P0* — the implementing agent's commits are unsigned and the branch is single-writer; revisit if human collaborators arrive. Direct pushes to `main` remain allowed (no required-PR rule): the workflow is agent-driven trunk development, and required checks still gate any PR.
 
 ---
 

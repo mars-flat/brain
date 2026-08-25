@@ -1,6 +1,6 @@
 # Personal LLM System — Architecture
 
-**Status:** Design, revision 5 — Azure host, OpenAI `gpt-5.6-luna`, Bun runtime. Nothing implemented yet.
+**Status:** Revision 5 + build in progress — Azure host, OpenAI `gpt-5.6-luna`, Bun runtime. **P0 complete**; see Current status below.
 **Code repo:** `mars-flat/brain` — **public** · **Vault:** `brain/vault/`, its own local git repo, never tracked here ([§9.1](./11-repo-safety.md))
 **MCP revision targeted:** `2026-07-28` · **Last updated:** 2026-08-25
 
@@ -54,9 +54,11 @@ Section numbers (§N) are stable across files and greppable, so a cross-referenc
 
 ## Current status
 
-**P0–P4 are unblocked and ready to build.** Bun, the Obsidian vault, the OpenAI key, the GitHub repo, and `gh` auth are all in place. `HANDOFF-P0-P4.md` at the repo root is the brief for the implementing agent.
+**P0 is done** (2026-08-25): both git repos initialized with all four §9.1 guards verified by test; `packages/contracts` (three schemas + tool contracts + ports, zero runtime deps, guards cross-validated against ajv on a 32-fixture corpus); the synthetic example vault (81 nodes, 6 episodes, 20-query eval set); CI (checks + repo-split/identity guards + gitleaks + CodeQL, SHA-pinned actions); docs, MIT licence. A clean clone runs `bun install && bun test` green. Toolchain deviations recorded in `docs/ADR/0001`.
 
-**One human blocker remains, and it only gates P6: the Discord bot** ([§13](./13-setup.md) has the walkthrough).
+**Next: P1** (brainstore, core traversal/packing, `brain eval` baseline), then P2. **The owner has scoped P3–P4 to a later session** — stop after P2 unless that changes.
+
+**One human blocker remains, and it only gates P6: the Discord bot** ([§13](./13-setup.md) has the walkthrough). Open questions for the owner accumulate in `QUESTIONS-FOR-OWNER.md` at the repo root (local-only, gitignored).
 
 **Two things to do before P5, not before P0:**
 

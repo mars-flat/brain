@@ -218,6 +218,8 @@ Every tool gets a stable URN `<server>.<namespace>.<tool>`. Collisions become im
 
 **Default is `confirm`, not `deny`** — a deny-default personal system is one you route around within a week. Confirm-default keeps you in the loop without blocking.
 
+The P0 contract (`packages/contracts/policy.schema.json`) pins this down: match keys are `tool`, `kind`, `surface`, `principal`, `trust` (scalar or list); exactly one `default` rule is required and it must be **last**, since under first-match-wins anything after it is dead.
+
 ### 4.6 Untrusted upstream servers
 
 Each community MCP server runs in its own container: no host mounts, egress allowlist, memory and CPU caps. Their results are wrapped in an untrusted-content marker so the model treats them as data rather than instruction. Prompt injection via tool output is the realistic attack (§7).

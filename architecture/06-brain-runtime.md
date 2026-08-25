@@ -125,6 +125,8 @@ Two corrections from revision 2, both of which would have hurt at implementation
 - **`schema_version` is mandatory.** This is the one contract every future harness writes against; without a version field, changing it later means silently misparsing old episodes.
 - **One ordered `turns` array, not parallel `messages` and `tool_calls` arrays.** Real transcripts interleave, and extraction quality depends heavily on *what happened in what order* — "he asked X, the tool returned Y, then he decided Z" is the shape most decisions have. Two parallel arrays throw that ordering away and make the consolidator guess.
 
+P0 pinned the details in `packages/contracts/episode.schema.json`: `seq` must be **strictly increasing but may have gaps** (a harness that filters turns keeps original positions), `episode_id` is `ep_` + a 26-char Crockford ULID, `result_digest` is `sha256:<64 hex>`, and message `role` is `user | assistant | system`.
+
 Any harness that can POST this gets the brain. That's the whole contract.
 
 **Cadence:** debounced ~10 minutes after a conversation goes idle, plus a nightly pass. Not per-message — per-message extraction produces a graph full of noise.
