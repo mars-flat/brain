@@ -1,0 +1,70 @@
+# CI (§8.6, P0 slice): lint · typecheck · dep-cruiser · unit + contract tests ·
+# audit, plus the repo-split guard — the CI half of §9.1's layer 4 (the local
+# pre-commit hook can be bypassed; this cannot). Actions are pinned by commit
+# SHA (§9.3). Later phases append integration / e2e / eval / image jobs.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  repo-split-guard:
+    name: repo-split + identity guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: No private or vault-shaped paths tracked (§9.1)
+        run: |
+          set -euo pipefail
+          bad=0
+          if git ls-files | grep -E '^(vault|azure)/'; then
+            echo "::error::tracked path under vault/ or azure/ — these are private (§9.1)"; bad=1
+          fi
+          if git ls-files | grep -E '(^|/)(nodes|episodes|pins|quarantine)/' | grep -v '^examples/'; then
+            echo "::error::vault-shaped path tracked outside examples/ (§9.1)"; bad=1
+          fi
+          if git ls-files | grep -E '(^|/)\.env' | grep -v '\.env\.example$'; then
+            echo "::error::.env file tracked — only .env.example is committed (§9.2)"; bad=1
+          fi
+          exit $bad
+      - name: No hardcoded identity (§9.4)
+        run: |
+          set -euo pipefail
+          bad=0
+          if git grep -nE '/(Users|home)/[A-Za-z]' -- ':!bun.lock'; then
+            echo "::error::absolute home path in tracked file — zero hardcoded identity (§9.4)"; bad=1
+          fi
+          if git grep -inE '[a-z0-9._%+-]+@(gmail|googlemail|yahoo|outlook|hotmail|icloud|protonmail|proton)\.' -- ':!bun.lock'; then
+            echo "::error::personal-looking email in tracked file (§9.4)"; bad=1
+          fi
+          exit $bad
+
+  checks:
+    name: lint · typecheck · depcruise · test · audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.0
+      - name: Install (frozen, no lifecycle scripts — §9.3)
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Lint + format check
+        run: bunx biome ci .
+      - name: Typecheck
+        run: bunx tsc --noEmit
+      - name: Dependency rules — core/contracts purity (§3)
+        run: bun run depcruise
+      - name: Example vault is fresh (regenerating changes nothing)
+        run: |
+          bun scripts/gen-example-vault.ts
+          git diff --exit-code -- examples/vault-example
+      - name: Unit + contract tests
+        run: bun test
+      - name: Audit dependencies (§9.3)
+        run: bun audit --audit-level=high
