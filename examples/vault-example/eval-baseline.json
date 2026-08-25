@@ -1,0 +1,107 @@
+{
+  "recall": 1,
+  "placement": 1,
+  "conflicts": 1,
+  "perQuery": {
+    "frontend-direct": {
+      "hits": 2,
+      "expected": 2,
+      "placed": 2
+    },
+    "supersedes-chain-terminal": {
+      "hits": 3,
+      "expected": 3,
+      "placed": 3
+    },
+    "hr-zones-why": {
+      "hits": 3,
+      "expected": 3,
+      "placed": 3
+    },
+    "bread-steam": {
+      "hits": 2,
+      "expected": 2,
+      "placed": 2
+    },
+    "backups-after-incident": {
+      "hits": 3,
+      "expected": 3,
+      "placed": 3
+    },
+    "reverse-proxy": {
+      "hits": 3,
+      "expected": 3,
+      "placed": 3
+    },
+    "person-lookup": {
+      "hits": 1,
+      "expected": 1,
+      "placed": 1
+    },
+    "alias-only-hit": {
+      "hits": 1,
+      "expected": 1,
+      "placed": 1
+    },
+    "watering": {
+      "hits": 2,
+      "expected": 2,
+      "placed": 2
+    },
+    "conflict-training-order": {
+      "hits": 2,
+      "expected": 2,
+      "placed": 2
+    },
+    "conflict-offline": {
+      "hits": 2,
+      "expected": 2,
+      "placed": 2
+    },
+    "database-choice": {
+      "hits": 2,
+      "expected": 2,
+      "placed": 2
+    },
+    "race-fueling": {
+      "hits": 2,
+      "expected": 2,
+      "placed": 2
+    },
+    "fermentation-temp": {
+      "hits": 2,
+      "expected": 2,
+      "placed": 2
+    },
+    "lab-hardware": {
+      "hits": 2,
+      "expected": 2,
+      "placed": 2
+    },
+    "remote-access": {
+      "hits": 2,
+      "expected": 2,
+      "placed": 2
+    },
+    "morning-schedule": {
+      "hits": 2,
+      "expected": 2,
+      "placed": 2
+    },
+    "feature-request": {
+      "hits": 2,
+      "expected": 2,
+      "placed": 2
+    },
+    "injury-limit": {
+      "hits": 2,
+      "expected": 2,
+      "placed": 2
+    },
+    "unanswerable": {
+      "hits": 0,
+      "expected": 0,
+      "placed": 0
+    }
+  }
+}

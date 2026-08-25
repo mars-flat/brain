@@ -4,13 +4,7 @@
  * behind RecallStore.
  */
 
-import type {
-  Confidence,
-  EdgeRecord,
-  EdgeRelation,
-  NodeType,
-  Provenance,
-} from "@brain/contracts";
+import type { Confidence, EdgeRecord, EdgeRelation, NodeType, Provenance } from "@brain/contracts";
 
 export interface GraphNode {
   id: string;

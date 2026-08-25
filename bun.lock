@@ -25,6 +25,18 @@
         "fast-check": "4.9.0",
       },
     },
+    "packages/cli": {
+      "name": "@brain/cli",
+      "version": "0.1.0",
+      "bin": {
+        "brain": "./src/main.ts",
+      },
+      "dependencies": {
+        "@brain/brainstore": "workspace:*",
+        "@brain/contracts": "workspace:*",
+        "@brain/core": "workspace:*",
+      },
+    },
     "packages/contracts": {
       "name": "@brain/contracts",
       "version": "0.1.0",
@@ -63,6 +75,8 @@
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.5.10", "", { "os": "win32", "cpu": "x64" }, "sha512-M+2dgBsl3lXRiTfgPVc2p3anS4Tocojke4rzFLScZ2Y/wmF+36dRb1iHCLiyGqOzQGyTplZH1HnEYviiAqi3nA=="],
 
     "@brain/brainstore": ["@brain/brainstore@workspace:packages/brainstore"],
+
+    "@brain/cli": ["@brain/cli@workspace:packages/cli"],
 
     "@brain/contracts": ["@brain/contracts@workspace:packages/contracts"],
 

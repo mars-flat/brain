@@ -15,7 +15,11 @@ export const DEFAULT_RECALL_PARAMS: RecallParams = {
     recencyHalfLifeDays: 180,
     pruneThreshold: 0.02,
     frontierCap: 200,
-    seedThreshold: 0.0,
+    // θ_seed on raw -bm25 of the BEST hit (§5.5): below it, no seeds — an
+    // empty pack instead of a one-rare-word neighborhood explosion. Tuned
+    // against the eval set (§8.5): false-positive tops measured ≈4.0,
+    // legitimate tops ≥6.3 on the example vault.
+    seedThreshold: 5.0,
     seedK: 8,
   },
   pack: {

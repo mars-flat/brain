@@ -1,0 +1,19 @@
+{
+  "name": "@brain/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "brain init | rebuild | recall | eval | doctor (§10 layout). Grows lint/backup at later phases.",
+  "bin": {
+    "brain": "./src/main.ts"
+  },
+  "exports": {
+    ".": "./src/main.ts",
+    "./eval": "./src/eval.ts"
+  },
+  "dependencies": {
+    "@brain/brainstore": "workspace:*",
+    "@brain/contracts": "workspace:*",
+    "@brain/core": "workspace:*"
+  }
+}

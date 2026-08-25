@@ -74,11 +74,7 @@ describe("recall on the example vault", () => {
     const currentIds = current.result.nodes.map((n) => n.id);
     expect(currentIds).toContain("caddy-reverse-proxy");
 
-    const past = recall(
-      store,
-      { query: "reverse proxy certificates", as_of: "2025-12-31" },
-      NOW,
-    );
+    const past = recall(store, { query: "reverse proxy certificates", as_of: "2025-12-31" }, NOW);
     const pastIds = past.result.nodes.map((n) => n.id);
     expect(pastIds).toContain("nginx-reverse-proxy");
     expect(pastIds).not.toContain("caddy-reverse-proxy"); // created 2026-01-15

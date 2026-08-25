@@ -147,7 +147,7 @@ A query hitting `D1` on one literal word picks up, in one hop, the constraint th
 ### 5.11 Storage
 
 - **Source of truth:** Obsidian vault, its own local git repo (§9.1). Human-editable, diffable, portable, and openable on your phone.
-- **Derived index:** one SQLite file at `_index/brain.db` — `nodes`, `edges`, `episodes`, `pins`, `salience`, plus `nodes_fts` (FTS5, `porter` tokenizer). **Gitignored**, rebuilt by `brain rebuild`.
+- **Derived index:** one SQLite file at `_index/brain.db` — `nodes`, `edges`, `episodes`, `pins`, `salience`, plus `nodes_fts` (FTS5, `porter` tokenizer). **Gitignored**, rebuilt by `brain rebuild`. One P1 nuance to §5.1's "pure cache": `brain rebuild` **preserves the `salience` table** — usage history is derived from nothing and exists nowhere else, so wiping it on rebuild would silently reset what the ranking learned.
 - **Scale:** a heavy year is O(10⁴) nodes, O(10⁵) edges. SQLite does 3-hop traversal on that in single-digit milliseconds.
 - **Do not** reach for Neo4j, a hosted vector DB, or Postgres.
 

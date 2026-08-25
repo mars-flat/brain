@@ -66,5 +66,7 @@ jobs:
           git diff --exit-code -- examples/vault-example
       - name: Unit + contract tests
         run: bun test
+      - name: Retrieval eval — regression gate vs committed baseline (§8.5)
+        run: bun packages/cli/src/main.ts eval --vault examples/vault-example --check
       - name: Audit dependencies (§9.3)
         run: bun audit --audit-level=high

@@ -57,9 +57,7 @@ export function rebuild(db: Database, vault: LoadedVault): RebuildReport {
     const insFts = db.query(
       "INSERT INTO nodes_fts (id, title, aliases, tags, summary) VALUES (?, ?, ?, ?, ?)",
     );
-    const insEdge = db.query(
-      "INSERT OR IGNORE INTO edges (from_id, rel, to_id) VALUES (?, ?, ?)",
-    );
+    const insEdge = db.query("INSERT OR IGNORE INTO edges (from_id, rel, to_id) VALUES (?, ?, ?)");
     const insAlias = db.query("INSERT OR IGNORE INTO aliases (alias, node_id) VALUES (?, ?)");
     const insEpisode = db.query(
       `INSERT INTO episodes (episode_id, basename, started_at, ended_at, surface, harness, trust,
@@ -146,7 +144,13 @@ export function rebuild(db: Database, vault: LoadedVault): RebuildReport {
       if (!nodeIds.has(pin.meta.node_id)) {
         report.warnings.push(`${pin.filePath}: pin targets unknown node ${pin.meta.node_id}`);
       }
-      insPin.run(pin.meta.pin_id, pin.meta.node_id, pin.correction, pin.meta.reason, pin.meta.created);
+      insPin.run(
+        pin.meta.pin_id,
+        pin.meta.node_id,
+        pin.correction,
+        pin.meta.reason,
+        pin.meta.created,
+      );
       report.pins++;
     }
 

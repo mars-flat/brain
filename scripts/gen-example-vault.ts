@@ -19,11 +19,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { renderNote } from "@brain/brainstore";
-import {
-  EDGE_RELATIONS,
-  type NodeFrontmatter,
-  validateNodeFrontmatter,
-} from "@brain/contracts";
+import { EDGE_RELATIONS, type NodeFrontmatter, validateNodeFrontmatter } from "@brain/contracts";
 
 const OUT = join(import.meta.dir, "..", "examples", "vault-example");
 

@@ -56,7 +56,9 @@ Section numbers (§N) are stable across files and greppable, so a cross-referenc
 
 **P0 is done** (2026-08-25): both git repos initialized with all four §9.1 guards verified by test; `packages/contracts` (three schemas + tool contracts + ports, zero runtime deps, guards cross-validated against ajv on a 32-fixture corpus); the synthetic example vault (81 nodes, 6 episodes, 20-query eval set); CI (checks + repo-split/identity guards + gitleaks + CodeQL, SHA-pinned actions); docs, MIT licence. A clean clone runs `bun install && bun test` green. Toolchain deviations recorded in `docs/ADR/0001`.
 
-**Next: P1** (brainstore, core traversal/packing, `brain eval` baseline), then P2. **The owner has scoped P3–P4 to a later session** — stop after P2 unless that changes.
+**P1 is done** (2026-08-25): `packages/brainstore` (canonical render/parse with property-tested round-trip, vault loader enforcing basename invariants, FTS5 index, salience-preserving rebuild), `packages/core` (traverse/pack/recall with every §8.3 invariant as a fast-check property — supersedes-to-terminal ignoring budget and hops, two-sided labeled contradictions, pins at full tier, downgrade-never-drop with explicit omission, byte-identical determinism under shuffled input), and `packages/cli` (`brain init | rebuild | recall | eval | doctor`). **Eval on the example vault: recall 1.0, tier placement 1.0, conflicts 1.0** against the committed baseline; CI gates regressions. Deviations recorded in §5.5/§5.10/§5.11 (no prefix stars, θ_seed=5.0, rank bands are minimums, chars/4 tokens, salience survives rebuild).
+
+**Next: P2** (consolidator, lint, pins, quarantine — the write path). **The owner has scoped P3–P4 to a later session** — stop after P2 unless that changes. Note for P2: `brain init`'s seed interview (§5.6) was deferred to P2 since it needs the write path; init currently scaffolds the vault structure only.
 
 **One human blocker remains, and it only gates P6: the Discord bot** ([§13](./13-setup.md) has the walkthrough). Open questions for the owner accumulate in `QUESTIONS-FOR-OWNER.md` at the repo root (local-only, gitignored).
 

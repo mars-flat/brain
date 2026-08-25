@@ -3,11 +3,7 @@
  * with the derived `## Links` mirror stripped. Inverse of render.ts.
  */
 
-import {
-  type GuardResult,
-  type NodeFrontmatter,
-  validateNodeFrontmatter,
-} from "@brain/contracts";
+import { type GuardResult, type NodeFrontmatter, validateNodeFrontmatter } from "@brain/contracts";
 
 export interface ParsedNote {
   frontmatter: NodeFrontmatter;
@@ -60,10 +56,7 @@ function splitLinksBlock(raw: string): { body: string; linksBlock: string | null
     }
   }
   const body = [...lines.slice(0, start), ...lines.slice(end)].join("\n").replace(/\s+$/, "");
-  const linksBlock = lines
-    .slice(start, end)
-    .join("\n")
-    .replace(/\s+$/, "");
+  const linksBlock = lines.slice(start, end).join("\n").replace(/\s+$/, "");
   return { body, linksBlock };
 }
 
@@ -78,9 +71,7 @@ export interface EpisodeFileMeta {
   labels?: string[];
 }
 
-export function parseEpisodeFile(
-  markdown: string,
-): { meta: EpisodeFileMeta; body: string } | null {
+export function parseEpisodeFile(markdown: string): { meta: EpisodeFileMeta; body: string } | null {
   const m = FRONTMATTER.exec(markdown);
   if (!m) return null;
   let raw: unknown;

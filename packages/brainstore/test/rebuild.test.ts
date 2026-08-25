@@ -5,13 +5,13 @@
  * a hard error, and salience surviving a rebuild.
  */
 
+import type { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Database } from "bun:sqlite";
 import { recall } from "@brain/core";
-import { BrainStore, loadVault, openDb, rebuild, RebuildError, renderNote } from "../src/index.ts";
+import { BrainStore, loadVault, openDb, RebuildError, rebuild, renderNote } from "../src/index.ts";
 
 const EXAMPLE = join(import.meta.dir, "..", "..", "..", "examples", "vault-example");
 const NOW = new Date("2026-08-25T12:00:00Z");

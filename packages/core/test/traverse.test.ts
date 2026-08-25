@@ -70,15 +70,11 @@ describe("traverse", () => {
     const scored = traverse(g, [{ id: "a", weight: 1 }], NOW, { ...T, hops: 2 });
     expect(scored.has("d")).toBe(true); // via a→c(about)→d at hop 2
     expect(scored.has("e")).toBe(false); // needs hop 3
-    const single = traverse(
-      { ...g, edges: g.edges.slice(0, 4) },
-      [{ id: "a", weight: 1 }],
-      NOW,
-      { ...T, hops: 2 },
-    );
-    expect(scored.get("c")?.contribution ?? 0).toBeGreaterThan(
-      single.get("c")?.contribution ?? 0,
-    );
+    const single = traverse({ ...g, edges: g.edges.slice(0, 4) }, [{ id: "a", weight: 1 }], NOW, {
+      ...T,
+      hops: 2,
+    });
+    expect(scored.get("c")?.contribution ?? 0).toBeGreaterThan(single.get("c")?.contribution ?? 0);
   });
 
   test("recency and salience shape the score gently", () => {

@@ -6,7 +6,7 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
-import { EDGE_RELATIONS, type NodeFrontmatter, NODE_TYPES } from "@brain/contracts";
+import { EDGE_RELATIONS, NODE_TYPES, type NodeFrontmatter } from "@brain/contracts";
 import fc from "fast-check";
 import { parseNote, renderNote } from "../src/index.ts";
 
@@ -22,12 +22,13 @@ const arbDate = fc
     m: fc.integer({ min: 1, max: 12 }),
     d: fc.integer({ min: 1, max: 28 }),
   })
-  .map(
-    ({ y, m, d }) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
-  );
+  .map(({ y, m, d }) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
 // Canonical frontmatter never carries an empty edge list — render drops
 // them, so absence is the one canonical spelling (minLength 1 here).
-const arbLinks = fc.uniqueArray(arbId.map((id) => `[[${id}]]`), { minLength: 1, maxLength: 3 });
+const arbLinks = fc.uniqueArray(
+  arbId.map((id) => `[[${id}]]`),
+  { minLength: 1, maxLength: 3 },
+);
 
 const arbFrontmatter: fc.Arbitrary<NodeFrontmatter> = fc
   .record(
@@ -109,7 +110,20 @@ describe("round-trip (§8.3)", () => {
   test("rejects notes without frontmatter, with bad YAML, or violating the schema", () => {
     expect(parseNote("just text").ok).toBe(false);
     expect(parseNote("---\n: {[\n---\nbody").ok).toBe(false);
-    const salience = ["---", "id: x", "type: concept", 'title: "X"', "created: 2026-01-01", "updated: 2026-01-01", "status: active", "salience: 3", "summary: >", "  s", "---", ""].join("\n");
+    const salience = [
+      "---",
+      "id: x",
+      "type: concept",
+      'title: "X"',
+      "created: 2026-01-01",
+      "updated: 2026-01-01",
+      "status: active",
+      "salience: 3",
+      "summary: >",
+      "  s",
+      "---",
+      "",
+    ].join("\n");
     const verdict = parseNote(salience);
     expect(verdict.ok).toBe(false);
     if (!verdict.ok) expect(verdict.errors.join(" ")).toContain("salience");

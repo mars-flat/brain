@@ -2,13 +2,13 @@ export { openDb, SCHEMA_VERSION } from "./db.ts";
 export {
   type EpisodeFileMeta,
   type ParsedNote,
+  type PinFileMeta,
   parseEpisodeFile,
   parseNote,
   parsePinFile,
-  type PinFileMeta,
 } from "./parse.ts";
+export { RebuildError, type RebuildReport, rebuild } from "./rebuild.ts";
 export { foldSummary, renderNote } from "./render.ts";
-export { rebuild, RebuildError, type RebuildReport } from "./rebuild.ts";
 export { BrainStore } from "./store.ts";
 export {
   type LoadedVault,

@@ -92,9 +92,9 @@ export function openDb(path: string): Database {
   db.exec("PRAGMA journal_mode = WAL;");
   db.exec("PRAGMA foreign_keys = ON;");
   db.exec(SCHEMA);
-  const row = db.query("SELECT value FROM meta WHERE key = 'schema_version'").get() as
-    | { value: string }
-    | null;
+  const row = db.query("SELECT value FROM meta WHERE key = 'schema_version'").get() as {
+    value: string;
+  } | null;
   if (!row) {
     db.query("INSERT INTO meta (key, value) VALUES ('schema_version', ?)").run(
       String(SCHEMA_VERSION),

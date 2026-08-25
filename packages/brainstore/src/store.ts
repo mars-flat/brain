@@ -5,13 +5,7 @@
  */
 
 import type { Database } from "bun:sqlite";
-import type {
-  Confidence,
-  EdgeRecord,
-  EpisodeRef,
-  NodeType,
-  Provenance,
-} from "@brain/contracts";
+import type { Confidence, EdgeRecord, EpisodeRef, NodeType, Provenance } from "@brain/contracts";
 import type { GraphNode, GraphSlice, PinInfo, RecallStore } from "@brain/core";
 import { toFtsQuery } from "@brain/core";
 
@@ -33,9 +27,7 @@ export class BrainStore implements RecallStore {
   seedSearch(query: string, k: number, types?: NodeType[]): Array<{ id: string; raw: number }> {
     const match = toFtsQuery(query);
     if (!match) return [];
-    const typeFilter = types?.length
-      ? ` AND n.type IN (${types.map(() => "?").join(", ")})`
-      : "";
+    const typeFilter = types?.length ? ` AND n.type IN (${types.map(() => "?").join(", ")})` : "";
     const sql = `
       SELECT f.id AS id, -bm25(nodes_fts) AS raw
       FROM nodes_fts f JOIN nodes n ON n.id = f.id
@@ -87,9 +79,11 @@ export class BrainStore implements RecallStore {
       salience.set(r.node_id, r.value);
     }
     const pins: PinInfo[] = (
-      this.db
-        .query("SELECT pin_id, node_id, correction FROM pins ORDER BY pin_id")
-        .all() as Array<{ pin_id: string; node_id: string; correction: string }>
+      this.db.query("SELECT pin_id, node_id, correction FROM pins ORDER BY pin_id").all() as Array<{
+        pin_id: string;
+        node_id: string;
+        correction: string;
+      }>
     ).map((p) => ({ pinId: p.pin_id, nodeId: p.node_id, correction: p.correction }));
     return { nodes, edges, salience, pins };
   }

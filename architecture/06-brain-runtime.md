@@ -10,7 +10,7 @@ flowchart TB
 
     subgraph Seed["1 — SEED (FTS5 BM25, no model)"]
         F1["match title + aliases + tags + summary"]
-        F2["porter stemmer, prefix queries"]
+        F2["porter stemmer, terms OR-joined"]
         F3["top-k entry nodes, k≈8"]
         F4["if best score &lt; θ_seed:<br/>fall back to index.md catalog"]
     end
@@ -33,6 +33,8 @@ flowchart TB
 
 **Tiering is the whole trick.** A node is never dropped for scoring low — it is **downgraded**. Ranks 1–3 render full, 4–12 as summaries, 13–60 as one-line stubs. Every stub carries its id, so the model can call `brain.expand(["decision/x"])` mid-conversation and promote exactly what it needs.
 
+Three details pinned at P1 (the implementation is in `packages/core`): the rank bands are **minimums** — leftover budget upgrades nodes in rank order, so a five-node graph with a 4k budget renders everything full; when even all-stubs exceeds the budget, the tail is omitted **explicitly** (listed in the pack footer), never silently; and token costs are `ceil(chars/4)` — deterministic and dependency-free, which is what the budget invariant actually needs, since §5.5's tier sizes were always approximations.
+
 The agent always knows the *shape* of what it knows at ~15 tokens per fact, and pays full price only for what it reads. This is the same progressive-disclosure pattern as `tools.search → tools.describe`, applied to memory instead of capability.
 
 ```
@@ -41,6 +43,8 @@ score(n) = Σ over paths s→n [ bm25_norm(s) · Π_{e∈path} δ_rel(e) ]
 ```
 
 `salience` is a usage counter with exponential decay, bumped whenever a node is rendered at full tier — nodes you actually use float up. It lives **only in SQLite**, never in the note (§5.2). `recency = exp(-age_days / 180)`. The exponents are deliberately gentle: relevance dominates, recency breaks ties. **All of these are starting values to tune against the eval set in §8.5.**
+
+Two seed-stage corrections from P1: **prefix queries were dropped** — porter stems the index, so a prefix star on a full word (`training*`) *misses* its own stem (`train`); plain OR-joined terms with porter on both sides is strictly better. And **θ_seed landed at 5.0** on raw `-bm25` of the best hit: below it, recall returns an empty pack rather than letting one rare word (say, "parameters" in a title) drag in an entire irrelevant neighborhood. Measured on the example vault: false-positive tops ≈4.0, legitimate tops ≥6.3.
 
 **Ties break by node id, always.** FTS5 returns equal-scoring rows in rowid order, and rowids change when the index is rebuilt — so an unstable sort would make identical queries return different packs before and after `brain rebuild`. Every ranking step sorts by `(score DESC, id ASC)`. This is what makes the determinism invariant in §8.3 actually hold.
 

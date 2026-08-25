@@ -37,7 +37,8 @@ export function buildAdjacency(edges: EdgeRecord[], nodeIds: Set<string>): Adjac
     neighbors.set(a, list);
   };
   const sorted = [...edges].sort(
-    (x, y) => x.from.localeCompare(y.from) || x.rel.localeCompare(y.rel) || x.to.localeCompare(y.to),
+    (x, y) =>
+      x.from.localeCompare(y.from) || x.rel.localeCompare(y.rel) || x.to.localeCompare(y.to),
   );
   for (const e of sorted) {
     push(e.from, e.to, e.rel);
