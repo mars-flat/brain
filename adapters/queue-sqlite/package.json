@@ -1,0 +1,13 @@
+{
+  "name": "@brain/queue-sqlite",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lease-based Queue port over bun:sqlite (§3) — the local adapter behind the single-writer consolidator.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@brain/contracts": "workspace:*"
+  }
+}

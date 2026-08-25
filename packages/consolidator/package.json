@@ -1,0 +1,16 @@
+{
+  "name": "@brain/consolidator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Episode → nodes, single writer (§5.7): extract, resolve, reserve, merge, lint, git commit per run.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@brain/brainstore": "workspace:*",
+    "@brain/contracts": "workspace:*",
+    "@brain/core": "workspace:*",
+    "@brain/queue-sqlite": "workspace:*"
+  }
+}

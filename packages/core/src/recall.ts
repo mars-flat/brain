@@ -69,7 +69,9 @@ export function recall(
   const hits = store.seedSearch(input.query, params.traversal.seedK, input.types as NodeType[]);
   const inGraph = hits.filter((h) => graph.nodes.has(h.id));
   const best = inGraph[0]?.raw ?? 0;
-  if (inGraph.length && best > params.traversal.seedThreshold) {
+  const threshold =
+    graph.nodes.size >= params.traversal.seedThresholdMinNodes ? params.traversal.seedThreshold : 0;
+  if (inGraph.length && best > threshold) {
     const max = best;
     for (const h of inGraph) seeds.push({ id: h.id, weight: max > 0 ? h.raw / max : 0 });
   }

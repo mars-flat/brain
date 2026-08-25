@@ -20,6 +20,7 @@ export const DEFAULT_RECALL_PARAMS: RecallParams = {
     // against the eval set (§8.5): false-positive tops measured ≈4.0,
     // legitimate tops ≥6.3 on the example vault.
     seedThreshold: 5.0,
+    seedThresholdMinNodes: 50,
     seedK: 8,
   },
   pack: {

@@ -59,6 +59,11 @@ export interface TraversalParams {
   frontierCap: number;
   /** θ_seed — best raw BM25 below this falls back to cold behavior (§5.5). */
   seedThreshold: number;
+  /**
+   * θ_seed only arms at this graph size: BM25 magnitudes scale with corpus
+   * IDF, and a young graph prefers recall over precision anyway (§5.6).
+   */
+  seedThresholdMinNodes: number;
   seedK: number;
 }
 

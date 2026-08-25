@@ -7,11 +7,21 @@
       "devDependencies": {
         "@biomejs/biome": "2.5.10",
         "@brain/brainstore": "workspace:*",
+        "@brain/cli": "workspace:*",
+        "@brain/consolidator": "workspace:*",
         "@brain/contracts": "workspace:*",
         "@brain/core": "workspace:*",
+        "@brain/queue-sqlite": "workspace:*",
         "@types/bun": "1.4.0",
         "dependency-cruiser": "18.2.0",
         "typescript": "6.0.3",
+      },
+    },
+    "adapters/queue-sqlite": {
+      "name": "@brain/queue-sqlite",
+      "version": "0.1.0",
+      "dependencies": {
+        "@brain/contracts": "workspace:*",
       },
     },
     "packages/brainstore": {
@@ -35,6 +45,16 @@
         "@brain/brainstore": "workspace:*",
         "@brain/contracts": "workspace:*",
         "@brain/core": "workspace:*",
+      },
+    },
+    "packages/consolidator": {
+      "name": "@brain/consolidator",
+      "version": "0.1.0",
+      "dependencies": {
+        "@brain/brainstore": "workspace:*",
+        "@brain/contracts": "workspace:*",
+        "@brain/core": "workspace:*",
+        "@brain/queue-sqlite": "workspace:*",
       },
     },
     "packages/contracts": {
@@ -78,9 +98,13 @@
 
     "@brain/cli": ["@brain/cli@workspace:packages/cli"],
 
+    "@brain/consolidator": ["@brain/consolidator@workspace:packages/consolidator"],
+
     "@brain/contracts": ["@brain/contracts@workspace:packages/contracts"],
 
     "@brain/core": ["@brain/core@workspace:packages/core"],
+
+    "@brain/queue-sqlite": ["@brain/queue-sqlite@workspace:adapters/queue-sqlite"],
 
     "@types/bun": ["@types/bun@1.4.0", "", { "dependencies": { "bun-types": "1.4.0" } }, "sha512-K+lZULY23vRgK/CfTjFIV+tyifaNdSMlPh9j+6mQ/cLfpOznLyAuzgV/JQysyECpkBQLVMSyvjlr2fBUSA9wFQ=="],
 

@@ -5,6 +5,8 @@
  */
 
 import { Database } from "bun:sqlite";
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 
 export const SCHEMA_VERSION = 1;
 
@@ -88,6 +90,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS nodes_fts USING fts5(
 `;
 
 export function openDb(path: string): Database {
+  if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
   const db = new Database(path, { create: true });
   db.exec("PRAGMA journal_mode = WAL;");
   db.exec("PRAGMA foreign_keys = ON;");

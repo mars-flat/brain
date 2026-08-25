@@ -160,6 +160,31 @@ export class BrainStore implements RecallStore {
     }));
   }
 
+  /** id/title/type/aliases for every node — the resolution working set (§5.7). */
+  nodeRefs(): Array<{ id: string; title: string; type: NodeType; aliases: string[] }> {
+    return (
+      this.db.query("SELECT id, title, type, aliases_json FROM nodes ORDER BY id").all() as Array<{
+        id: string;
+        title: string;
+        type: string;
+        aliases_json: string;
+      }>
+    ).map((r) => ({
+      id: r.id,
+      title: r.title,
+      type: r.type as NodeType,
+      aliases: JSON.parse(r.aliases_json) as string[],
+    }));
+  }
+
+  /** Vault-relative file path of a node. */
+  nodeFile(id: string): string | null {
+    const row = this.db.query("SELECT file_path FROM nodes WHERE id = ?").get(id) as {
+      file_path: string;
+    } | null;
+    return row?.file_path ?? null;
+  }
+
   nodeSources(id: string): string[] {
     const row = this.db.query("SELECT sources_json FROM nodes WHERE id = ?").get(id) as {
       sources_json: string;
