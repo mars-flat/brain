@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
- * The brain CLI (§10): init | rebuild | recall | eval | doctor.
- * lint and backup arrive with their phases.
+ * The brain CLI (§10): init | rebuild | recall | eval | doctor | ingest |
+ * consolidate | note | pin | lint. backup arrives at P5.
  *
  * BRAIN_VAULT_PATH is required with no default (§9.1) — a missing value
  * fails loudly rather than silently writing memory somewhere git-tracked.
@@ -12,19 +12,42 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { BrainStore, loadVault, openDb, rebuild } from "@brain/brainstore";
+import {
+  type Extractor,
+  ensureConsolidatorTables,
+  ingestEpisode,
+  LlmExtractor,
+  MarkerExtractor,
+  type QueuedEpisode,
+  type RunReport,
+  runConsolidator,
+  ulid,
+  writePin,
+} from "@brain/consolidator";
+import type { EpisodeEnvelope } from "@brain/contracts";
 import { recall } from "@brain/core";
+import { OpenAiModelClient } from "@brain/model-openai";
+import { SqliteQueue } from "@brain/queue-sqlite";
 import { formatReport, regressions, runEval, toBaseline } from "./eval.ts";
+import { runLint } from "./lint-cmd.ts";
 
 const USAGE = `brain — graph memory over an Obsidian vault
 
 Usage:
   brain init [--vault <path>]        scaffold a vault + its own git repo
   brain rebuild [--vault <path>]     markdown → _index/brain.db
-  brain recall <query> [--vault <path>] [--budget N] [--hops N] [--as-of YYYY-MM-DD]
-  brain eval [--vault <path>] [--check] [--update]
-  brain doctor [--vault <path>]
+  brain recall <query> [--budget N] [--hops N] [--as-of YYYY-MM-DD]
+  brain eval [--check] [--update]
+  brain doctor
+  brain ingest <envelope.json> [--now]           validate, store, enqueue (§5.7)
+  brain consolidate [--extractor marker|openai]  run the single writer once
+  brain note <text…> [--type <t>]                capture directly (enqueue + run)
+  brain pin <node-id> --correction "…" --reason "…"
+  brain lint [--apply]                           proposals; --apply = mechanical fixes
 
-The vault path comes from --vault or BRAIN_VAULT_PATH (required, no default).`;
+All commands take --vault <path>; default comes from BRAIN_VAULT_PATH
+(required, no default). Extraction uses OpenAI when OPENAI_API_KEY is set,
+else the deterministic @node marker grammar.`;
 
 function vaultPath(flag: string | undefined): string {
   const p = flag ?? process.env.BRAIN_VAULT_PATH;
@@ -121,6 +144,9 @@ salience never appears in frontmatter.
 `;
 
 const VAULT_GITIGNORE = `_index/
+log.md
+index.md
+lint-proposals.md
 .obsidian/workspace*.json
 .obsidian/cache
 .env
@@ -148,8 +174,8 @@ function cmdInit(vault: string): void {
   }
   console.log(`vault ready at ${vault} (its own git repo, no remote — §9.1)`);
   console.log("next: set BRAIN_VAULT_PATH in .env, then `brain rebuild`");
-  console.log("note: the seed interview (§5.6) arrives with the write path in P2 —");
-  console.log("      until then, create your first nodes by hand in Obsidian.");
+  console.log('seed it: `brain note \'@node person "Your Name" id:me summary:"…"\'` —');
+  console.log("ten nodes on day one is what makes traversal work (§5.6).");
 }
 
 function cmdDoctor(vault: string): void {
@@ -185,6 +211,140 @@ function cmdDoctor(vault: string): void {
   process.exit(bad === 0 ? 0 : 1);
 }
 
+function pickExtractor(flag: string | undefined): Extractor {
+  const key = process.env.OPENAI_API_KEY;
+  if (flag === "marker") return new MarkerExtractor();
+  if (flag === "openai" || (flag === undefined && key)) {
+    if (!key) {
+      console.error("error: --extractor openai needs OPENAI_API_KEY");
+      process.exit(2);
+    }
+    return new LlmExtractor(new OpenAiModelClient(key));
+  }
+  console.log("(no OPENAI_API_KEY — using the deterministic @node marker extractor)");
+  return new MarkerExtractor();
+}
+
+function printRunReport(report: RunReport): void {
+  if (report.locked) {
+    console.log("another consolidator holds the run lock — try again shortly (§5.7)");
+    return;
+  }
+  for (const p of report.processed) {
+    console.log(
+      `✓ ${p.basename}: +${p.newNodes.length} nodes [${p.newNodes.join(", ")}], ` +
+        `+${p.edgeAdditions} edges, ${p.statusChanges} superseded, ${p.quarantined} quarantined`,
+    );
+    for (const w of p.warnings) console.warn(`  warning: ${w}`);
+  }
+  for (const s of report.skipped) console.log(`· ${s} already consolidated`);
+  for (const r of report.retried) console.log(`↻ ${r.episodeId} will retry: ${r.reason}`);
+  for (const d of report.deadLettered)
+    console.error(`✗ ${d.episodeId} dead-lettered to quarantine/: ${d.reason}`);
+  if (
+    !report.processed.length &&
+    !report.skipped.length &&
+    !report.retried.length &&
+    !report.deadLettered.length
+  )
+    console.log("queue empty — nothing to consolidate");
+}
+
+async function cmdConsolidate(vault: string, extractorFlag: string | undefined): Promise<void> {
+  const db = openDb(dbPath(vault));
+  ensureConsolidatorTables(db);
+  const report = await runConsolidator({
+    vaultPath: vault,
+    db,
+    extractor: pickExtractor(extractorFlag),
+  });
+  printRunReport(report);
+}
+
+async function cmdIngest(
+  vault: string,
+  file: string,
+  runNow: boolean,
+  extractorFlag: string | undefined,
+): Promise<void> {
+  const db = openDb(dbPath(vault));
+  ensureConsolidatorTables(db);
+  const queue = new SqliteQueue<QueuedEpisode>(db);
+  const raw = JSON.parse(readFileSync(file, "utf8"));
+  const basenames = new Set(loadVault(vault).episodes.map((e) => e.basename));
+  const result = await ingestEpisode(vault, queue, raw, basenames);
+  console.log(`ingested ${result.episodeId} as episodes/…/${result.basename}.md — queued`);
+  if (runNow) await cmdConsolidate(vault, extractorFlag);
+}
+
+async function cmdNote(
+  vault: string,
+  text: string,
+  type: string | undefined,
+  extractorFlag: string | undefined,
+): Promise<void> {
+  // brain.note never writes the graph directly (§5.10) — it enqueues a tiny
+  // high-trust episode and, for CLI ergonomics, runs the writer immediately.
+  const now = new Date();
+  const content =
+    text.trimStart().startsWith("@node") || !type
+      ? text
+      : `@node ${type} ${JSON.stringify(text.slice(0, 80))} summary:${JSON.stringify(text)}`;
+  const episode: EpisodeEnvelope = {
+    schema_version: 1,
+    episode_id: `ep_${ulid(now)}`,
+    principal: "owner",
+    surface: "cli",
+    harness: "brain-cli",
+    trust: "high",
+    started_at: now.toISOString().replace(/\.\d+Z$/, "Z"),
+    ended_at: now.toISOString().replace(/\.\d+Z$/, "Z"),
+    turns: [
+      {
+        seq: 0,
+        kind: "message",
+        role: "user",
+        content,
+        ts: now.toISOString().replace(/\.\d+Z$/, "Z"),
+      },
+    ],
+    labels: ["note"],
+  };
+  const db = openDb(dbPath(vault));
+  ensureConsolidatorTables(db);
+  const queue = new SqliteQueue<QueuedEpisode>(db);
+  const basenames = new Set(loadVault(vault).episodes.map((e) => e.basename));
+  await ingestEpisode(vault, queue, episode, basenames);
+  await cmdConsolidate(vault, extractorFlag);
+}
+
+function cmdPin(vault: string, nodeId: string, correction: string, reason: string): void {
+  const db = openDb(dbPath(vault));
+  rebuild(db, loadVault(vault));
+  const store = new BrainStore(db);
+  if (!store.nodeFile(nodeId)) {
+    console.error(`error: no node with id "${nodeId}"`);
+    process.exit(2);
+  }
+  const pin = writePin(vault, nodeId, correction, reason, new Date());
+  rebuild(db, loadVault(vault));
+  console.log(`pinned ${nodeId} (${pin.pinId}) — the correction now rides every full render`);
+}
+
+function cmdLint(vault: string, apply: boolean): void {
+  const { findings, proposalPath, applied } = runLint(vault, apply, new Date());
+  const errors = findings.filter((f) => f.severity === "error").length;
+  console.log(
+    `${findings.length} finding(s) (${errors} error) → ${proposalPath} — review in Obsidian`,
+  );
+  for (const f of findings.slice(0, 12)) {
+    console.log(`  ${f.severity === "error" ? "✗" : "·"} ${f.check}: ${f.subject} — ${f.detail}`);
+  }
+  if (findings.length > 12) console.log(`  … ${findings.length - 12} more in the proposal file`);
+  for (const a of applied) console.log(`  applied: ${a}`);
+  if (errors && !apply) process.exit(1);
+}
+
 const { values, positionals } = parseArgs({
   args: Bun.argv.slice(2),
   options: {
@@ -195,6 +355,12 @@ const { values, positionals } = parseArgs({
     check: { type: "boolean", default: false },
     update: { type: "boolean", default: false },
     help: { type: "boolean", default: false },
+    now: { type: "boolean", default: false },
+    apply: { type: "boolean", default: false },
+    extractor: { type: "string" },
+    type: { type: "string" },
+    correction: { type: "string" },
+    reason: { type: "string" },
   },
   allowPositionals: true,
 });
@@ -226,6 +392,39 @@ switch (command) {
     break;
   case "doctor":
     cmdDoctor(vaultPath(values.vault));
+    break;
+  case "ingest": {
+    const file = rest[0];
+    if (!file) {
+      console.error("error: brain ingest <envelope.json>");
+      process.exit(2);
+    }
+    await cmdIngest(vaultPath(values.vault), file, values.now, values.extractor);
+    break;
+  }
+  case "consolidate":
+    await cmdConsolidate(vaultPath(values.vault), values.extractor);
+    break;
+  case "note": {
+    const text = rest.join(" ").trim();
+    if (!text) {
+      console.error("error: brain note <text>");
+      process.exit(2);
+    }
+    await cmdNote(vaultPath(values.vault), text, values.type, values.extractor);
+    break;
+  }
+  case "pin": {
+    const nodeId = rest[0];
+    if (!nodeId || !values.correction || !values.reason) {
+      console.error('error: brain pin <node-id> --correction "…" --reason "…"');
+      process.exit(2);
+    }
+    cmdPin(vaultPath(values.vault), nodeId, values.correction, values.reason);
+    break;
+  }
+  case "lint":
+    cmdLint(vaultPath(values.vault), values.apply);
     break;
   default:
     console.error(`unknown command: ${command}\n\n${USAGE}`);

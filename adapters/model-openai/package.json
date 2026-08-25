@@ -1,0 +1,13 @@
+{
+  "name": "@brain/model-openai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ModelClient port over the OpenAI Responses API (§5.8). Plain fetch, no SDK — zero dependencies beyond contracts.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@brain/contracts": "workspace:*"
+  }
+}

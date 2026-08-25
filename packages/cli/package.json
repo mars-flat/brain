@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "brain init | rebuild | recall | eval | doctor (§10 layout). Grows lint/backup at later phases.",
+  "description": "brain init | rebuild | recall | eval | doctor | ingest | consolidate | note | pin | lint (§10). backup arrives at P5.",
   "bin": {
     "brain": "./src/main.ts"
   },
@@ -13,7 +13,10 @@
   },
   "dependencies": {
     "@brain/brainstore": "workspace:*",
+    "@brain/consolidator": "workspace:*",
     "@brain/contracts": "workspace:*",
-    "@brain/core": "workspace:*"
+    "@brain/core": "workspace:*",
+    "@brain/model-openai": "workspace:*",
+    "@brain/queue-sqlite": "workspace:*"
   }
 }

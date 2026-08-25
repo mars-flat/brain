@@ -95,6 +95,9 @@ The middle two differ only in five seconds of setup, so take the nested repo. If
 
 ```gitignore
 _index/                      # derived SQLite, rebuildable
+log.md                       # Layer 2 derived (git log is the durable audit trail)
+index.md                     # Layer 2 derived (Bases-generated in Obsidian)
+lint-proposals.md            # lint working output (§5.9)
 .obsidian/workspace*.json    # churns on every pane move
 .obsidian/cache
 .env

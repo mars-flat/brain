@@ -135,6 +135,8 @@ Any harness that can POST this gets the brain. That's the whole contract.
 
 **Cadence:** debounced ~10 minutes after a conversation goes idle, plus a nightly pass. Not per-message — per-message extraction produces a graph full of noise.
 
+Three P2 implementation notes. Extraction is an interface with two implementations: the LLM path (structured outputs, `medium` effort) and a **deterministic `@node` marker grammar** — `@node <type> "Title" summary:"…" edge:rel=target` — which powers the tests, works offline, and gives `brain note` a precise hand-capture syntax. The consolidator stores each episode **twice**: readable markdown plus the canonical JSON envelope, so Layer 1 really is regenerable if the schema improves (§5.1). And extraction runs **synchronously**, not via the Batch API yet — batch is a flat cost discount with a 24h ceiling (§5.8), which is the wrong trade until the P5 deploy makes consolidation a background cadence; the port hides the switch.
+
 ### 5.9 Lint
 
 Nightly. Output is a **proposal file in the vault**, not a mutation — you approve with `brain lint --apply`.
@@ -158,6 +160,8 @@ Nightly. Output is a **proposal file in the vault**, not a mutation — you appr
 - top-20 FTS5 matches for the node's own title
 
 …and only for nodes **touched since the last lint run**, tracked by a watermark. That turns a quadratic sweep into a few thousand comparisons per night. Full sweeps are available as `brain lint --full` for occasional use, and are expected to take minutes, not seconds.
+
+P2 shipped the mechanical checks (broken links, orphans, near-duplicates/stale with blocking, links-mirror drift, missing pin targets, salience decay) with `--apply` limited to the mechanical fixes — drift re-render, broken-link drops, decay. The two model-assisted checks (semantic contradictions, summary drift) and the watermark wait until the nightly LLM pass exists; every pass is currently a full pass, which is milliseconds at 10² nodes.
 
 ### 5.10 Brain MCP contract
 
