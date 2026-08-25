@@ -1,0 +1,33 @@
+# ── The vault is a separate, private git repo. NEVER tracked here (§9.1). ──
+# Layer 2 of four: the vault's own .git (layer 1), this line (layer 2),
+# .git/info/exclude (layer 3), and .githooks/pre-commit + CI guard (layer 4).
+/vault/
+
+# Azure account config — real subscription identifiers, local only
+/azure/
+
+# Secrets & env — only .env.example is committed (§9.2)
+.env*
+!.env.example
+
+# Derived indexes & databases — rebuildable, never source of truth (§5.11)
+_index/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.age
+
+# Live config carries real tool inventory and policy; it lives in the vault,
+# not the code repo (§9.2). The example vault's synthetic config is committed.
+/config/policy.yaml
+/config/servers.yaml
+
+# Local tooling state
+node_modules/
+coverage/
+.DS_Store
+.claude/settings.local.json
+
+# Owner Q&A scratch — session-local, not part of the public repo
+/QUESTIONS-FOR-OWNER.md

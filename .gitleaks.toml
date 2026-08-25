@@ -1,0 +1,9 @@
+# gitleaks config — default ruleset plus allowlist for synthetic placeholders.
+# Runs as a pre-commit hook (.githooks/pre-commit) AND a CI job (§9.2).
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholders and synthetic example data"
+regexes = ['''REPLACE_ME''', '''example\.invalid''']

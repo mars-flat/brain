@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Repo-split + secret guard — layer 4 of §9.1's defence in depth.
+# Installed per-clone with: git config core.hooksPath .githooks
+set -euo pipefail
+
+staged="$(git diff --cached --name-only)"
+
+# The vault and the Azure account config are private. Nothing under them may
+# ever be staged in this public repo — `git add -f` is the only way they can
+# be, and this hook refuses it.
+if grep -qE '^(vault/|azure/)' <<<"$staged"; then
+  echo "REFUSING: staged path under vault/ or azure/. These are private (§9.1)." >&2
+  exit 1
+fi
+
+# Only .env.example is ever committed (§9.2).
+if grep -E '(^|/)\.env' <<<"$staged" | grep -qv '\.env\.example$'; then
+  echo "REFUSING: staged .env file. Only .env.example is committed (§9.2)." >&2
+  exit 1
+fi
+
+# gitleaks over the staged diff. CI scans too; this stops the mistake locally.
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --pre-commit --staged --redact --no-banner
+else
+  echo "WARNING: gitleaks not installed (brew install gitleaks). CI will still scan." >&2
+fi
