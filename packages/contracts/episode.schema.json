@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:brain:schema:episode:1",
+  "title": "Episode envelope",
+  "description": "The single integration point for memory (§5.7): any harness that can POST this gets the brain. One ordered `turns` array — never parallel message/tool arrays — because extraction quality depends on what happened in what order. The guard additionally enforces strictly increasing `seq`, which JSON Schema cannot express.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "description": "Mandatory (§5.7): the one contract every future harness writes against.",
+      "const": 1
+    },
+    "episode_id": { "type": "string", "pattern": "^ep_[0-9A-HJKMNP-TV-Z]{26}$" },
+    "principal": { "type": "string", "minLength": 1 },
+    "surface": { "type": "string", "minLength": 1 },
+    "harness": { "type": "string", "minLength": 1 },
+    "trust": { "enum": ["high", "medium", "low", "untrusted"] },
+    "started_at": { "$ref": "#/$defs/timestamp" },
+    "ended_at": { "$ref": "#/$defs/timestamp" },
+    "turns": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [{ "$ref": "#/$defs/messageTurn" }, { "$ref": "#/$defs/toolCallTurn" }]
+      }
+    },
+    "labels": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "schema_version",
+    "episode_id",
+    "principal",
+    "surface",
+    "harness",
+    "trust",
+    "started_at",
+    "ended_at",
+    "turns"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "timestamp": {
+      "description": "ISO 8601 / RFC 3339, uppercase T and Z, ranges checked by pattern alone so every validator enforces identically.",
+      "type": "string",
+      "pattern": "^\\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\\d|3[01])T(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|[+-](?:[01]\\d|2[0-3]):[0-5]\\d)$"
+    },
+    "seq": { "type": "integer", "minimum": 0 },
+    "messageTurn": {
+      "type": "object",
+      "properties": {
+        "seq": { "$ref": "#/$defs/seq" },
+        "kind": { "const": "message" },
+        "role": { "enum": ["user", "assistant", "system"] },
+        "content": { "type": "string" },
+        "ts": { "$ref": "#/$defs/timestamp" }
+      },
+      "required": ["seq", "kind", "role", "content", "ts"],
+      "additionalProperties": false
+    },
+    "toolCallTurn": {
+      "type": "object",
+      "properties": {
+        "seq": { "$ref": "#/$defs/seq" },
+        "kind": { "const": "tool_call" },
+        "urn": {
+          "description": "Stable tool URN <server>.<namespace>.<tool> (§4.4).",
+          "type": "string",
+          "minLength": 1
+        },
+        "args": { "type": "object" },
+        "result_digest": {
+          "description": "Digest of the tool result, not the result itself — envelopes stay small and secrets stay out of episodic storage.",
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "ts": { "$ref": "#/$defs/timestamp" }
+      },
+      "required": ["seq", "kind", "urn", "args", "result_digest", "ts"],
+      "additionalProperties": false
+    }
+  }
+}

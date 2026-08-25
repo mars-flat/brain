@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "episode_id": "ep_01J8Y8YB2M3N4P5Q6R7S8T9VZZ",
+  "principal": "owner",
+  "surface": "cli",
+  "harness": "claude-code",
+  "trust": "high",
+  "started_at": "2026-08-25T09:00:00-04:00",
+  "ended_at": "2026-08-25T09:05:00-04:00",
+  "turns": [
+    {
+      "seq": 0,
+      "kind": "message",
+      "role": "user",
+      "content": "Remember that I prefer tabs in Go files.",
+      "ts": "2026-08-25T09:00:01-04:00"
+    }
+  ]
+}

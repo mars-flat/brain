@@ -1,0 +1,9 @@
+{
+  "id": "progressive-disclosure",
+  "type": "concept",
+  "title": "Progressive disclosure keeps base context small",
+  "created": "2026-08-24",
+  "updated": "2026-08-24",
+  "status": "active",
+  "summary": "Advertise a tiny catalog and load detail on demand: search returns one-liners, describe returns schemas, and memory stubs expand to full renders only when needed."
+}

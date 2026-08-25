@@ -1,0 +1,10 @@
+{
+  "id": "x",
+  "type": "entity",
+  "title": "The X window annotation shorthand",
+  "created": "2026-01-05",
+  "updated": "2026-01-05",
+  "status": "superseded",
+  "confidence": "low",
+  "summary": "Single-letter shorthand used in early sketches; superseded by explicit names."
+}

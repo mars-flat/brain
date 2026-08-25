@@ -1,0 +1,1 @@
+[{ "default": "confirm" }, { "match": { "kind": "read" }, "effect": "allow" }]

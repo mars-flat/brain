@@ -1,0 +1,18 @@
+{
+  "id": "sync-service-on-one-vps",
+  "type": "decision",
+  "title": "The sync service runs on a single VPS with Docker Compose",
+  "aliases": ["where does sync run", "hosting decision"],
+  "tags": ["infra", "architecture"],
+  "created": "2026-08-24",
+  "updated": "2026-08-25",
+  "status": "active",
+  "confidence": "high",
+  "provenance": "trusted",
+  "sources": ["[[2026-08-24-sync-design-session]]"],
+  "caused_by": ["[[no-inbound-ports-needed]]", "[[minimal-ops-preference]]"],
+  "depends_on": ["[[ports-and-adapters-pattern]]"],
+  "about": ["[[home-lab-project]]"],
+  "supersedes": ["[[sync-runs-on-laptop]]"],
+  "summary": "One small VPS running Docker Compose hosts the sync service. Outbound-only networking removes the ingress surface, and the compose file is identical to local dev, so migration to any Docker host is a volume restore."
+}

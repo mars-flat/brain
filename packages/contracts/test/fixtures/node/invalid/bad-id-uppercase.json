@@ -1,0 +1,9 @@
+{
+  "id": "Gateway-Runs-Here",
+  "type": "decision",
+  "title": "Ids are lowercase kebab",
+  "created": "2026-08-24",
+  "updated": "2026-08-24",
+  "status": "active",
+  "summary": "Uppercase ids would collide case-insensitively on macOS filesystems."
+}

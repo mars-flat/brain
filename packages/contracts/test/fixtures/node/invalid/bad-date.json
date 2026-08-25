@@ -1,0 +1,9 @@
+{
+  "id": "bad-date",
+  "type": "event",
+  "title": "Dates are ISO",
+  "created": "Aug 24, 2026",
+  "updated": "2026-08-24",
+  "status": "active",
+  "summary": "Human date formats do not sort and do not parse portably."
+}

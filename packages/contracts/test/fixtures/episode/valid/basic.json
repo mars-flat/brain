@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "episode_id": "ep_01J8Y8YB2M3N4P5Q6R7S8T9V0W",
+  "principal": "owner",
+  "surface": "discord",
+  "harness": "agent-runtime",
+  "trust": "medium",
+  "started_at": "2026-08-24T20:00:00Z",
+  "ended_at": "2026-08-24T20:42:00Z",
+  "turns": [
+    {
+      "seq": 0,
+      "kind": "message",
+      "role": "user",
+      "content": "File an issue about the flaky sync test.",
+      "ts": "2026-08-24T20:00:04Z"
+    },
+    {
+      "seq": 1,
+      "kind": "tool_call",
+      "urn": "github.issues.create",
+      "args": { "title": "Flaky sync test", "repo": "example/home-lab" },
+      "result_digest": "sha256:9b74c9897bac770ffc029102a200c5de1bc4e5d1e0e8d0a5b0b0b0c0d0e0f0a1",
+      "ts": "2026-08-24T20:00:18Z"
+    },
+    {
+      "seq": 2,
+      "kind": "message",
+      "role": "assistant",
+      "content": "Filed as issue #42.",
+      "ts": "2026-08-24T20:00:21Z"
+    }
+  ],
+  "labels": ["home-lab"]
+}

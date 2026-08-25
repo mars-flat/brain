@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "episode_id": "ep_123",
+  "principal": "owner",
+  "surface": "cli",
+  "harness": "claude-code",
+  "trust": "high",
+  "started_at": "2026-08-25T09:00:00Z",
+  "ended_at": "2026-08-25T09:05:00Z",
+  "turns": [
+    {
+      "seq": 0,
+      "kind": "message",
+      "role": "user",
+      "content": "hello",
+      "ts": "2026-08-25T09:00:01Z"
+    }
+  ]
+}

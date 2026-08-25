@@ -1,0 +1,14 @@
+[
+  { "match": { "tool": "brain.*", "kind": "read" }, "effect": "allow" },
+  {
+    "match": { "surface": ["discord"], "kind": "write" },
+    "effect": "confirm",
+    "reason": "medium-trust surface, write operation"
+  },
+  {
+    "match": { "surface": ["discord"], "tool": ["shell.*", "fs.write", "*.delete_*"] },
+    "effect": "deny"
+  },
+  { "match": { "kind": "read" }, "effect": "allow" },
+  { "default": "confirm" }
+]

@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:brain:schema:node:1",
+  "title": "Brain node frontmatter",
+  "description": "The YAML frontmatter of a node note (§5.2). The note's basename MUST equal `id` — that cross-file invariant is enforced by the parser and lint, not here. `salience` is deliberately absent: it lives only in SQLite (§5.2), and additionalProperties:false makes its presence in frontmatter a validation error.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "description": "Globally unique bare basename (§5.2). Type is never part of the identifier.",
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$",
+      "maxLength": 120
+    },
+    "type": {
+      "enum": [
+        "project",
+        "decision",
+        "concept",
+        "entity",
+        "person",
+        "preference",
+        "constraint",
+        "artifact",
+        "event"
+      ]
+    },
+    "title": { "type": "string", "minLength": 1, "maxLength": 300 },
+    "aliases": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z0-9](?:[a-z0-9/-]*[a-z0-9])?$" },
+      "uniqueItems": true
+    },
+    "created": { "$ref": "#/$defs/date" },
+    "updated": { "$ref": "#/$defs/date" },
+    "status": { "enum": ["active", "superseded"] },
+    "confidence": { "enum": ["high", "medium", "low"], "default": "medium" },
+    "provenance": { "enum": ["trusted", "untrusted"], "default": "trusted" },
+    "sources": {
+      "description": "Wikilinks to the episodes this node was derived from.",
+      "$ref": "#/$defs/wikilinks"
+    },
+    "summary": {
+      "description": "The middle render tier — must stand alone at ~100–150 tokens (§5.2).",
+      "type": "string",
+      "minLength": 1
+    },
+    "supersedes": { "$ref": "#/$defs/wikilinks" },
+    "contradicts": { "$ref": "#/$defs/wikilinks" },
+    "caused_by": { "$ref": "#/$defs/wikilinks" },
+    "depends_on": { "$ref": "#/$defs/wikilinks" },
+    "part_of": { "$ref": "#/$defs/wikilinks" },
+    "about": { "$ref": "#/$defs/wikilinks" },
+    "example_of": { "$ref": "#/$defs/wikilinks" },
+    "authored_by": { "$ref": "#/$defs/wikilinks" },
+    "derived_from": { "$ref": "#/$defs/wikilinks" },
+    "mentioned_with": { "$ref": "#/$defs/wikilinks" }
+  },
+  "required": ["id", "type", "title", "created", "updated", "status", "summary"],
+  "additionalProperties": false,
+  "$defs": {
+    "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "wikilink": {
+      "description": "Quoted wikilink to a bare basename — \"[[foo]]\", never \"[[dir/foo]]\" and never unquoted (§5.2).",
+      "type": "string",
+      "pattern": "^\\[\\[[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\]\\]$"
+    },
+    "wikilinks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/wikilink" },
+      "uniqueItems": true
+    }
+  }
+}

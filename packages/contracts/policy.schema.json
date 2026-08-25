@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:brain:schema:policy:1",
+  "title": "Policy document",
+  "description": "First match wins (§4.5). Exactly one default rule is required (min/maxContains); the guard additionally enforces that it is the LAST rule, since anything after it is dead. Policy can only narrow what scopes grant, never widen (§4.3).",
+  "type": "array",
+  "minItems": 1,
+  "items": { "oneOf": [{ "$ref": "#/$defs/matchRule" }, { "$ref": "#/$defs/defaultRule" }] },
+  "contains": { "$ref": "#/$defs/defaultRule" },
+  "minContains": 1,
+  "maxContains": 1,
+  "$defs": {
+    "effect": { "enum": ["allow", "confirm", "deny"] },
+    "kind": { "enum": ["read", "write", "admin"] },
+    "trust": { "enum": ["high", "medium", "low", "untrusted"] },
+    "stringOrList": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 }
+      ]
+    },
+    "matchRule": {
+      "type": "object",
+      "properties": {
+        "match": {
+          "type": "object",
+          "properties": {
+            "tool": {
+              "description": "URN glob(s): \"brain.*\", \"*.delete_*\" (§4.5).",
+              "$ref": "#/$defs/stringOrList"
+            },
+            "kind": {
+              "oneOf": [
+                { "$ref": "#/$defs/kind" },
+                { "type": "array", "items": { "$ref": "#/$defs/kind" }, "minItems": 1 }
+              ]
+            },
+            "surface": { "$ref": "#/$defs/stringOrList" },
+            "principal": { "$ref": "#/$defs/stringOrList" },
+            "trust": {
+              "oneOf": [
+                { "$ref": "#/$defs/trust" },
+                { "type": "array", "items": { "$ref": "#/$defs/trust" }, "minItems": 1 }
+              ]
+            }
+          },
+          "minProperties": 1,
+          "additionalProperties": false
+        },
+        "effect": { "$ref": "#/$defs/effect" },
+        "reason": { "type": "string" }
+      },
+      "required": ["match", "effect"],
+      "additionalProperties": false
+    },
+    "defaultRule": {
+      "type": "object",
+      "properties": { "default": { "$ref": "#/$defs/effect" } },
+      "required": ["default"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "id": "dup-alias",
+  "type": "concept",
+  "title": "Aliases are unique",
+  "aliases": ["same words", "same words"],
+  "created": "2026-08-24",
+  "updated": "2026-08-24",
+  "status": "active",
+  "summary": "Duplicate aliases add resolver ambiguity for nothing."
+}

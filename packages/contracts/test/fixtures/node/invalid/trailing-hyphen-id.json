@@ -1,0 +1,9 @@
+{
+  "id": "dangling-",
+  "type": "concept",
+  "title": "Trailing hyphens are invalid",
+  "created": "2026-08-24",
+  "updated": "2026-08-24",
+  "status": "active",
+  "summary": "A trailing hyphen is a truncation artifact, not a name."
+}

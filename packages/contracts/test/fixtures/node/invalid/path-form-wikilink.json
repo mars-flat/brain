@@ -1,0 +1,10 @@
+{
+  "id": "path-link-trap",
+  "type": "decision",
+  "title": "Path-form links break Obsidian autocomplete",
+  "created": "2026-08-24",
+  "updated": "2026-08-24",
+  "status": "active",
+  "about": ["[[decision/some-other-node]]"],
+  "summary": "Obsidian emits bare basenames; a path-form link would never resolve."
+}

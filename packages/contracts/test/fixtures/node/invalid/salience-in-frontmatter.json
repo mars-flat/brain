@@ -1,0 +1,10 @@
+{
+  "id": "salience-trap",
+  "type": "concept",
+  "title": "Salience must never live in frontmatter",
+  "created": "2026-08-24",
+  "updated": "2026-08-24",
+  "status": "active",
+  "salience": 0.82,
+  "summary": "Storing salience in the note makes every read a write and races the consolidator."
+}

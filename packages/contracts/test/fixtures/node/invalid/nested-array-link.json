@@ -1,0 +1,10 @@
+{
+  "id": "nested-link",
+  "type": "concept",
+  "title": "Unquoted wikilinks parse as nested arrays in YAML",
+  "created": "2026-08-24",
+  "updated": "2026-08-24",
+  "status": "active",
+  "about": [["some-node"]],
+  "summary": "YAML parses [[foo]] unquoted as a nested array — the quotes are mandatory."
+}

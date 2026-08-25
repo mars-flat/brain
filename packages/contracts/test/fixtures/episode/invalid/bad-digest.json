@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "episode_id": "ep_01J8Y8YB2M3N4P5Q6R7S8T9V0W",
+  "principal": "owner",
+  "surface": "discord",
+  "harness": "agent-runtime",
+  "trust": "medium",
+  "started_at": "2026-08-24T20:00:00Z",
+  "ended_at": "2026-08-24T20:42:00Z",
+  "turns": [
+    {
+      "seq": 0,
+      "kind": "tool_call",
+      "urn": "github.issues.create",
+      "args": {},
+      "result_digest": "sha1:da39a3ee5e6b4b0d3255bfef95601890afd80709",
+      "ts": "2026-08-24T20:00:18Z"
+    }
+  ]
+}

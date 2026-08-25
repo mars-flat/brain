@@ -3,7 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "Schemas, types, and ports. ZERO runtime dependencies (§8.1) — devDependencies are test-only and never reach consumers.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./node.schema.json": "./node.schema.json",
+    "./episode.schema.json": "./episode.schema.json",
+    "./policy.schema.json": "./policy.schema.json"
+  },
+  "devDependencies": {
+    "ajv": "8.17.1"
   }
 }
