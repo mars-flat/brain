@@ -10,7 +10,7 @@
     "brain": "bun packages/cli/src/main.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "lint": "biome check .",
+    "lint": "biome ci .",
     "format": "biome check --write .",
     "depcruise": "bunx --bun depcruise packages adapters --config .dependency-cruiser.cjs",
     "check": "bun run lint && bun run typecheck && bun run depcruise && bun test"
