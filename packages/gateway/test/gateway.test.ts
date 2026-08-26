@@ -136,8 +136,9 @@ describe("gateway over a real MCP client connection", () => {
     const described = (res.structuredContent as { results: Array<Record<string, unknown>> })
       .results;
     expect(described.length).toBe(2);
-    expect(described[0]?.risk).toBe("write");
-    expect((described[0]?.input_schema as Record<string, unknown>).type).toBe("object");
+    const first = described[0] as Record<string, unknown>;
+    expect(first.risk).toBe("write");
+    expect((first.input_schema as Record<string, unknown>).type).toBe("object");
   });
 
   test("read call: allowed, executed, wrapped untrusted (§4.6)", async () => {
