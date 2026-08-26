@@ -19,6 +19,16 @@ export {
 } from "./lint.ts";
 export { type PackedEntry, type PackResult, pack, type Tier } from "./pack.ts";
 export { DEFAULT_RECALL_PARAMS } from "./params.ts";
+export {
+  type ComposedDecision,
+  decide,
+  evaluatePolicy,
+  globToRegExp,
+  type PolicyDecision,
+  type PolicyRequest,
+  stricterEffect,
+  trustMatrixEffect,
+} from "./policy.ts";
 export { type RecallOutcome, recall, sanitizeQueryTerms, toFtsQuery } from "./recall.ts";
 export {
   DEFAULT_RESOLVE_PARAMS,

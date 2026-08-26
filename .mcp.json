@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "brain-gateway": {
+      "command": "bun",
+      "args": ["packages/gateway/src/main.ts"],
+      "env": {
+        "BRAIN_VAULT_PATH": "./vault"
+      }
+    }
+  }
+}

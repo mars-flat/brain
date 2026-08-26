@@ -23,6 +23,7 @@
     "@brain/contracts": "workspace:*",
     "@brain/core": "workspace:*",
     "@brain/queue-sqlite": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@types/bun": "1.4.0",
     "dependency-cruiser": "18.2.0",
     "typescript": "6.0.3"
