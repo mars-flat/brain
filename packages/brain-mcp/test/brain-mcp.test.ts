@@ -41,9 +41,10 @@ describe("brain over MCP (§5.10)", () => {
       "trace",
     ]);
     const byName = new Map(tools.map((t) => [t.name, t]));
-    expect((byName.get("recall")?.annotations as { readOnlyHint?: boolean }).readOnlyHint).toBe(
-      true,
-    );
+    const recallAnnotations = (byName.get("recall")?.annotations ?? {}) as {
+      readOnlyHint?: boolean;
+    };
+    expect(recallAnnotations.readOnlyHint).toBe(true);
     expect(byName.get("note")?.annotations ?? {}).not.toHaveProperty("readOnlyHint");
   });
 
