@@ -85,7 +85,7 @@ Four things to note:
 
 - **`salience` is *not* in frontmatter — it lives only in SQLite.** It's bumped on every full-tier render (§5.5), so storing it in the note would make **every read a write**: git churn on each query, and a second writer racing the single-writer consolidator (§5.7). Derived, mutable, high-frequency values stay in the index; the markdown holds only what a human would want to read and edit.
 
-- **The `## Links` body block is a lint-maintained mirror.** Obsidian's docs do not state whether property links appear in graph view and backlinks. Rather than bet the design on unverified behaviour, the body block guarantees graph-view edges and backlinks regardless. **P0 spike: check whether property links show in graph view; if they do, make the mirror optional.** Frontmatter stays authoritative for traversal either way.
+- **The `## Links` body block is a lint-maintained mirror.** Obsidian's docs do not state whether property links appear in graph view and backlinks. Rather than bet the design on unverified behaviour, the body block guarantees graph-view edges and backlinks regardless. *Spike closed (2026-08-25):* the owner confirmed graph view and backlinks work on the example vault (with mirrors present — the docs remain silent on property-only links), and the question lost its stakes anyway: canonical rendering centralized in `renderNote`, which emits the mirror for free, so dropping it would buy no consolidator simplification. **The mirror stays canonical.** Frontmatter stays authoritative for traversal either way.
 
 **Node types:** `project` · `decision` · `concept` · `entity` · `person` · `preference` · `constraint` · `artifact` · `event`.
 

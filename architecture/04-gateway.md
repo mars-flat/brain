@@ -151,7 +151,7 @@ Revision 2 assumed you build a minimal AS inside the gateway. **Reconsider this*
 
 **Recommendation: Option B.** The gateway stays a **resource server** — it publishes RFC 9728 protected resource metadata, validates audience and scopes, and issues `WWW-Authenticate` challenges. All of that is required either way and is the part that makes stock MCP clients work. What you delete is an entire OAuth 2.1 authorization server *and* the single highest-risk code path in the system.
 
-The self-hosted path stays documented because it's a one-package swap later — the RS is identical in both. Take Option A only if depending on an external IdP for your own tools is unacceptable to you. This is question 6 in §12.
+The self-hosted path stays documented because it's a one-package swap later — the RS is identical in both. Take Option A only if depending on an external IdP for your own tools is unacceptable to you. This is question 6 in §12 — *resolved (owner, 2026-08-25): P4 runs the IdP as a local Keycloak container (zero signup, fully local like the rest of P0–P4); a hosted IdP takes over at P5 by changing the issuer URL. The gateway code is the same RS in all three worlds.*
 
 **Secret storage.** Refresh tokens are envelope-encrypted: a per-record data key wrapped by a master key that never sits in the database. `secrets-file` uses Bun's `node:crypto` (scrypt-derived master key, AES-256-GCM per record) with the key file at `0600` — **no external binary, so nothing extra to install** (§13). `secrets-azure` uses Key Vault. Same interface, chosen by config.
 
