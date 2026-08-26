@@ -1,0 +1,18 @@
+{
+  "name": "@brain/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The tool gateway (§4): four meta-tools over a pool of upstream MCP servers, policy engine, FTS5 tool index, hash-chained audit.",
+  "bin": {
+    "brain-gateway": "./src/main.ts"
+  },
+  "exports": {
+    ".": "./src/server.ts"
+  },
+  "dependencies": {
+    "@brain/contracts": "workspace:*",
+    "@brain/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.30.0"
+  }
+}

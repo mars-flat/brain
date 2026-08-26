@@ -196,6 +196,8 @@ sequenceDiagram
 
 Every tool gets a stable URN `<server>.<namespace>.<tool>`. Collisions become impossible, and URNs are stable enough to reference from policy rules and brain nodes.
 
+P3 implementation notes (`packages/gateway`): the wire tool names are `tools_search` / `tools_describe` / `tools_call` / `tools_servers` — the tool-name charset is `[a-zA-Z0-9_-]`, so the dotted names above are conceptual. Measured base context: **298 tokens** for all four (budget said <1k). Array results wrap as `{results: […]}` because MCP `structuredContent` must be an object. Risk classification authority order: config override → MCP tool annotations (`readOnlyHint`/`destructiveHint`) → name heuristic → `write` (confirm-default makes the fallback safe). Confirm tokens are single-use, bound to `sha256(urn+args)`, 5-minute TTL. The audit log is hash-chained JSONL at `vault/_index/audit.jsonl` storing arg *digests*, never values. A 120/min sliding-window rate cap guards the runaway-agent case (§7). Identity is static (`owner`/`cli`/`high`) until P4 derives it from authn.
+
 ### 4.5 Policy engine
 
 ```yaml

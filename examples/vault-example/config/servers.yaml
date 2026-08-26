@@ -1,5 +1,16 @@
-# Synthetic upstream MCP server inventory. The concrete schema is defined at
-# P3 with the gateway (§4.2); this placeholder exists so the example vault has
-# the full directory shape. The REAL inventory lives in your private vault.
+# Synthetic upstream MCP server inventory (§4.2). The REAL inventory lives in
+# your private vault. urn = <name>.<tool>; env values expand ${VAR}; `kinds`
+# overrides risk classification when annotations/heuristics get it wrong.
+servers:
+  - name: brain
+    command: bun
+    args: [packages/brain-mcp/src/main.ts]
+    env:
+      BRAIN_VAULT_PATH: ${BRAIN_VAULT_PATH}
 
-servers: []
+  - name: files
+    command: bunx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+    kinds:
+      - pattern: "edit_*"
+        kind: write
