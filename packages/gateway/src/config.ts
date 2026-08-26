@@ -51,6 +51,41 @@ export function expandEnv(value: string, env: Record<string, string | undefined>
   return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, name: string) => env[name] ?? "");
 }
 
+const SECRET_REF = /\$\{secret:([A-Za-z0-9/_-]+)\}/g;
+
+/**
+ * South-bound static credential plane (§4.3): `${secret:name}` in a server's
+ * env resolves from the encrypted SecretStore at spawn time — upstream
+ * credentials never live in config files or the gateway's own env. Throws
+ * on unresolved names: a missing credential is a config error, not an
+ * empty string quietly handed to an upstream.
+ */
+export async function resolveSecretRefs(
+  servers: ServerConfig[],
+  getSecret: (name: string) => Promise<string | null>,
+): Promise<void> {
+  for (const s of servers) {
+    for (const [k, v] of Object.entries(s.env ?? {})) {
+      if (!v.includes("${secret:")) continue;
+      let resolved = v;
+      for (const m of v.matchAll(SECRET_REF)) {
+        const name = m[1] as string;
+        const value = await getSecret(name);
+        if (value === null)
+          throw new Error(
+            `servers.yaml: ${s.name}.env.${k} references \${secret:${name}} but the secret store has no such record — brain secret set ${name}`,
+          );
+        resolved = resolved.replace(m[0], value);
+      }
+      (s.env as Record<string, string>)[k] = resolved;
+    }
+  }
+}
+
+export function hasSecretRefs(servers: ServerConfig[]): boolean {
+  return servers.some((s) => Object.values(s.env ?? {}).some((v) => v.includes("${secret:")));
+}
+
 export function loadGatewayConfig(vaultPath: string): GatewayConfig {
   const serversFile = join(vaultPath, "config", "servers.yaml");
   const policyFile = join(vaultPath, "config", "policy.yaml");

@@ -74,7 +74,11 @@ function oneLine(description: string): string {
   return first.length > 110 ? `${first.slice(0, 107)}…` : first;
 }
 
-export function toolsSearch(deps: MetaDeps, input: ToolsSearchInput): ToolsSearchResult {
+export function toolsSearch(
+  deps: MetaDeps,
+  input: ToolsSearchInput,
+  identity: GatewayIdentity = deps.identity,
+): ToolsSearchResult {
   const hits = searchTools(deps.db, input.query, (input.limit ?? 5) * 3, input.kind);
   const statuses = new Map(deps.pool.status().map((s) => [s.name, s]));
   const out: ToolsSearchResult = [];
@@ -82,7 +86,7 @@ export function toolsSearch(deps: MetaDeps, input: ToolsSearchInput): ToolsSearc
     const d = decide(deps.policy, {
       urn: h.urn,
       kind: h.kind as never,
-      ...deps.identity,
+      ...identity,
     });
     if (d.effect === "deny") continue; // §4.4: filtered by policy for principal+surface
     out.push({
@@ -113,8 +117,11 @@ export function toolsDescribe(deps: MetaDeps, urns: string[]): ToolsDescribeResu
   return out;
 }
 
-export async function toolsCall(deps: MetaDeps, input: ToolsCallInput): Promise<ToolsCallResult> {
-  const { identity } = deps;
+export async function toolsCall(
+  deps: MetaDeps,
+  input: ToolsCallInput,
+  identity: GatewayIdentity = deps.identity,
+): Promise<ToolsCallResult> {
   const tool = deps.pool.find(input.urn);
   if (!tool) throw new GatewayCallError(`unknown tool urn: ${input.urn}`, "unknown_tool");
 
@@ -156,7 +163,7 @@ export async function toolsCall(deps: MetaDeps, input: ToolsCallInput): Promise<
           urn: tool.urn,
           argsDigest,
         });
-        return execute(deps, tool.urn, input.args, argsDigest);
+        return execute(deps, tool.urn, input.args, argsDigest, identity);
       }
     }
     const token = crypto.randomUUID();
@@ -178,7 +185,7 @@ export async function toolsCall(deps: MetaDeps, input: ToolsCallInput): Promise<
     };
   }
 
-  return execute(deps, tool.urn, input.args, argsDigest);
+  return execute(deps, tool.urn, input.args, argsDigest, identity);
 }
 
 async function execute(
@@ -186,8 +193,8 @@ async function execute(
   urn: string,
   args: Record<string, unknown>,
   argsDigest: string,
+  identity: GatewayIdentity,
 ): Promise<ToolsCallResult> {
-  const { identity } = deps;
   try {
     const result = await deps.pool.call(urn, args);
     deps.audit.append({

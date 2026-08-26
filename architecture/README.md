@@ -1,6 +1,6 @@
 # Personal LLM System — Architecture
 
-**Status:** Revision 5 + build in progress — Azure host, OpenAI `gpt-5.6-luna`, Bun runtime. **P0 complete**; see Current status below.
+**Status:** Revision 5 + build in progress — Azure host, OpenAI `gpt-5.6-luna`, Bun runtime. **P0–P4 complete** (all local); P5 next and owner-gated. See Current status below.
 **Code repo:** `mars-flat/brain` — **public** · **Vault:** `brain/vault/`, its own local git repo, never tracked here ([§9.1](./11-repo-safety.md))
 **MCP revision targeted:** `2026-07-28` · **Last updated:** 2026-08-25
 
@@ -64,7 +64,9 @@ Section numbers (§N) are stable across files and greppable, so a cross-referenc
 
 **P3 is done** (2026-08-25): `packages/brain-mcp` (the seven §5.10 tools over MCP) and `packages/gateway` — four meta-tools (measured base context **298 tokens**), FTS5 tool index, pure policy evaluator composed with the §6.5 trust matrix (strictest wins, property-tested), stdio pool with per-server health, single-use confirm tokens, hash-chained audit with arg digests only, 120/min rate cap. Live smoke (`bun scripts/gateway-smoke.ts`): three upstreams up (brain + everything + filesystem, 34 tools), `tools_search` ranks `brain.recall` first, and a recall through the gateway serves a real pack from the owner's vault. `.mcp.json` registers the gateway for Claude Code (one-time trust prompt on next session). The `brain init` seed interview (§5.6) remains open.
 
-**Next: P4** — gateway as OAuth resource server against local Keycloak (owner decision), mock AS for CI integration tests (§8.2), envelope-encrypted secret store, token-passthrough assertion (§8.4).
+**P4 is done** (2026-08-26): the gateway is an OAuth 2.1 **resource server** (jose JWKS validation, RFC 9728 PRM, 401/403 challenges) against a local **Keycloak** container (`deploy/keycloak/`, realm auto-imported). Scope tiers enforced above policy so **step-up** is a real boundary; **token passthrough** structurally prevented and asserted (§8.4) — plus a real env-leak gap found and closed (bun auto-loads `.env` into upstream children; they now get a scrubbed env in a neutral cwd). Both credential planes: north-bound Keycloak clients (`brain-cli` PKCE, `agent-runtime` client_credentials), south-bound envelope-encrypted `${secret:...}` refs via `adapters/secrets-file` + `brain secret`. SSRF guard as defense-in-depth (§8.4). **Proven end to end** against live Keycloak (`bun scripts/auth-smoke.ts`: unauth 401 → PRM → authed recall → step-up 403) and deterministically in CI via a mock AS. 168 tests.
+
+**Phases P0–P4 are complete.** Everything is local; nothing has touched Azure. **Next: P5** (Azure VM + Compose + Tailscale + OIDC deploy) — but it is **owner-gated**: the Azure budgets must be re-spaced first (§3.2) and a spend limit set in the OpenAI dashboard (§7). P6 (Discord) still needs the bot token (§13). Neither P5 nor P6 should start without the owner clearing those.
 
 **One human blocker remains, and it only gates P6: the Discord bot** ([§13](./13-setup.md) has the walkthrough). Open questions for the owner accumulate in `QUESTIONS-FOR-OWNER.md` at the repo root (local-only, gitignored).
 

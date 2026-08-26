@@ -1,0 +1,13 @@
+{
+  "name": "@brain/secrets-file",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SecretStore port over node:crypto (§4.3): scrypt-derived master key from a 0600 key file, AES-256-GCM envelope per record. No external binary.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@brain/contracts": "workspace:*"
+  }
+}

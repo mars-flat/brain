@@ -17,6 +17,7 @@
     "@brain/contracts": "workspace:*",
     "@brain/core": "workspace:*",
     "@brain/model-openai": "workspace:*",
-    "@brain/queue-sqlite": "workspace:*"
+    "@brain/queue-sqlite": "workspace:*",
+    "@brain/secrets-file": "workspace:*"
   }
 }

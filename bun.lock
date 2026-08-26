@@ -32,6 +32,13 @@
         "@brain/contracts": "workspace:*",
       },
     },
+    "adapters/secrets-file": {
+      "name": "@brain/secrets-file",
+      "version": "0.1.0",
+      "dependencies": {
+        "@brain/contracts": "workspace:*",
+      },
+    },
     "packages/brain-mcp": {
       "name": "@brain/brain-mcp",
       "version": "0.1.0",
@@ -72,6 +79,7 @@
         "@brain/core": "workspace:*",
         "@brain/model-openai": "workspace:*",
         "@brain/queue-sqlite": "workspace:*",
+        "@brain/secrets-file": "workspace:*",
       },
     },
     "packages/consolidator": {
@@ -110,7 +118,9 @@
       "dependencies": {
         "@brain/contracts": "workspace:*",
         "@brain/core": "workspace:*",
+        "@brain/secrets-file": "workspace:*",
         "@modelcontextprotocol/sdk": "1.30.0",
+        "jose": "6.2.10",
       },
     },
   },
@@ -150,6 +160,8 @@
     "@brain/model-openai": ["@brain/model-openai@workspace:adapters/model-openai"],
 
     "@brain/queue-sqlite": ["@brain/queue-sqlite@workspace:adapters/queue-sqlite"],
+
+    "@brain/secrets-file": ["@brain/secrets-file@workspace:adapters/secrets-file"],
 
     "@hono/node-server": ["@hono/node-server@2.1.1", "", { "peerDependencies": { "hono": "^4" } }, "sha512-ELuehkj5VCBdgEw9zs+ivkKwyzzUCSQuE96YmiPvn1ECBoZCczbFXJLeEGMTYjphP6gydh4pHMqEYPVMYUVgQg=="],
 

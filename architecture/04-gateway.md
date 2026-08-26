@@ -155,6 +155,16 @@ The self-hosted path stays documented because it's a one-package swap later — 
 
 **Secret storage.** Refresh tokens are envelope-encrypted: a per-record data key wrapped by a master key that never sits in the database. `secrets-file` uses Bun's `node:crypto` (scrypt-derived master key, AES-256-GCM per record) with the key file at `0600` — **no external binary, so nothing extra to install** (§13). `secrets-azure` uses Key Vault. Same interface, chosen by config.
 
+P4 implementation notes (`packages/gateway` auth + `adapters/secrets-file`), all verified live against a local Keycloak container and deterministically against a mock AS in CI:
+
+- **RS role, not AS.** `TokenVerifier` (jose) validates `iss`/`aud`/`exp`/signature against the IdP's JWKS; `/.well-known/oauth-protected-resource` serves RFC 9728 PRM; a missing/invalid token is 401 with a `resource_metadata` challenge, insufficient scope is 403 with a `scope="…"` challenge. The four wrong-token cases (expired, wrong aud, wrong iss, wrong key) each 401 — table-tested (§8.4).
+- **Scope tiers enforced at the HTTP layer, above policy.** `tools/call` pre-checks `requiredScope(urn, kind)` (brain.* → `brain:read`/`brain:write`, else `tools:<kind>`) before any policy/upstream work — that's what makes step-up a real boundary. Policy still composes underneath and can only narrow (§4.5).
+- **Token passthrough is structurally prevented (§8.4).** Verified inbound tokens are used for verification only; identity flows via the SDK's per-request `authInfo` channel (race-free), never the token itself. An integration test dumps a fake upstream's entire env+argv and asserts the token appears in neither it nor the audit log.
+- **Env scrubbing (§7).** A real gap surfaced and closed: bun auto-loads `.env` from a child's cwd, so an upstream spawned in the repo root would inherit the gateway's `OPENAI_API_KEY`. Upstreams now get only `getDefaultEnvironment()` + their declared `env:`, spawned in a neutral cwd with script args pre-resolved to absolute — the test asserts `OPENAI_API_KEY` is absent from the upstream's world.
+- **Two credential planes, never crossing.** North-bound = local Keycloak (`brain-cli` public+PKCE, `agent-runtime` confidential+`client_credentials`); south-bound = upstream credentials as envelope-encrypted `${secret:name}` refs resolved at spawn (`brain secret set|list|rm`). An unresolved ref is a hard error, never an empty string handed upstream.
+- **SSRF guard** exists as defense-in-depth (`ssrf.ts`, table-tested §8.4) even though Option B removed the attacker-controlled CIMD fetch; it guards the JWKS/discovery fetches and blocks RFC1918/loopback/link-local and `169.254.169.254` specifically.
+- **Transport:** Streamable HTTP with a fresh MCP `Server` per session (the SDK Protocol binds one transport at a time). stdio (P3) stays unauthenticated with the static local identity.
+
 ### 4.4 Progressive tool disclosure
 
 Four tools advertised instead of four hundred:
