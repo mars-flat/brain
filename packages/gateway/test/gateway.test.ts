@@ -106,7 +106,7 @@ describe("gateway over a real MCP client connection", () => {
     const fake = servers.find((s) => s.name === "fake");
     const ghost = servers.find((s) => s.name === "ghost");
     expect(fake?.status).toBe("up");
-    expect(fake?.tool_count).toBe(3);
+    expect(fake?.tool_count).toBe(4);
     expect(ghost?.status).toBe("down");
   });
 

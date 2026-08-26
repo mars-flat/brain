@@ -37,18 +37,23 @@ server.setRequestHandler(ListToolsRequestSchema, () => ({
       inputSchema: { type: "object", properties: {} },
       annotations: { destructiveHint: true },
     },
+    {
+      name: "dump_context",
+      description: "Diagnostic: return this process's env and argv verbatim.",
+      inputSchema: { type: "object", properties: {} },
+      annotations: { readOnlyHint: true },
+    },
   ],
 }));
 
 server.setRequestHandler(CallToolRequestSchema, (req) => {
   const args = (req.params.arguments ?? {}) as Record<string, unknown>;
+  const text =
+    req.params.name === "dump_context"
+      ? JSON.stringify({ env: process.env, argv: process.argv })
+      : `fake:${req.params.name}:${JSON.stringify(args)}`;
   return {
-    content: [
-      {
-        type: "text" as const,
-        text: `fake:${req.params.name}:${JSON.stringify(args)}`,
-      },
-    ],
+    content: [{ type: "text" as const, text }],
   };
 });
 

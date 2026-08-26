@@ -13,6 +13,8 @@
   "dependencies": {
     "@brain/contracts": "workspace:*",
     "@brain/core": "workspace:*",
-    "@modelcontextprotocol/sdk": "1.30.0"
+    "@brain/secrets-file": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "jose": "6.2.10"
   }
 }

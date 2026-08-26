@@ -5,6 +5,9 @@
  * one reconnect, then error.
  */
 
+import { existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { isAbsolute, resolve } from "node:path";
 import type { ServerStatus, ToolKind } from "@brain/contracts";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
@@ -53,14 +56,42 @@ export class UpstreamPool {
     await Promise.all([...this.upstreams.values()].map((u) => this.connect(u)));
   }
 
+  /**
+   * The minimal env an upstream gets: the SDK's safe defaults (HOME, PATH,
+   * …) plus ONLY the keys the server's config declares. The gateway's own
+   * environment — which under bun includes anything auto-loaded from .env,
+   * e.g. OPENAI_API_KEY — is never inherited wholesale (§4.3, §7:
+   * credentials reach an upstream only via an explicit ${secret:...} ref).
+   */
+  private upstreamEnv(config: ServerConfig): Record<string, string> {
+    return { ...getDefaultEnvironment(), ...(config.env ?? {}) };
+  }
+
+  /**
+   * Resolve any relative script arg against the config cwd so the child can
+   * then be spawned in a NEUTRAL working directory. This is what actually
+   * prevents secret leakage: bun re-reads `.env` from the child's cwd on
+   * startup regardless of the passed env, so an upstream spawned in the
+   * repo root would inherit the gateway's OPENAI_API_KEY (§7). Spawning in
+   * a dir with no `.env` closes that.
+   */
+  private resolveArgs(args: string[]): string[] {
+    return args.map((a) => {
+      if (isAbsolute(a) || a.startsWith("-") || a.startsWith("@")) return a;
+      const candidate = resolve(this.cwd, a);
+      return existsSync(candidate) ? candidate : a;
+    });
+  }
+
   private async connect(u: Upstream): Promise<void> {
     try {
       const client = new Client({ name: "brain-gateway", version: "0.1.0" });
       const transport = new StdioClientTransport({
         command: u.config.command,
-        args: u.config.args,
-        env: { ...getDefaultEnvironment(), ...u.config.env },
-        cwd: this.cwd,
+        args: this.resolveArgs(u.config.args),
+        env: this.upstreamEnv(u.config),
+        // Neutral cwd (no .env) — see resolveArgs.
+        cwd: tmpdir(),
         stderr: "ignore",
       });
       transport.onclose = () => {

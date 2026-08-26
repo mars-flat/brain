@@ -6,10 +6,17 @@
  */
 
 import { join } from "node:path";
+import type { SecretStore } from "@brain/contracts";
+import { FileSecretStore } from "@brain/secrets-file";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { AuditLog } from "./audit.ts";
-import { type GatewayConfig, loadGatewayConfig } from "./config.ts";
+import {
+  type GatewayConfig,
+  hasSecretRefs,
+  loadGatewayConfig,
+  resolveSecretRefs,
+} from "./config.ts";
 import {
   GatewayCallError,
   type MetaDeps,
@@ -78,10 +85,15 @@ export interface GatewayOptions {
   config?: GatewayConfig;
   dbPath?: string;
   auditPath?: string;
+  /** SecretStore for ${secret:...} refs; defaults to secrets-file in the vault. */
+  secretStore?: SecretStore;
 }
 
 export interface RunningGateway {
+  /** A ready-connected server for the single stdio transport. */
   server: Server;
+  /** Build a fresh server for another transport (HTTP: one per session). */
+  makeServer: () => Server;
   deps: MetaDeps;
   stop(): Promise<void>;
 }
@@ -89,6 +101,15 @@ export interface RunningGateway {
 export async function buildGateway(opts: GatewayOptions): Promise<RunningGateway> {
   const clock = opts.clock ?? (() => new Date());
   const config = opts.config ?? loadGatewayConfig(opts.vaultPath);
+  if (hasSecretRefs(config.servers)) {
+    const store =
+      opts.secretStore ??
+      new FileSecretStore(
+        join(opts.vaultPath, "secrets", "store.json"),
+        join(opts.vaultPath, "secrets", "master.key"),
+      );
+    await resolveSecretRefs(config.servers, (name) => store.get(name));
+  }
   const pool = new UpstreamPool(config.servers, opts.cwd);
   await pool.start();
 
@@ -110,36 +131,49 @@ export async function buildGateway(opts: GatewayOptions): Promise<RunningGateway
     rateWindow: [],
   };
 
-  const server = new Server(
-    { name: "brain-gateway", version: "0.1.0" },
-    { capabilities: { tools: {} } },
-  );
-  server.setRequestHandler(ListToolsRequestSchema, () => ({
-    tools: META_TOOLS as unknown as Array<Record<string, unknown>>,
-  }));
-  server.setRequestHandler(CallToolRequestSchema, async (req) => {
-    const args = (req.params.arguments ?? {}) as Record<string, unknown>;
-    try {
-      const payload = await dispatch(deps, req.params.name, args);
-      // structuredContent must be an object per spec — array results wrap.
-      const structured = Array.isArray(payload) ? { results: payload } : payload;
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
-        structuredContent: structured as Record<string, unknown>,
-      };
-    } catch (e) {
-      if (e instanceof GatewayCallError) {
+  // A fresh Server per transport — the SDK Protocol binds one transport at
+  // a time, so the HTTP layer makes one per session sharing these deps.
+  const makeServer = (): Server => {
+    const s = new Server(
+      { name: "brain-gateway", version: "0.1.0" },
+      { capabilities: { tools: {} } },
+    );
+    s.setRequestHandler(ListToolsRequestSchema, () => ({
+      tools: META_TOOLS as unknown as Array<Record<string, unknown>>,
+    }));
+    s.setRequestHandler(CallToolRequestSchema, async (req, extra) => {
+      const args = (req.params.arguments ?? {}) as Record<string, unknown>;
+      // HTTP requests carry per-request identity via authInfo (§4.3); the
+      // stdio transport has no authn and keeps the static P3 identity.
+      const authInfo = extra?.authInfo as { extra?: { sub?: string } } | undefined;
+      const identity = authInfo?.extra?.sub
+        ? { principal: authInfo.extra.sub, surface: "http", trust: "high" as const }
+        : deps.identity;
+      try {
+        const payload = await dispatch(deps, req.params.name, args, identity);
+        // structuredContent must be an object per spec — array results wrap.
+        const structured = Array.isArray(payload) ? { results: payload } : payload;
         return {
-          isError: true,
-          content: [{ type: "text" as const, text: `${e.code}: ${e.message}` }],
+          content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
+          structuredContent: structured as Record<string, unknown>,
         };
+      } catch (e) {
+        if (e instanceof GatewayCallError) {
+          return {
+            isError: true,
+            content: [{ type: "text" as const, text: `${e.code}: ${e.message}` }],
+          };
+        }
+        throw e;
       }
-      throw e;
-    }
-  });
+    });
+    return s;
+  };
+  const server = makeServer();
 
   return {
     server,
+    makeServer,
     deps,
     stop: () => pool.stop(),
   };
@@ -149,22 +183,31 @@ async function dispatch(
   deps: MetaDeps,
   name: string,
   args: Record<string, unknown>,
+  identity = deps.identity,
 ): Promise<unknown> {
   switch (name) {
     case "tools_search":
-      return toolsSearch(deps, {
-        query: String(args.query ?? ""),
-        limit: args.limit as number | undefined,
-        kind: args.kind as never,
-      });
+      return toolsSearch(
+        deps,
+        {
+          query: String(args.query ?? ""),
+          limit: args.limit as number | undefined,
+          kind: args.kind as never,
+        },
+        identity,
+      );
     case "tools_describe":
       return toolsDescribe(deps, (args.urns as string[]) ?? []);
     case "tools_call":
-      return toolsCall(deps, {
-        urn: String(args.urn ?? ""),
-        args: (args.args as Record<string, unknown>) ?? {},
-        confirm_token: args.confirm_token as string | undefined,
-      });
+      return toolsCall(
+        deps,
+        {
+          urn: String(args.urn ?? ""),
+          args: (args.args as Record<string, unknown>) ?? {},
+          confirm_token: args.confirm_token as string | undefined,
+        },
+        identity,
+      );
     case "tools_servers":
       return toolsServers(deps);
     default:

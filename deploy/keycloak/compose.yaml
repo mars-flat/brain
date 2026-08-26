@@ -1,0 +1,26 @@
+# Local Keycloak as the P4 identity provider (owner decision 2026-08-25,
+# §12 Q6). Zero human signup; hosted IdP takes over at P5 by changing the
+# gateway's GATEWAY_ISSUER. Dev mode only — never this config in production.
+#
+#   docker compose -f deploy/keycloak/compose.yaml up -d
+#   # realm auto-imports from realm-export.json; gateway defaults line up.
+#
+# Image pinned by digest (§9.3).
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7@sha256:831330513f55695572286e521f94fcd3c7e285250ed5b848090265a33192f669
+    command: ["start-dev", "--import-realm", "--http-port=8081"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+    ports:
+      - "127.0.0.1:8081:8081"
+    volumes:
+      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8081 && echo done >&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 20

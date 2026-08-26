@@ -36,6 +36,14 @@ module.exports = {
       to: { path: "^node_modules/@(azure|aws-sdk|google-cloud)/" },
     },
     {
+      name: "core-no-crypto",
+      comment:
+        "§3 — packages/core is pure: no node:crypto (envelope encryption lives in adapters/secrets-file).",
+      severity: "error",
+      from: { path: "^packages/core/src" },
+      to: { path: "^node:crypto$" },
+    },
+    {
       name: "no-circular",
       severity: "error",
       from: {},

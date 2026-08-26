@@ -1,0 +1,91 @@
+{
+  "realm": "brain",
+  "enabled": true,
+  "accessTokenLifespan": 3600,
+  "sslRequired": "none",
+  "clientScopes": [
+    {
+      "name": "gateway-audience",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "false" },
+      "protocolMappers": [
+        {
+          "name": "brain-gateway-aud",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "brain-gateway",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "name": "brain:read",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" }
+    },
+    {
+      "name": "brain:write",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" }
+    },
+    {
+      "name": "tools:read",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" }
+    },
+    {
+      "name": "tools:write",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" }
+    },
+    {
+      "name": "tools:admin",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "brain-cli",
+      "name": "Claude Code / brain CLI",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost:*", "http://127.0.0.1:*"],
+      "attributes": { "pkce.code.challenge.method": "S256" },
+      "defaultClientScopes": ["gateway-audience"],
+      "optionalClientScopes": [
+        "brain:read",
+        "brain:write",
+        "tools:read",
+        "tools:write",
+        "tools:admin"
+      ]
+    },
+    {
+      "clientId": "agent-runtime",
+      "name": "agent-runtime (confidential, client_credentials)",
+      "publicClient": false,
+      "secret": "REPLACE_ME_AT_SETUP",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "defaultClientScopes": ["gateway-audience"],
+      "optionalClientScopes": ["brain:read", "brain:write", "tools:read", "tools:write"]
+    }
+  ],
+  "users": [
+    {
+      "username": "owner",
+      "enabled": true,
+      "email": "owner@localhost",
+      "emailVerified": true,
+      "firstName": "Owner",
+      "lastName": "Local",
+      "requiredActions": [],
+      "credentials": [{ "type": "password", "value": "owner", "temporary": false }]
+    }
+  ]
+}

@@ -24,7 +24,7 @@ Everything an agent structurally cannot do: create accounts, accept terms, enter
 | **P0** | **Bun installed** — `curl -fsSL https://bun.sh/install \| bash`. Not currently on the machine | Trivial, but P0 doesn't run without it |
 | **P1 – P2** | *nothing — all satisfied* | no |
 | **P3** | Credentials for any *real* upstream MCP servers you want fronted | No — fake servers cover local dev and all tests |
-| **P4** | **IdP account** (Auth0/Clerk free tier) if taking Option B; a browser click per OAuth consent | Partially — `localhost` redirect URIs are spec-legal, so P4 tests locally |
+| ~~**P4**~~ | ~~IdP account (Auth0/Clerk)~~ **Resolved:** local **Keycloak** container is the P4 IdP (owner, §12 Q6) — `docker compose -f deploy/keycloak/compose.yaml up -d` auto-imports the realm. **No account, no browser signup.** | **No** — fully local |
 | **P5** | Azure budget adjustment (§3.2); GitHub↔Entra federated credential | No — scriptable once you approve the budget numbers |
 | **P6** | **Discord application + bot token**, your Discord user ID | 🔴 **Yes** — the only remaining human blocker |
 

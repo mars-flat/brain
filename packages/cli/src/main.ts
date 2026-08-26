@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 /**
  * The brain CLI (§10): init | rebuild | recall | eval | doctor | ingest |
- * consolidate | note | pin | lint. backup arrives at P5.
+ * consolidate | note | pin | lint | secret. backup arrives at P5.
  *
  * BRAIN_VAULT_PATH is required with no default (§9.1) — a missing value
  * fails loudly rather than silently writing memory somewhere git-tracked.
@@ -28,6 +28,7 @@ import type { EpisodeEnvelope } from "@brain/contracts";
 import { recall } from "@brain/core";
 import { OpenAiModelClient } from "@brain/model-openai";
 import { SqliteQueue } from "@brain/queue-sqlite";
+import { FileSecretStore } from "@brain/secrets-file";
 import { formatReport, regressions, runEval, toBaseline } from "./eval.ts";
 import { runLint } from "./lint-cmd.ts";
 
@@ -44,6 +45,7 @@ Usage:
   brain note <text…> [--type <t>]                capture directly (enqueue + run)
   brain pin <node-id> --correction "…" --reason "…"
   brain lint [--apply]                           proposals; --apply = mechanical fixes
+  brain secret set|list|rm <name> [value]        south-bound upstream credentials (§4.3)
 
 All commands take --vault <path>; default comes from BRAIN_VAULT_PATH
 (required, no default). Extraction uses OpenAI when OPENAI_API_KEY is set,
@@ -331,6 +333,46 @@ function cmdPin(vault: string, nodeId: string, correction: string, reason: strin
   console.log(`pinned ${nodeId} (${pin.pinId}) — the correction now rides every full render`);
 }
 
+async function cmdSecret(vault: string, rest: string[]): Promise<void> {
+  const store = new FileSecretStore(
+    join(vault, "secrets", "store.json"),
+    join(vault, "secrets", "master.key"),
+  );
+  const [sub, name] = rest;
+  switch (sub) {
+    case "set": {
+      if (!name) {
+        console.error("error: brain secret set <name> [value]  (value read from stdin if omitted)");
+        process.exit(2);
+      }
+      const value = rest[2] ?? (await Bun.stdin.text()).trim();
+      if (!value) {
+        console.error("error: empty secret value");
+        process.exit(2);
+      }
+      await store.set(name, value);
+      console.log(
+        `secret "${name}" stored (envelope-encrypted). Reference it as \${secret:${name}} in config/servers.yaml.`,
+      );
+      break;
+    }
+    case "list":
+      for (const k of await store.list(name ?? "")) console.log(k);
+      break;
+    case "rm":
+      if (!name) {
+        console.error("error: brain secret rm <name>");
+        process.exit(2);
+      }
+      await store.delete(name);
+      console.log(`secret "${name}" removed`);
+      break;
+    default:
+      console.error("usage: brain secret set|list|rm …");
+      process.exit(2);
+  }
+}
+
 function cmdLint(vault: string, apply: boolean): void {
   const { findings, proposalPath, applied } = runLint(vault, apply, new Date());
   const errors = findings.filter((f) => f.severity === "error").length;
@@ -425,6 +467,9 @@ switch (command) {
   }
   case "lint":
     cmdLint(vaultPath(values.vault), values.apply);
+    break;
+  case "secret":
+    await cmdSecret(vaultPath(values.vault), rest);
     break;
   default:
     console.error(`unknown command: ${command}\n\n${USAGE}`);
