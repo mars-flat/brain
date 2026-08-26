@@ -100,12 +100,12 @@ Estimates are working days and they're guesses. **P2 is most likely to double** 
 
 | # | Question | My default if you don't weigh in |
 |---|---|---|
-| 1 | ~~Where does the vault live?~~ **Decided:** `brain/vault/`, nested git repo, no remote (§9.1) | Confirm Time Machine covers `~/brain`; add a private remote at P5 |
+| 1 | ~~Where does the vault live?~~ **Decided:** `brain/vault/`, nested git repo, no remote (§9.1) | ~~Confirm Time Machine covers `~/brain`~~ Owner declined the backup check for now (2026-08-25, "not crucial") — **accepted risk: the vault is one disk failure from loss until the P5 private remote** |
 | 2 | Public repo now, or after P4 hardening? | **Public from P0.** Retrofitting secret hygiene is how secrets leak. Starting public forces the discipline while the repo is empty |
 | 3 | ~~Domain for the gateway?~~ **Moot** — dropping the public IP removed the TLS requirement (§3.1) | Revisit only when WhatsApp needs a public webhook |
 | 4 | ~~Cheap model for consolidation?~~ **Decided:** `gpt-5.6-luna` at `medium` effort via Batch API (§5.8). *P2 note:* extraction runs synchronously for now — Batch's 24h ceiling is wrong for an interactive dev loop; switch to Batch at P5 when consolidation becomes a background cadence | Re-baseline after a week of real episodes. Effort, not model, is the cost lever — raise to `high` only if extraction quality demands it |
 | 5 | Does the Discord bot join a server, or DM only? | **DM only** at first. One user, no channel-permission surface area |
-| 6 | **Self-hosted authorization server, or hosted IdP?** (§4.3) | **Hosted IdP.** Deletes ~2 days and the single highest-risk code path. Gateway stays a resource server either way, so switching later is a one-package swap |
+| 6 | ~~Self-hosted authorization server, or hosted IdP?~~ **Decided (owner, 2026-08-25): the gateway is a resource server against a local Keycloak container for P4; hosted IdP arrives at P5** — "test as much as possible locally before moving remote". Same RS code either way; the swap is one issuer URL in config (§4.3) | ~~Hosted IdP~~ — superseded by the local-first Keycloak choice; the self-host-vs-hosted analysis in §4.3 still holds for P5 |
 | 7 | Does `agent-runtime` use the OpenAI Agents SDK, or a hand-rolled loop? (§6.0) | **Agents SDK**, pending an MCP-transport check at P6. The loop and tool plumbing are not where your differentiation is |
 | 8 | **Raise the Azure budgets before P5?** (§3.2) | **Yes** — `monthly-tripwire` → 55 CAD, `auto-shutdown-cap` → 90 CAD. At current values the shutdown fires during normal operation |
 
