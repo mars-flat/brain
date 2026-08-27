@@ -72,7 +72,7 @@ DISCORD_GUILD_ID=...       # optional, if using a channel rather than DMs
 | `age` installed for secret encryption | **Dropped.** `secrets-file` uses `node:crypto` (scrypt + AES-256-GCM) instead — one less install, one less binary in the container, no behaviour lost |
 | `better-sqlite3`, a test runner, a transpiler | **All dropped** — `bun:sqlite`, `bun test`, and native TS replace them (§10) |
 | Real upstream credentials for development | Fake MCP servers cover P3 and every test |
-| A second GitHub repo for the vault | §9.1 — local git repo, no remote until P5 |
+| A second GitHub repo for the vault | ~~§9.1 — local git repo, no remote until P5~~ done 2026-08-27: private `mars-flat/brain-vault` |
 | Azure adapters (Key Vault, Storage Queue, Blob) | One VM runs fine on `secrets-file` / `queue-sqlite` / `object-fs`. Build the ports, skip the adapters (§3) |
 | Caddy, TLS certs, a static IP | Dropped — Discord is outbound-only and Tailscale covers laptop access (§3.1) |
 

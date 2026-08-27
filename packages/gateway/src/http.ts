@@ -19,6 +19,8 @@ import { buildGateway, type GatewayOptions, type RunningGateway } from "./server
 
 export interface HttpGatewayOptions extends GatewayOptions {
   port: number;
+  /** Listen interface. Default 127.0.0.1; the container sets 0.0.0.0 (§3.1 — Tailscale fronts it, never a public IP). */
+  host?: string;
   auth: AuthConfig;
 }
 
@@ -130,7 +132,9 @@ export async function startHttpGateway(opts: HttpGatewayOptions): Promise<Runnin
     }
   });
 
-  await new Promise<void>((resolve) => httpServer.listen(opts.port, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) =>
+    httpServer.listen(opts.port, opts.host ?? "127.0.0.1", resolve),
+  );
   return {
     url: `http://127.0.0.1:${opts.port}/mcp`,
     gateway,

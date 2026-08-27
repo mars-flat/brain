@@ -70,3 +70,5 @@ jobs:
         run: bun packages/cli/src/main.ts eval --vault examples/vault-example --check
       - name: Audit dependencies (§9.3)
         run: bun audit --audit-level=high
+      - name: E2E — compose stack up, auth + recall through the container (§8.2)
+        run: bash scripts/compose-smoke.sh
