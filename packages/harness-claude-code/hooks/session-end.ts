@@ -36,6 +36,24 @@ function alreadyIngested(vault: string, episodeId: string): boolean {
   return false;
 }
 
+/**
+ * SessionEnd fires after the session UI is gone, so a system toast is the
+ * only "logged to memory" bar the user can actually see. Best-effort:
+ * macOS only, and a missing/failing osascript is silently ignored.
+ */
+function notify(consolidateOut: string): void {
+  if (process.platform !== "darwin") return;
+  const nodes = consolidateOut.match(/\+(\d+) nodes/)?.[1];
+  const quarantined = consolidateOut.match(/(\d+) quarantined/)?.[1];
+  let detail = nodes === undefined ? "episode stored" : `+${nodes} nodes`;
+  if (quarantined !== undefined && quarantined !== "0") detail += `, ${quarantined} quarantined`;
+  const message = `session logged — ${detail}`;
+  Bun.spawnSync(
+    ["osascript", "-e", `display notification ${JSON.stringify(message)} with title "brain"`],
+    { stdin: "ignore", stdout: "ignore", stderr: "ignore" },
+  );
+}
+
 function main(): void {
   let input: { session_id?: string; transcript_path?: string };
   try {
@@ -83,9 +101,12 @@ function main(): void {
       "--vault",
       vault,
     ],
-    { cwd: projectDir, stdin: "ignore", stdout: "inherit", stderr: "inherit" },
+    { cwd: projectDir, stdin: "ignore", stdout: "pipe", stderr: "inherit" },
   );
+  const out = run.stdout?.toString() ?? "";
+  if (out) process.stderr.write(out);
   if (run.exitCode !== 0) console.error(`brain session-end: ingest exited ${run.exitCode}`);
+  else notify(out);
   process.exit(0);
 }
 

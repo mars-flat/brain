@@ -181,6 +181,8 @@ That's the entire Claude Code integration. **Hermes later is a sibling package**
 
 The envelope is built by `normalizeEpisode`: deterministic episode id derived from the session id (rerunning the hook is a no-op even before the ledger's idempotency), thinking blocks / tool results / command tags / sidechain lines stripped so they never enter episodic storage, tool calls kept as digests per §5.7, oldest turns trimmed first under the §5.8 guard, and sessions below a small floor (two user turns / 200 user chars) skipped entirely — an extraction call costs money and a two-line session isn't memory.
 
+Because SessionEnd fires after the session UI is gone, the "logged to memory" signal is out-of-band (owner request, 2026-08-27): on success the hook posts a macOS notification (`brain: session logged — +N nodes`, best-effort, macOS only), and a committed statusline (`hooks/statusline.ts`, registered in `.claude/settings.json`) shows `🧠 N nodes · last ingest Xh ago` during every session — which also confirms the previous session's sweep the moment the next one starts.
+
 ### 6.5 Trust tiers
 
 | Tier | Surfaces | Reads | Writes | Shell/FS | Memory writes |
