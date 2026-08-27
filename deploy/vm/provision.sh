@@ -16,7 +16,7 @@ set -euo pipefail
 export HOME="${HOME:-/root}"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
-apt-get install -yq docker.io docker-compose-v2 git curl
+apt-get install -yq docker.io docker-compose-v2 docker-buildx git curl
 
 # ── data disk at /data (lun0 = the 32 GiB disk from `az vm create`) ──────
 if ! mountpoint -q /data; then
