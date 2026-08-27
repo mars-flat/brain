@@ -1,8 +1,8 @@
 # Personal LLM System — Architecture
 
-**Status:** Revision 5 + build in progress — Azure host, OpenAI `gpt-5.6-luna`, Bun runtime. **P0–P4 complete + the Mode A Claude Code harness** (all local); P5 next and owner-gated. See Current status below.
+**Status:** Revision 5 + build in progress — Azure host, OpenAI `gpt-5.6-luna`, Bun runtime. **P0–P4 complete + the Mode A Claude Code harness** (all local); **P5 underway — gates cleared 2026-08-27**. See Current status below.
 **Code repo:** `mars-flat/brain` — **public** · **Vault:** `brain/vault/`, its own local git repo, never tracked here ([§9.1](./11-repo-safety.md))
-**MCP revision targeted:** `2026-07-28` · **Last updated:** 2026-08-25
+**MCP revision targeted:** `2026-07-28` · **Last updated:** 2026-08-27
 
 ---
 
@@ -68,14 +68,9 @@ Section numbers (§N) are stable across files and greppable, so a cross-referenc
 
 **Mode A harness is done** (2026-08-27, pulled forward of P5 — §11): `packages/harness-claude-code` — `normalizeEpisode` (Claude Code transcript → §5.7 envelope: noise-stripped, digest-only tool calls, deterministic per-session episode id, §5.8 trim; 9 tests) plus the SessionEnd hook that runs `brain ingest --now` locally (the §6.4 POST arrives with P5's HTTP surface). The repo now dogfoods its own memory: `.claude/skills/brain-memory/` carries the recall/capture protocol, a three-line `CLAUDE.md` points at it, `.claude/settings.json` registers the hook. Deviations recorded in §6.4; smoke-tested end to end against a scratch vault (marker extractor; idempotent rerun; every failure path exits 0 so session end never breaks).
 
-**Phases P0–P4 are complete.** Everything is local; nothing has touched Azure. **Next: P5** (Azure VM + Compose + Tailscale + OIDC deploy) — but it is **owner-gated**: the Azure budgets must be re-spaced first (§3.2) and a spend limit set in the OpenAI dashboard (§7). P6 (Discord) still needs the bot token (§13). Neither P5 nor P6 should start without the owner clearing those.
+**Phases P0–P4 are complete. P5 is underway (started 2026-08-27) — both its gates cleared that day:** the Azure budgets are re-spaced (§3.2 — tripwire 110 / shutdown 180 / credit-cap 2000 CAD, double the §12 Q8 suggestion per the owner; action-group wiring verified) and the OpenAI dashboard spend limit is set (owner-confirmed). The P5 hosted IdP is **Auth0** (§12 Q6 — account created, tenant configuration pending). Nothing has touched Azure compute yet; per the owner's standing preference, the P5 stack is built and tested locally before any VM exists.
 
 **One human blocker remains, and it only gates P6: the Discord bot** ([§13](./13-setup.md) has the walkthrough). Open questions for the owner accumulate in `QUESTIONS-FOR-OWNER.md` at the repo root (local-only, gitignored).
-
-**Two things to do before P5, not before P0:**
-
-1. Re-space the Azure budgets ([§3.2](./03-deployment.md)) — at current values `auto-shutdown-cap` fires during normal operation and deallocates production
-2. Set a usage limit in the OpenAI dashboard — Azure budgets cannot see that bill
 
 **Keeping this document true:** the `architecture-sync` skill (`.claude/skills/`) is the protocol. Read the relevant chapter before building; when an implementation decision differs from what's written here, edit the doc in the same commit as the code. Stale docs are a bug.
 
