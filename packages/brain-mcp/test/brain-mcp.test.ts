@@ -1,5 +1,5 @@
 /**
- * brain-mcp over a real MCP client connection: the seven §5.10 tools,
+ * brain-mcp over a real MCP client connection: the eight §5.10 tools,
  * exercised against a scratch copy of the example vault (writes included).
  */
 
@@ -29,10 +29,11 @@ beforeAll(async () => {
 });
 
 describe("brain over MCP (§5.10)", () => {
-  test("advertises the seven tools with read-only annotations on reads", async () => {
+  test("advertises the eight tools with read-only annotations on reads", async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
       "expand",
+      "ingest",
       "neighbors",
       "note",
       "pin",
@@ -103,6 +104,68 @@ describe("brain over MCP (§5.10)", () => {
     });
     const tr = trace.structuredContent as { episodes: Array<{ episode_id: string }> };
     expect(tr.episodes[0]?.episode_id).toBe(out.pending_id);
+  });
+
+  test("ingest accepts a §5.7 envelope, consolidates, and is idempotent on redelivery", async () => {
+    const iso = "2026-08-26T01:00:00Z";
+    const episode = {
+      schema_version: 1,
+      episode_id: "ep_01J8Z3M4N5P6Q7R8S9T0V1W2X3",
+      principal: "owner",
+      surface: "cli",
+      harness: "claude-code",
+      trust: "high",
+      started_at: iso,
+      ended_at: iso,
+      turns: [
+        {
+          seq: 0,
+          kind: "message",
+          role: "user",
+          content:
+            '@node concept "Ingest tool fact" id:ingest-tool-fact summary:"Delivered over MCP by the P5 ingest tool test."',
+          ts: iso,
+        },
+      ],
+      labels: ["session"],
+    };
+    const res = await client.callTool({ name: "ingest", arguments: { episode } });
+    const out = res.structuredContent as {
+      episode_id: string;
+      processed: Array<{ newNodes: string[] }>;
+    };
+    expect(out.episode_id).toBe(episode.episode_id);
+    expect(out.processed[0]?.newNodes).toEqual(["ingest-tool-fact"]);
+
+    // Redelivery (the hook retries, the network flaked, …) must be a no-op.
+    const again = await client.callTool({ name: "ingest", arguments: { episode } });
+    const out2 = again.structuredContent as { processed: Array<{ newNodes: string[] }> };
+    expect((out2.processed ?? []).flatMap((p) => p.newNodes ?? [])).toEqual([]);
+  });
+
+  test("ingest refuses an invalid envelope and an untrusted one (§6.5)", async () => {
+    const bad = await client.callTool({ name: "ingest", arguments: { episode: { nope: true } } });
+    expect(bad.isError).toBe(true);
+
+    const iso = "2026-08-26T01:30:00Z";
+    const untrusted = await client.callTool({
+      name: "ingest",
+      arguments: {
+        episode: {
+          schema_version: 1,
+          episode_id: "ep_01J8Z3M4N5P6Q7R8S9T0V1W2X4",
+          principal: "someone",
+          surface: "discord",
+          harness: "surface-discord",
+          trust: "untrusted",
+          started_at: iso,
+          ended_at: iso,
+          turns: [{ seq: 0, kind: "message", role: "user", content: "write this", ts: iso }],
+          labels: [],
+        },
+      },
+    });
+    expect(untrusted.isError).toBe(true);
   });
 
   test("pin lands and rides subsequent recalls", async () => {

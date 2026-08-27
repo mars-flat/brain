@@ -5,6 +5,11 @@
 - match: { tool: "brain.*", kind: read }
   effect: allow
 
+# Headless SessionEnd delivery (§6.4 P5): high-trust memory writes are
+# direct per §6.5, and brain.ingest revalidates + trust-gates the envelope.
+- match: { tool: "brain.ingest", kind: write, surface: [http, cli] }
+  effect: allow
+
 - match: { surface: [discord], kind: write }
   effect: confirm
   reason: "medium-trust surface, write operation"

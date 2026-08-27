@@ -5,6 +5,10 @@
 # Image pinned by digest (§9.3).
 FROM oven/bun:1.4.0@sha256:5ff609364c049b54eb0ff560ec96319729a972078ef2c755d758f0c6ef89c2d6
 
+# The consolidator commits every write to the vault's own git repo (§5.7);
+# without the binary each ingest parks in the retry queue.
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Workspace install needs every package.json; sources are small, so copy the

@@ -24,11 +24,12 @@ export GATEWAY_RESOURCE="http://127.0.0.1:8090/mcp"
 
 cleanup() {
   "${COMPOSE[@]}" logs --no-color gateway 2>/dev/null | tail -20 || true
-  # The container (uid 1000) owns _index/ inside the mounted scratch vault;
-  # the host user (CI: uid 1001) cannot delete those — remove them from
+  # The container (uid 1000) owns whatever it wrote into the mounted scratch
+  # vault (_index/, ingested episodes/, consolidated nodes/); the host user
+  # (CI: uid 1001) cannot delete inside those dirs — empty the vault from
   # inside while the stack is still up. Every step is best-effort: cleanup
   # must never turn a passing smoke into a failing job.
-  "${COMPOSE[@]}" exec -T gateway sh -c 'rm -rf /data/vault/_index' >/dev/null 2>&1 || true
+  "${COMPOSE[@]}" exec -T gateway sh -c 'find /data/vault -mindepth 1 -delete' >/dev/null 2>&1 || true
   "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
   rm -rf "${SCRATCH}" || true
 }

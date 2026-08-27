@@ -8,8 +8,9 @@
  * they never reach the vault or the extractor.
  */
 import { createHash } from "node:crypto";
-import type { EpisodeEnvelope, HarnessAdapter, InstallResult, Turn } from "@brain/contracts";
+import type { EpisodeEnvelope, HarnessAdapter, Turn } from "@brain/contracts";
 import { validateEpisode } from "@brain/contracts";
+import { install } from "./install.ts";
 
 export interface ClaudeCodeTranscript {
   sessionId: string;
@@ -194,20 +195,11 @@ export function normalizeEpisode(raw: unknown): EpisodeEnvelope {
 }
 
 /**
- * §6.4 port. install() is deliberately static for Mode A on this machine:
- * the config it would write is committed to the repo instead. It starts
- * writing real config at P5, when a remote harness needs a gateway URL.
+ * §6.4 port. install() went from static notes to writing real harness
+ * config at P5, once a remote gateway URL existed to point at (install.ts).
  */
 export const claudeCodeHarness: HarnessAdapter = {
   id: "claude-code",
-  async install(): Promise<InstallResult> {
-    return {
-      filesWritten: [],
-      notes: [
-        "Mode A config is committed, not installed (§6.4): .mcp.json registers the gateway, .claude/settings.json registers the SessionEnd hook, .claude/skills/brain-memory/ carries the protocol.",
-        "install() writes real harness config at P5, when there is an HTTP gateway URL to point at.",
-      ],
-    };
-  },
+  install,
   normalizeEpisode,
 };

@@ -174,9 +174,12 @@ brain.note(text, links?, type?)      -> { pending_id }   # enqueues, never write
 brain.pin(node_id, correction, reason) -> { pin_id }     # survives all future generation
 brain.timeline(query?, from?, to?)   -> episodes, chronological
 brain.trace(node_id)                 -> provenance chain to source episodes
+brain.ingest(episode)                -> { episode_id, processed, retried }   # P5, §6.4
 ```
 
 `brain.trace` gives every claim a citation back to the episode it came from.
+
+**`brain.ingest` (added at P5)** is the remote form of `brain ingest --now`: a harness delivers a full §5.7 envelope over MCP instead of running the CLI on the box. Same path — validate, trust-gate, store, enqueue, run the single writer — and redelivery is idempotent via the ledger, so a hook can retry blindly. It is `brain:write`-scoped and, uniquely among writes, policy-**allowed** (not confirmed) for the `http`/`cli` surfaces: SessionEnd is headless, §6.5 already grants high-trust surfaces direct memory writes, and the tool revalidates every envelope itself.
 
 **`as_of` ships in two stages** — revision 2 understated this. True git time-travel means checking out the vault at a timestamp and building a throwaway index for that tree: minutes of work per query, and a second index path to maintain.
 
