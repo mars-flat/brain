@@ -78,6 +78,9 @@ cat >/etc/systemd/system/brain-consolidate.service <<'EOF'
 Description=brain batched consolidation cycle (§5.8)
 [Service]
 Type=oneshot
+# systemd units run without HOME; git (and anything reading ~/.gitconfig,
+# e.g. root's safe.directory for the uid-1000-owned vault) needs it.
+Environment=HOME=/root
 WorkingDirectory=/opt/brain/deploy/compose
 ExecStart=/usr/bin/docker compose exec -T gateway bun /app/packages/cli/src/main.ts consolidate --batch --vault /data/vault
 EOF
@@ -97,6 +100,7 @@ cat >/etc/systemd/system/brain-vault-push.service <<'EOF'
 Description=push the vault to its private remote
 [Service]
 Type=oneshot
+Environment=HOME=/root
 ExecStart=/usr/bin/git -C /data/vault push -q origin main
 EOF
 cat >/etc/systemd/system/brain-vault-push.timer <<'EOF'
