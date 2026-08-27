@@ -13,5 +13,10 @@ if (!vault) {
   process.exit(2);
 }
 
-const server = buildBrainServer({ vaultPath: resolve(vault) });
+const server = buildBrainServer({
+  vaultPath: resolve(vault),
+  // The VM sets BRAIN_INGEST_MODE=queue (via the gateway's servers.yaml env)
+  // so ingest returns fast and the batch cadence does the extraction (§5.8).
+  ingestMode: process.env.BRAIN_INGEST_MODE === "queue" ? "queue" : "sync",
+});
 await server.connect(new StdioServerTransport());

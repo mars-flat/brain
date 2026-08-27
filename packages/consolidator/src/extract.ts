@@ -14,6 +14,8 @@
 
 import {
   CONFIDENCES,
+  type CompletionRequest,
+  type CompletionResult,
   type Confidence,
   EDGE_RELATIONS,
   type EdgeRelation,
@@ -167,6 +169,50 @@ review, so use low rather than omitting when unsure).
 
 Return {"candidates": []} when nothing durable happened.`;
 
+/**
+ * The one extraction request, shared verbatim by the sync path and the
+ * Batch API path (§12 Q4) — same prompt, same schema, same effort, so
+ * batching changes cost and latency, never extraction behavior.
+ */
+export function buildExtractionRequest(
+  episode: EpisodeEnvelope,
+  ctx: ExtractionContext,
+  modelName = "gpt-5.6-luna",
+): CompletionRequest {
+  const aggressiveness =
+    ctx.nodeCount < 200
+      ? "The graph is young — capture aggressively; near-duplicates get merged by lint later (§5.6)."
+      : "The graph is established — extract selectively; prefer linking to existing nodes over creating new ones.";
+  return {
+    model: modelName,
+    effort: "medium",
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `${aggressiveness}\n\nExisting node ids (link to these where relevant):\n${ctx.existingIds.join(", ") || "(none yet)"}\n\n--- EPISODE (surface=${episode.surface}, ${episode.started_at}) ---\n\n${renderTranscript(episode)}`,
+      },
+    ],
+    responseSchema: EXTRACTION_SCHEMA as unknown as Record<string, unknown>,
+  };
+}
+
+export function parseExtraction(result: CompletionResult): ExtractedCandidate[] {
+  const parsed = result.parsed as { candidates?: ExtractedCandidate[] } | undefined;
+  return parsed?.candidates ?? [];
+}
+
+/**
+ * Thrown by a batch-backed extractor when the episode's extraction is
+ * still in flight. The consolidator treats it as "come back next cycle",
+ * never as a failure — a slow batch must not burn retry attempts (§5.8).
+ */
+export class ExtractionPending extends Error {
+  constructor(readonly episodeId: string) {
+    super(`extraction pending for ${episodeId} — batch not complete`);
+  }
+}
+
 export class LlmExtractor implements Extractor {
   constructor(
     private readonly model: ModelClient,
@@ -174,23 +220,8 @@ export class LlmExtractor implements Extractor {
   ) {}
 
   async extract(episode: EpisodeEnvelope, ctx: ExtractionContext): Promise<ExtractedCandidate[]> {
-    const aggressiveness =
-      ctx.nodeCount < 200
-        ? "The graph is young — capture aggressively; near-duplicates get merged by lint later (§5.6)."
-        : "The graph is established — extract selectively; prefer linking to existing nodes over creating new ones.";
-    const result = await this.model.complete({
-      model: this.modelName,
-      effort: "medium",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: `${aggressiveness}\n\nExisting node ids (link to these where relevant):\n${ctx.existingIds.join(", ") || "(none yet)"}\n\n--- EPISODE (surface=${episode.surface}, ${episode.started_at}) ---\n\n${renderTranscript(episode)}`,
-        },
-      ],
-      responseSchema: EXTRACTION_SCHEMA as unknown as Record<string, unknown>,
-    });
-    const parsed = result.parsed as { candidates?: ExtractedCandidate[] } | undefined;
-    return parsed?.candidates ?? [];
+    return parseExtraction(
+      await this.model.complete(buildExtractionRequest(episode, ctx, this.modelName)),
+    );
   }
 }

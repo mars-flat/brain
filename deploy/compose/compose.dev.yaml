@@ -30,6 +30,7 @@ services:
       GATEWAY_ISSUER: http://keycloak:8081/realms/brain
       GATEWAY_RESOURCE: http://127.0.0.1:8090/mcp
       OPENAI_API_KEY: "" # the dev stack never sees the real key (§8.4)
+      BRAIN_INGEST_MODE: "" # sync — the smoke asserts inline consolidation
     depends_on:
       keycloak:
         condition: service_healthy

@@ -192,3 +192,58 @@ describe("brain over MCP (§5.10)", () => {
     expect(out.episodes.every((e) => e.labels.includes("note"))).toBe(true);
   });
 });
+
+describe("ingest in queue mode (§5.8 batched cadence)", () => {
+  test("stores + enqueues without consolidating inline", async () => {
+    const vault = mkdtempSync(join(tmpdir(), "brain-mcp-q-"));
+    cpSync(EXAMPLE, vault, { recursive: true });
+    const server = buildBrainServer({
+      vaultPath: vault,
+      clock: () => new Date("2026-08-27T02:00:00Z"),
+      extractor: new MarkerExtractor(),
+      ingestMode: "queue",
+    });
+    const [ct, st] = InMemoryTransport.createLinkedPair();
+    const qClient = new Client({ name: "test-q", version: "0" });
+    await Promise.all([server.connect(st), qClient.connect(ct)]);
+
+    const iso = "2026-08-27T01:00:00Z";
+    const res = await qClient.callTool({
+      name: "ingest",
+      arguments: {
+        episode: {
+          schema_version: 1,
+          episode_id: "ep_01J8Z3M4N5P6Q7R8S9T0V1W2X7",
+          principal: "owner",
+          surface: "cli",
+          harness: "claude-code",
+          trust: "high",
+          started_at: iso,
+          ended_at: iso,
+          turns: [
+            {
+              seq: 0,
+              kind: "message",
+              role: "user",
+              content:
+                '@node concept "Queued fact" id:queued-fact summary:"Waits for the batch cadence."',
+              ts: iso,
+            },
+          ],
+          labels: ["session"],
+        },
+      },
+    });
+    const out = res.structuredContent as { queued?: boolean; processed: unknown[] };
+    expect(out.queued).toBe(true);
+    expect(out.processed).toEqual([]);
+    // Stored (timeline sees it) but NOT consolidated (no node file).
+    const timeline = await qClient.callTool({ name: "timeline", arguments: {} });
+    const eps = (timeline.structuredContent as { episodes: Array<{ episode_id: string }> })
+      .episodes;
+    expect(eps.some((e) => e.episode_id === "ep_01J8Z3M4N5P6Q7R8S9T0V1W2X7")).toBe(true);
+    const { existsSync } = await import("node:fs");
+    expect(existsSync(join(vault, "nodes", "concept", "queued-fact.md"))).toBe(false);
+    await qClient.close();
+  });
+});

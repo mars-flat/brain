@@ -1,9 +1,18 @@
 export {
+  type BatchCycleOptions,
+  type BatchCycleReport,
+  ensureBatchTables,
+  runBatchCycle,
+} from "./batch.ts";
+export {
+  buildExtractionRequest,
   EXTRACTION_SCHEMA,
   type ExtractionContext,
+  ExtractionPending,
   type Extractor,
   LlmExtractor,
   MarkerExtractor,
+  parseExtraction,
   renderTranscript,
 } from "./extract.ts";
 export {

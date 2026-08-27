@@ -37,6 +37,12 @@ export interface BrainMcpOptions {
   clock?: () => Date;
   /** Override extraction (tests MUST inject MarkerExtractor — never the paid API). */
   extractor?: Extractor;
+  /**
+   * "queue" (§5.8 batched cadence, the P5 VM default via BRAIN_INGEST_MODE):
+   * brain.ingest stores + enqueues and returns immediately; the
+   * `brain consolidate --batch` cadence extracts. "sync" consolidates inline.
+   */
+  ingestMode?: "sync" | "queue";
 }
 
 interface ToolDef {
@@ -334,6 +340,14 @@ export function buildBrainServer(opts: BrainMcpOptions): Server {
           if (err instanceof IngestError)
             return { content: [{ type: "text" as const, text: err.message }], isError: true };
           throw err;
+        }
+        if (opts.ingestMode === "queue") {
+          return text({
+            episode_id: ingested.episodeId,
+            processed: [],
+            retried: [],
+            queued: true,
+          });
         }
         const report = await runConsolidator({
           vaultPath: opts.vaultPath,

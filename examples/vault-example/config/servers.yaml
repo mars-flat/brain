@@ -7,6 +7,8 @@ servers:
     args: [packages/brain-mcp/src/main.ts]
     env:
       BRAIN_VAULT_PATH: ${BRAIN_VAULT_PATH}
+      # empty → sync; "queue" → §5.8 batched cadence (the P5 VM sets it)
+      BRAIN_INGEST_MODE: ${BRAIN_INGEST_MODE}
 
   - name: files
     command: bunx

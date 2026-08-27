@@ -98,6 +98,38 @@ export interface ModelClient {
   complete(req: CompletionRequest): Promise<CompletionResult>;
 }
 
+// ── Batch transport (§5.8: everything background is batched — flat 50% off) ──
+
+export interface BatchItem {
+  /** Caller-chosen id, unique within the batch; results key off it. */
+  customId: string;
+  request: CompletionRequest;
+}
+
+export interface BatchItemResult {
+  customId: string;
+  ok: boolean;
+  /** Present iff ok. Same shape a sync complete() would have returned. */
+  result?: CompletionResult;
+  error?: string;
+}
+
+export type BatchStatus =
+  | { status: "running" }
+  | { status: "complete"; items: BatchItemResult[] }
+  /** The whole batch failed or expired — items were never attempted. */
+  | { status: "failed"; error: string };
+
+/**
+ * Async batch transport (P5, §12 Q4). submit returns a provider batch id;
+ * poll is cheap and non-blocking — the consolidation cadence calls it each
+ * cycle until the batch lands (most within an hour, 24h ceiling).
+ */
+export interface BatchModelClient extends ModelClient {
+  submitBatch(items: BatchItem[]): Promise<string>;
+  pollBatch(batchId: string): Promise<BatchStatus>;
+}
+
 // ── Surfaces (§6.1) ────────────────────────────────────────────────────────
 
 export interface InboundMessage {
