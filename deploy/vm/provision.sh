@@ -12,6 +12,8 @@
 # owner's auth (or TAILSCALE_AUTHKEY, see QUESTIONS-FOR-OWNER P5-3).
 set -euo pipefail
 
+# run-command executes as root with no HOME; git hard-fails without it.
+export HOME="${HOME:-/root}"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
 apt-get install -yq docker.io docker-compose-v2 git curl

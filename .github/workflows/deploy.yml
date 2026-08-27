@@ -69,7 +69,7 @@ jobs:
             exit 0
           fi
           az vm run-command invoke -g rg-brain -n brain-vm --command-id RunShellScript \
-            --scripts 'set -e; cd /opt/brain && git fetch -q origin main && git reset -q --hard origin/main && bash deploy/vm/deploy.sh ${{ github.sha }}' \
+            --scripts 'set -e; export HOME=/root; cd /opt/brain && git fetch -q origin main && git reset -q --hard origin/main && bash deploy/vm/deploy.sh ${{ github.sha }}' \
             -o json > result.json
           python3 - <<'PY'
           import json, sys
