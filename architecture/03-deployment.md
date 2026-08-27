@@ -110,6 +110,8 @@ That removes a cost line, a TLS certificate to renew, a Caddy container, and the
 
 Nothing in steps 1–4 is Azure-aware. That is the whole point.
 
+*Implemented at P5:* `brain backup [--out]` pushes the vault remote (when one exists) and tarballs the whole vault directory — **including `_index/brain.db`**, because salience and the consolidator ledger live only in SQLite (§5.2) and markdown cannot reproduce them. **`scripts/restore-drill.sh` is the runbook as a script**: backup → untar on a fresh location → compose stack up on the restored data → doctor → authed recall of the restored memory. First passed 2026-08-27 against the real vault (26 nodes recalled through the restored container stack).
+
 ### 3.2 The Azure budget collision — read before P5
 
 `azure/azure-config.md` documents the constraint, and it directly conflicts with the deployment above. Restating the two facts that matter:
