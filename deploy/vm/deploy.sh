@@ -7,6 +7,8 @@
 # greps for the DEPLOY-OK / ROLLED-BACK / ROLLBACK-FAILED markers below.
 set -uo pipefail
 
+# run-command executes as root with no HOME; git (and compose) want one.
+export HOME="${HOME:-/root}"
 TAG="${1:?usage: deploy.sh <image-tag>}"
 cd "$(dirname "$0")/../compose"
 
