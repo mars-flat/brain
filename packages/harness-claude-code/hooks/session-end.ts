@@ -100,7 +100,9 @@ async function main(): Promise<void> {
   if (target) {
     try {
       const res = await deliverEpisode(target, envelope);
-      let detail = `+${res.new_nodes} nodes (remote)`;
+      let detail = res.queued
+        ? "delivered — queued for batch consolidation (§5.8)"
+        : `+${res.new_nodes} nodes (remote)`;
       if (res.quarantined > 0) detail += `, ${res.quarantined} quarantined`;
       console.error(`brain session-end: delivered ${res.episode_id} to ${target.gatewayUrl}`);
       notify(detail);
