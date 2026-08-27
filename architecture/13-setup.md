@@ -15,7 +15,8 @@ Everything an agent structurally cannot do: create accounts, accept terms, enter
 | `mars-flat/brain` repo | ✅ exists, public, empty |
 | **Obsidian + vault** | ✅ `brain/vault/` is an Obsidian vault |
 | **OpenAI API key** | ✅ — unblocks P2 |
-| **Azure subscription + ~$1000 CAD credit** | ✅ — unblocks P5. Guard rails documented in `azure/azure-config.md`; **budgets need re-spacing first** (§3.2) |
+| **Azure subscription + credit** | ✅ — guard rails in `azure/azure-config.md`; budgets re-spaced 2026-08-27 (§3.2) |
+| **Auth0 account** | ✅ tenant created 2026-08-27 — configuration is scripted (`scripts/auth0-setup.ts`), see the P5 steps below |
 
 ### Needed per phase
 
@@ -25,10 +26,14 @@ Everything an agent structurally cannot do: create accounts, accept terms, enter
 | **P1 – P2** | *nothing — all satisfied* | no |
 | **P3** | Credentials for any *real* upstream MCP servers you want fronted | No — fake servers cover local dev and all tests |
 | ~~**P4**~~ | ~~IdP account (Auth0/Clerk)~~ **Resolved:** local **Keycloak** container is the P4 IdP (owner, §12 Q6) — `docker compose -f deploy/keycloak/compose.yaml up -d` auto-imports the realm. **No account, no browser signup.** | **No** — fully local |
-| **P5** | Azure budget adjustment (§3.2); GitHub↔Entra federated credential | No — scriptable once you approve the budget numbers |
-| **P6** | **Discord application + bot token**, your Discord user ID | 🔴 **Yes** — the only remaining human blocker |
+| **P5** | ~~Azure budget adjustment (§3.2); GitHub↔Entra federated credential~~ **done 2026-08-27** (budgets re-spaced; `brain-deploy` app + id-pinned federated credential; `rg-brain` + `brain-vm` provisioned). Remaining human steps: the three below | Only the Auth0 credential blocks finishing P5 |
+| **P6** | **Discord application + bot token**, your Discord user ID | 🔴 **Yes** — blocks P6 |
 
-**You are down to one gap.** Everything through P5 is unblocked. A domain name is no longer needed at all — dropping the public IP (§3.1) removed the TLS requirement with it.
+### The three P5 human steps (2026-08-27)
+
+1. **Auth0 Management credential** — the tenant exists but an agent cannot mint the first credential. Dashboard → Applications → Create Application → `brain-mgmt`, **Machine to Machine**, authorized for the **Auth0 Management API** with `read:/create:` scopes on clients, resource servers, and client grants. Its values go in `.env` as `AUTH0_DOMAIN` / `AUTH0_MGMT_CLIENT_ID` / `AUTH0_MGMT_CLIENT_SECRET`; then `bun scripts/auth0-setup.ts` creates everything else (API + scopes, brain-cli PKCE, brain-hook, agent-runtime, grants) and prints the follow-on `.env` lines. The credential can be deleted after setup.
+2. **Tailscale** — free Personal plan is enough. Either pre-generate an auth key (admin console → Settings → Keys) into `.env` as `TAILSCALE_AUTHKEY`, or run `tailscale up` on the VM interactively. `tailscaled` is already installed by `deploy/vm/provision.sh`.
+3. **GHCR package visibility** — GitHub creates `ghcr.io/mars-flat/brain-gateway` private and has no API to change it: package settings → Danger Zone → Change visibility → **Public**. Until then deploys fall back to building on the VM (works, ~3 min slower).
 
 ### Setting up the Discord bot (P6)
 
