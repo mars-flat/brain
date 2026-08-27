@@ -29,11 +29,13 @@ Everything an agent structurally cannot do: create accounts, accept terms, enter
 | **P5** | ~~Azure budget adjustment (§3.2); GitHub↔Entra federated credential~~ **done 2026-08-27** (budgets re-spaced; `brain-deploy` app + id-pinned federated credential; `rg-brain` + `brain-vm` provisioned). Remaining human steps: the three below | Only the Auth0 credential blocks finishing P5 |
 | **P6** | **Discord application + bot token**, your Discord user ID | 🔴 **Yes** — blocks P6 |
 
-### The three P5 human steps (2026-08-27)
+### The three P5 human steps — all done 2026-08-27
 
-1. **Auth0 Management credential** — the tenant exists but an agent cannot mint the first credential. Dashboard → Applications → Create Application → `brain-mgmt`, **Machine to Machine**, authorized for the **Auth0 Management API** with `read:/create:` scopes on clients, resource servers, and client grants. Its values go in `.env` as `AUTH0_DOMAIN` / `AUTH0_MGMT_CLIENT_ID` / `AUTH0_MGMT_CLIENT_SECRET`; then `bun scripts/auth0-setup.ts` creates everything else (API + scopes, brain-cli PKCE, brain-hook, agent-runtime, grants) and prints the follow-on `.env` lines. The credential can be deleted after setup.
-2. **Tailscale** — free Personal plan is enough. Either pre-generate an auth key (admin console → Settings → Keys) into `.env` as `TAILSCALE_AUTHKEY`, or run `tailscale up` on the VM interactively. `tailscaled` is already installed by `deploy/vm/provision.sh`.
-3. **GHCR package visibility** — GitHub creates `ghcr.io/mars-flat/brain-gateway` private and has no API to change it: package settings → Danger Zone → Change visibility → **Public**. Until then deploys fall back to building on the VM (works, ~3 min slower).
+1. ~~**Auth0 Management credential**~~ ✅ — `brain-mgmt` created, `scripts/auth0-setup.ts` configured the tenant (API + scopes, brain-cli PKCE, brain-hook, agent-runtime, grants), end-to-end auth verified from the laptop. The `brain-mgmt` credential can be deleted or kept for re-runs (the script is idempotent).
+2. ~~**Tailscale**~~ ✅ — brain-vm is `brain-vm.tail57f6ea.ts.net`; `tailscale serve` fronts the gateway with TLS; Tailscale SSH enabled for ops.
+3. ~~**GHCR package visibility**~~ ✅ — public; deploys pull.
+
+**Post-P5 hardening, two dashboard toggles (recommended):** a fresh Auth0 tenant lets *anyone* create a tenant user (open database signups + Google social login are on by default), and any authenticated user of a first-party app can mint scoped tokens. The tailnet already stops outsiders from *reaching* the gateway, so this is defense-in-depth, not an open door — but close it: **Authentication → Database → Username-Password-Authentication → Disable Sign Ups**, and detach the **google-oauth2** connection from the brain apps (or delete it). Longer-term, the §4.5 policy can additionally pin `principal` to the owner's `sub`.
 
 ### Setting up the Discord bot (P6)
 

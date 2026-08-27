@@ -91,12 +91,10 @@ if (rs) {
 interface Client {
   client_id: string;
   name: string;
-  client_secret?: string;
 }
-const clients = await api<Client[]>(
-  "GET",
-  "/clients?per_page=100&fields=client_id,name,client_secret",
-);
+// No client_secret in the fields — reading secrets needs read:client_keys,
+// a scope this script deliberately does not ask for.
+const clients = await api<Client[]>("GET", "/clients?per_page=100&fields=client_id,name");
 async function ensureClient(name: string, body: Record<string, unknown>): Promise<Client> {
   const existing = clients.find((c) => c.name === name);
   if (existing) {

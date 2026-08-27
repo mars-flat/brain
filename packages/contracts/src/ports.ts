@@ -176,6 +176,12 @@ export interface InstallConfig {
   gatewayUrl: string;
   /** Where to write harness-native config (e.g. the Claude Code project dir). */
   targetDir: string;
+  /**
+   * Pre-registered public OAuth client id for the interactive flow (P5:
+   * Auth0 `brain-cli`). Needed when the IdP has no dynamic client
+   * registration — Claude Code accepts it via the mcp `oauth` block.
+   */
+  oauthClientId?: string;
 }
 
 export interface InstallResult {

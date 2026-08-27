@@ -18,13 +18,24 @@ function readJson(path: string): Record<string, unknown> {
 describe("claudeCodeHarness.install (§6.4 P5)", () => {
   test("fresh dir gets .mcp.json, hook registration, and harness config", async () => {
     const dir = mkdtempSync(join(tmpdir(), "install-"));
-    const res = await claudeCodeHarness.install({ gatewayUrl: URL_A, targetDir: dir });
+    const res = await claudeCodeHarness.install({
+      gatewayUrl: URL_A,
+      targetDir: dir,
+      oauthClientId: "client-abc",
+    });
     expect(res.filesWritten.length).toBe(3);
 
     const mcp = readJson(join(dir, ".mcp.json")) as {
-      mcpServers: Record<string, { type: string; url: string }>;
+      mcpServers: Record<
+        string,
+        { type: string; url: string; oauth?: { clientId: string; callbackPort: number } }
+      >;
     };
-    expect(mcp.mcpServers["brain-gateway"]).toEqual({ type: "http", url: URL_A });
+    expect(mcp.mcpServers["brain-gateway"]).toEqual({
+      type: "http",
+      url: URL_A,
+      oauth: { clientId: "client-abc", callbackPort: 8484 },
+    });
 
     const settings = readJson(join(dir, ".claude", "settings.json")) as {
       hooks: { SessionEnd: Array<{ hooks: Array<{ command: string }> }> };

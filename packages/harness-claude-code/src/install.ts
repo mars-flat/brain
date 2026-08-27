@@ -23,11 +23,18 @@ export async function install(cfg: InstallConfig): Promise<InstallResult> {
   const filesWritten: string[] = [];
   const notes: string[] = [];
 
-  // 1 — MCP endpoint: Claude Code discovers auth from the 401 challenge (§4.3).
+  // 1 — MCP endpoint: Claude Code discovers auth from the 401 challenge
+  // (§4.3). With a non-DCR IdP the pre-registered client id rides the
+  // `oauth` block; the callback port is fixed because Auth0 native-app
+  // loopback redirects are port-agnostic but path-sensitive.
   const mcpPath = join(cfg.targetDir, ".mcp.json");
   const mcp = readJson(mcpPath);
   const servers = (mcp.mcpServers ?? {}) as Record<string, unknown>;
-  servers["brain-gateway"] = { type: "http", url: cfg.gatewayUrl };
+  servers["brain-gateway"] = {
+    type: "http",
+    url: cfg.gatewayUrl,
+    ...(cfg.oauthClientId ? { oauth: { clientId: cfg.oauthClientId, callbackPort: 8484 } } : {}),
+  };
   mcp.mcpServers = servers;
   writeJson(mcpPath, mcp);
   filesWritten.push(mcpPath);

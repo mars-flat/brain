@@ -31,6 +31,8 @@ export interface DeliveryResult {
   episode_id: string;
   new_nodes: number;
   quarantined: number;
+  /** True when the server queues for its batch cadence (§5.8) instead of consolidating inline. */
+  queued: boolean;
 }
 
 /**
@@ -170,6 +172,7 @@ export async function deliverEpisode(
             isError?: boolean;
             structuredContent?: {
               episode_id?: string;
+              queued?: boolean;
               processed?: Array<{ newNodes?: string[]; quarantined?: unknown[] }>;
             };
             content?: Array<{ text?: string }>;
@@ -185,6 +188,7 @@ export async function deliverEpisode(
       episode_id: sc.result?.structuredContent?.episode_id ?? episode.episode_id,
       new_nodes: processed.reduce((n, p) => n + (p.newNodes?.length ?? 0), 0),
       quarantined: processed.reduce((n, p) => n + (p.quarantined?.length ?? 0), 0),
+      queued: sc.result?.structuredContent?.queued === true,
     };
   } finally {
     await client.close().catch(() => {});
