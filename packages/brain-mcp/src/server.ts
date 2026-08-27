@@ -13,6 +13,7 @@ import { BrainStore, loadVault, openDb, rebuild } from "@brain/brainstore";
 import {
   type Extractor,
   ensureConsolidatorTables,
+  IngestError,
   ingestEpisode,
   LlmExtractor,
   MarkerExtractor,
@@ -103,6 +104,18 @@ const TOOLS: ToolDef[] = [
         type: { enum: [...NODE_TYPES] },
       },
       required: ["text"],
+    },
+  },
+  {
+    name: "ingest",
+    description:
+      "Deliver a full episode envelope (§5.7) for consolidation — the remote form of `brain ingest --now`. Validated, trust-gated, idempotent on redelivery.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        episode: { type: "object", description: "A §5.7 episode envelope, schema_version 1." },
+      },
+      required: ["episode"],
     },
   },
   {
@@ -304,6 +317,33 @@ export function buildBrainServer(opts: BrainMcpOptions): Server {
         lastRebuild = clock().getTime();
         return text({
           pending_id: ingest.episodeId,
+          processed: report.processed,
+          retried: report.retried,
+        });
+      }
+      case "ingest": {
+        // Same path as `brain ingest --now`: validate → store → enqueue →
+        // run the single writer. IngestError (invalid envelope, untrusted
+        // trust tier, token guard) is a tool-execution error, not a crash.
+        const queue = new SqliteQueue<QueuedEpisode>(db, () => clock().getTime());
+        const basenames = new Set(loadVault(opts.vaultPath).episodes.map((e) => e.basename));
+        let ingested: Awaited<ReturnType<typeof ingestEpisode>>;
+        try {
+          ingested = await ingestEpisode(opts.vaultPath, queue, args.episode, basenames);
+        } catch (err) {
+          if (err instanceof IngestError)
+            return { content: [{ type: "text" as const, text: err.message }], isError: true };
+          throw err;
+        }
+        const report = await runConsolidator({
+          vaultPath: opts.vaultPath,
+          db,
+          extractor: extractor(),
+          clock,
+        });
+        lastRebuild = clock().getTime();
+        return text({
+          episode_id: ingested.episodeId,
           processed: report.processed,
           retried: report.retried,
         });

@@ -8,8 +8,12 @@
  * real composed one — container image, entrypoint rebuild, volume mount.
  */
 
+import type { EpisodeEnvelope } from "@brain/contracts";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+// Relative on purpose: the harness package resolves its own deps under the
+// container's isolated install layout; the gateway package never depends on it.
+import { deliverEpisode } from "../../harness-claude-code/src/deliver.ts";
 
 const GW = "http://127.0.0.1:8090";
 const ISSUER = process.env.GATEWAY_ISSUER ?? "http://keycloak:8081/realms/brain";
@@ -94,5 +98,37 @@ const stepUp = await fetch(`${GW}/mcp`, {
 });
 if (stepUp.status !== 403) fail(`write without scope → ${stepUp.status}, wanted 403`);
 console.log("4. step-up 403 ✓");
+
+// 5 — the SessionEnd delivery path (§6.4 P5): harness deliverEpisode →
+// tools_call → brain.ingest, policy-allowed headlessly, idempotent redelivery.
+const iso = "2026-08-27T00:00:00Z";
+const episode: EpisodeEnvelope = {
+  schema_version: 1,
+  episode_id: "ep_01J8Z3M4N5P6Q7R8S9T0V1W2X5",
+  principal: "owner",
+  surface: "cli",
+  harness: "claude-code",
+  trust: "high",
+  started_at: iso,
+  ended_at: iso,
+  turns: [
+    {
+      seq: 0,
+      kind: "message",
+      role: "user",
+      content:
+        '@node concept "Compose smoke ingest" id:compose-smoke-ingest summary:"Delivered by the e2e smoke through brain.ingest."',
+      ts: iso,
+    },
+  ],
+  labels: ["session"],
+};
+const target = { gatewayUrl: `${GW}/mcp`, token: await token("brain:write") };
+const first = await deliverEpisode(target, episode);
+if (first.new_nodes < 1) fail(`ingest delivered but consolidated ${first.new_nodes} nodes`);
+const redelivered = await deliverEpisode(target, episode);
+if (redelivered.new_nodes !== 0)
+  fail(`redelivery consolidated ${redelivered.new_nodes} nodes — not idempotent`);
+console.log(`5. SessionEnd delivery → +${first.new_nodes} node, redelivery no-op ✓`);
 
 console.log("compose smoke: PASS");

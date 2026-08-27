@@ -1,9 +1,10 @@
 /**
- * The brain MCP contract (§5.10). Inputs and results for the seven brain
+ * The brain MCP contract (§5.10). Inputs and results for the eight brain
  * tools. Scope mapping (§4.3): recall/expand/neighbors/timeline/trace are
- * `brain:read`; note/pin are `brain:write`.
+ * `brain:read`; note/pin/ingest are `brain:write`.
  */
 
+import type { EpisodeEnvelope } from "./episode.ts";
 import type { EdgeRelation, NodeType } from "./node.ts";
 
 export const RENDER_TIERS = ["full", "summary", "stub"] as const;
@@ -93,6 +94,23 @@ export interface BrainNoteInput {
 /** brain.note enqueues for the consolidator — it never writes the graph directly (§5.10). */
 export interface BrainNoteResult {
   pending_id: string;
+}
+
+/**
+ * brain.ingest (P5, §6.4): a harness delivers a full §5.7 episode envelope
+ * remotely — the HTTP replacement for `brain ingest --now` on the box.
+ * Validation, the trust gate, and the token guard all live in the
+ * consolidator's ingest path; redelivery is idempotent (§5.7 ledger).
+ */
+export interface BrainIngestInput {
+  episode: EpisodeEnvelope;
+}
+
+export interface BrainIngestResult {
+  episode_id: string;
+  /** Episodes the consolidator run processed (0 when redelivered after success). */
+  processed: number;
+  retried: number;
 }
 
 export interface BrainPinInput {

@@ -215,11 +215,9 @@ describe("normalizeEpisode", () => {
 });
 
 describe("claudeCodeHarness", () => {
-  test("implements the §6.4 port with static Mode A install", async () => {
+  test("implements the §6.4 port; install() writes real config since P5 (install.test.ts)", () => {
     expect(claudeCodeHarness.id).toBe("claude-code");
-    const result = await claudeCodeHarness.install({ gatewayUrl: "http://unused", targetDir: "." });
-    expect(result.filesWritten).toEqual([]);
-    expect(result.notes.length).toBeGreaterThan(0);
+    expect(typeof claudeCodeHarness.install).toBe("function");
     expect(claudeCodeHarness.normalizeEpisode).toBe(normalizeEpisode);
   });
 });

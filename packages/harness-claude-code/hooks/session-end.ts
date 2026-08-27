@@ -1,14 +1,17 @@
 /**
- * Claude Code SessionEnd hook (§6.4 Mode A): transcript → canonical envelope
- * → `brain ingest --now`. Delivery is the local CLI, not the POST in §6.4 —
- * the brain has no HTTP surface until P5; this script is where that swap
- * lands. Every failure path exits 0: memory capture must never break the
- * user's session, and a missed episode is recoverable (the transcript stays
- * on disk) while a broken SessionEnd is not.
+ * Claude Code SessionEnd hook (§6.4): transcript → canonical envelope →
+ * delivery. With a gateway configured (env or the install()-written
+ * `.claude/brain-harness.json`) the envelope POSTs to `brain.ingest` over
+ * MCP — the P5 swap this script always promised — and the local CLI is the
+ * fallback when delivery fails or nothing is configured. Every failure path
+ * exits 0: memory capture must never break the user's session, and a missed
+ * episode is recoverable (the transcript stays on disk) while a broken
+ * SessionEnd is not.
  */
 import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { deliverEpisode, resolveDeliveryTarget } from "../src/deliver.ts";
 import { episodeIdFor, normalizeEpisode } from "../src/normalize.ts";
 
 /** Below either floor the session is too thin to be worth an extraction call. */
@@ -41,12 +44,8 @@ function alreadyIngested(vault: string, episodeId: string): boolean {
  * only "logged to memory" bar the user can actually see. Best-effort:
  * macOS only, and a missing/failing osascript is silently ignored.
  */
-function notify(consolidateOut: string): void {
+function notify(detail: string): void {
   if (process.platform !== "darwin") return;
-  const nodes = consolidateOut.match(/\+(\d+) nodes/)?.[1];
-  const quarantined = consolidateOut.match(/(\d+) quarantined/)?.[1];
-  let detail = nodes === undefined ? "episode stored" : `+${nodes} nodes`;
-  if (quarantined !== undefined && quarantined !== "0") detail += `, ${quarantined} quarantined`;
   const message = `session logged — ${detail}`;
   Bun.spawnSync(
     ["osascript", "-e", `display notification ${JSON.stringify(message)} with title "brain"`],
@@ -54,7 +53,15 @@ function notify(consolidateOut: string): void {
   );
 }
 
-function main(): void {
+function cliOutputDetail(consolidateOut: string): string {
+  const nodes = consolidateOut.match(/\+(\d+) nodes/)?.[1];
+  const quarantined = consolidateOut.match(/(\d+) quarantined/)?.[1];
+  let detail = nodes === undefined ? "episode stored" : `+${nodes} nodes`;
+  if (quarantined !== undefined && quarantined !== "0") detail += `, ${quarantined} quarantined`;
+  return detail;
+}
+
+async function main(): Promise<void> {
   let input: { session_id?: string; transcript_path?: string };
   try {
     input = JSON.parse(readFileSync(0, "utf8")) as typeof input;
@@ -64,11 +71,12 @@ function main(): void {
 
   const projectDir = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
   const vault = process.env.BRAIN_VAULT_PATH ?? join(projectDir, "vault");
-  // Clean clones have no vault (§9.1) — the hook must be inert there.
-  if (!existsSync(join(vault, "BRAIN.md"))) skip(`no vault at ${vault}`);
+  const vaultPresent = existsSync(join(vault, "BRAIN.md"));
+  const target = resolveDeliveryTarget(process.env, projectDir);
+  // Clean clones have neither a vault (§9.1) nor a gateway — inert there.
+  if (!vaultPresent && !target) skip(`no vault at ${vault} and no gateway configured`);
   if (!input.session_id || !input.transcript_path || !existsSync(input.transcript_path))
     skip("no transcript");
-  if (alreadyIngested(vault, episodeIdFor(input.session_id))) skip("episode already in the vault");
 
   let envelope: ReturnType<typeof normalizeEpisode>;
   try {
@@ -88,6 +96,25 @@ function main(): void {
   if (userTurns.length < MIN_USER_TURNS || userChars < MIN_USER_CHARS)
     skip(`session too small (${userTurns.length} user turns, ${userChars} chars)`);
 
+  // ── remote first (§6.4 P5): POST to brain.ingest, idempotent server-side ──
+  if (target) {
+    try {
+      const res = await deliverEpisode(target, envelope);
+      let detail = `+${res.new_nodes} nodes (remote)`;
+      if (res.quarantined > 0) detail += `, ${res.quarantined} quarantined`;
+      console.error(`brain session-end: delivered ${res.episode_id} to ${target.gatewayUrl}`);
+      notify(detail);
+      process.exit(0);
+    } catch (err) {
+      console.error(
+        `brain session-end: remote delivery failed (${err instanceof Error ? err.message : String(err)})${vaultPresent ? " — falling back to local ingest" : ""}`,
+      );
+      if (!vaultPresent) skip("remote delivery failed and no local vault to fall back to");
+    }
+  }
+
+  // ── local fallback: the Mode A path, unchanged ──
+  if (alreadyIngested(vault, episodeIdFor(input.session_id))) skip("episode already in the vault");
   const file = join(mkdtempSync(join(tmpdir(), "brain-episode-")), "episode.json");
   writeFileSync(file, JSON.stringify(envelope));
   // cwd = project dir so bun auto-loads .env (OPENAI_API_KEY → LLM extractor).
@@ -106,8 +133,8 @@ function main(): void {
   const out = run.stdout?.toString() ?? "";
   if (out) process.stderr.write(out);
   if (run.exitCode !== 0) console.error(`brain session-end: ingest exited ${run.exitCode}`);
-  else notify(out);
+  else notify(cliOutputDetail(out));
   process.exit(0);
 }
 
-main();
+await main();
