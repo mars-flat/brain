@@ -1,0 +1,88 @@
+# Deploy (§8.6): push to main → multi-arch image → GHCR with SBOM +
+# provenance → GitHub OIDC exchanged for an Entra workload identity —
+# ZERO stored cloud keys (§9): the federated credential is pinned to
+# repo:mars-flat/brain:ref:refs/heads/main, so a fork or PR branch cannot
+# assume it — → `az vm run-command` runs deploy/vm/deploy.sh on the box:
+# compose pull/up, `brain doctor`, auto-rollback to the previous tag.
+#
+# While the VM doesn't exist (pre-§3.1 provisioning) the deploy job skips
+# cleanly and the image still publishes. Manual redeploy of any commit:
+# workflow_dispatch from that commit's ref. Actions pinned by SHA (§9.3).
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: deploy/compose/Dockerfile
+          # amd64 for CI/e2e reuse, arm64 for the B2pls_v2 VM (§3.1)
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: mode=max
+          sbom: true
+          tags: |
+            ghcr.io/mars-flat/brain-gateway:${{ github.sha }}
+            ghcr.io/mars-flat/brain-gateway:latest
+
+  deploy:
+    needs: image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c # v3.0.2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy via run-command (no inbound port, no SSH key in CI — §8.6)
+        run: |
+          if ! az vm show -g rg-brain -n brain-vm --query name -o tsv 2>/dev/null; then
+            echo "::notice::no brain-vm in rg-brain yet — image published, deploy skipped (§3.1)"
+            exit 0
+          fi
+          az vm run-command invoke -g rg-brain -n brain-vm --command-id RunShellScript \
+            --scripts 'set -e; cd /opt/brain && git fetch -q origin main && git reset -q --hard origin/main && bash deploy/vm/deploy.sh ${{ github.sha }}' \
+            -o json > result.json
+          python3 - <<'PY'
+          import json, sys
+          r = json.load(open("result.json"))
+          msg = "\n".join(v.get("message", "") for v in r.get("value", []))
+          print(msg)
+          # run-command never fails on script exit codes — the markers are
+          # the contract with deploy/vm/deploy.sh.
+          if "DEPLOY-OK" in msg:
+              sys.exit(0)
+          if "ROLLBACK-FAILED" in msg:
+              sys.exit("deploy failed AND rollback failed — VM needs hands")
+          if "ROLLED-BACK" in msg:
+              sys.exit("doctor failed — rolled back to the previous tag")
+          sys.exit("deploy script produced no marker — inspect run-command output above")
+          PY
