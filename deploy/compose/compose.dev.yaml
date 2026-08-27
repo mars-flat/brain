@@ -1,0 +1,35 @@
+# Dev/e2e overlay: adds the P4 Keycloak container as the IdP and points the
+# gateway at it over the compose network. Used by scripts/compose-smoke.sh
+# locally and in CI — never in production (Auth0 is the P5 issuer).
+#
+#   docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose.dev.yaml up -d
+#
+# The issuer is http://keycloak:8081 for BOTH the gateway's JWKS fetch and
+# the smoke's token request (which runs inside the gateway container via
+# `compose exec`) — token `iss` and configured issuer must be the same
+# string, and only the compose network sees that hostname.
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7@sha256:831330513f55695572286e521f94fcd3c7e285250ed5b848090265a33192f669
+    command: ["start-dev", "--import-realm", "--http-port=8081"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+    volumes:
+      - ../keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8081 && echo done >&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  gateway:
+    environment:
+      GATEWAY_ISSUER: http://keycloak:8081/realms/brain
+      GATEWAY_RESOURCE: http://127.0.0.1:8090/mcp
+      OPENAI_API_KEY: "" # the dev stack never sees the real key (§8.4)
+    depends_on:
+      keycloak:
+        condition: service_healthy

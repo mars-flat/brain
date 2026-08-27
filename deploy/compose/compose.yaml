@@ -1,0 +1,48 @@
+# Production shape (§3.1): one gateway container on an internal network,
+# published on host loopback ONLY — `tailscale serve` on the VM fronts it
+# over the tailnet with TLS. No public IP, no public port, ever.
+#
+#   docker compose -f deploy/compose/compose.yaml up -d
+#
+# Required env (compose reads deploy/compose/.env on the VM — gitignored):
+#   GATEWAY_ISSUER    IdP issuer URL (Auth0 tenant at P5, §4.3)
+#   GATEWAY_RESOURCE  the URL clients reach, e.g. https://<vm>.tailnet.ts.net/mcp
+#   BRAIN_DATA_DIR    host dir holding vault/ (VM: /data)
+#   OPENAI_API_KEY    for LLM extraction in the brain upstream
+name: brain
+
+services:
+  gateway:
+    build:
+      context: ../..
+      dockerfile: deploy/compose/Dockerfile
+    image: ghcr.io/mars-flat/brain-gateway:${TAG:-local}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8090"
+    environment:
+      BRAIN_VAULT_PATH: /data/vault
+      GATEWAY_HOST: 0.0.0.0
+      GATEWAY_PORT: "8090"
+      GATEWAY_ISSUER: ${GATEWAY_ISSUER:?IdP issuer URL}
+      GATEWAY_AUDIENCE: ${GATEWAY_AUDIENCE:-brain-gateway}
+      GATEWAY_RESOURCE: ${GATEWAY_RESOURCE:?advertised /mcp URL (tailnet)}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - ${BRAIN_DATA_DIR:-/data}/vault:/data/vault
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1536m
+    healthcheck:
+      # PRM endpoint is unauthenticated by design (RFC 9728) — ideal probe.
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "const r = await fetch('http://127.0.0.1:8090/.well-known/oauth-protected-resource'); if (!r.ok) process.exit(1)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

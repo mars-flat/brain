@@ -39,7 +39,7 @@ mars-flat/brain/                    # PUBLIC
 ├── bunfig.toml  bun.lock  .env.example  .gitleaks.toml  .dependency-cruiser.js
 │
 └── vault/                          # ← SEPARATE GIT REPO. gitignored here.
-    ├── .git/                       #   own history; no remote until P5
+    ├── .git/                       #   own history; private remote since P5 (§12 Q1)
     ├── .obsidian/                  #   open this folder as your Obsidian vault
     ├── BRAIN.md                    #   Layer-3 schema
     ├── nodes/ episodes/ pins/ quarantine/
@@ -102,7 +102,7 @@ Estimates are working days and they're guesses. **P2 is most likely to double** 
 
 | # | Question | My default if you don't weigh in |
 |---|---|---|
-| 1 | ~~Where does the vault live?~~ **Decided:** `brain/vault/`, nested git repo, no remote (§9.1) | ~~Confirm Time Machine covers `~/brain`~~ Owner declined the backup check for now (2026-08-25, "not crucial") — **accepted risk: the vault is one disk failure from loss until the P5 private remote** |
+| 1 | ~~Where does the vault live?~~ **Decided:** `brain/vault/`, nested git repo (§9.1). **Private remote created 2026-08-27** (`mars-flat/brain-vault`, visibility verified before the first push; history audited — `secrets/master.key` never tracked, the envelope-encrypted `secrets/store.json` is deliberately committed per §4.3) | ~~accepted single-disk loss risk~~ — closed by the remote |
 | 2 | Public repo now, or after P4 hardening? | **Public from P0.** Retrofitting secret hygiene is how secrets leak. Starting public forces the discipline while the repo is empty |
 | 3 | ~~Domain for the gateway?~~ **Moot** — dropping the public IP removed the TLS requirement (§3.1) | Revisit only when WhatsApp needs a public webhook |
 | 4 | ~~Cheap model for consolidation?~~ **Decided:** `gpt-5.6-luna` at `medium` effort via Batch API (§5.8). *P2 note:* extraction runs synchronously for now — Batch's 24h ceiling is wrong for an interactive dev loop; switch to Batch at P5 when consolidation becomes a background cadence | Re-baseline after a week of real episodes. Effort, not model, is the cost lever — raise to `high` only if extraction quality demands it |

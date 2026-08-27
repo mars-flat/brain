@@ -52,11 +52,19 @@ flowchart TB
 | Target | What runs | When |
 |---|---|---|
 | **Local dev** | `docker compose up` — full stack, SQLite, file secrets, fake upstream MCP servers | Phases 0–4, and every CI e2e run |
-| **Azure single-host** ✅ | One `Standard_B2pls_v2` VM (2 vCPU ARM, 4 GB), Docker Compose, one managed disk, **no public IP**, Tailscale for access | **Recommended for Phase 6.** Identical compose file to local |
+| **Azure single-host** ✅ | One `Standard_B2pls_v2` VM (2 vCPU ARM, 4 GB), Docker Compose, one managed disk, **no public IP**, Tailscale for access | **Phase 5** (the roadmap settled deploy at P5, §11 — "Phase 6" here was a revision-3 leftover). Identical compose file to local |
 | **Azure managed** | Container Apps + Files + Key Vault, Bicep in `deploy/bicep/azure` | Only if you outgrow one box. You won't |
 | **Any other host** | Same compose file, Hetzner/Fly/home server | Migration = `docker compose up` + restore volume |
 
-**Recommendation: one Azure VM with Docker Compose — and don't create it until P6.** The compose file is byte-identical to what you tested locally, which is what makes migration free. Bicep is provided for the managed path but is not on the critical path.
+**Recommendation: one Azure VM with Docker Compose — and don't create it until the stack passes locally.** The compose file is byte-identical to what you tested locally, which is what makes migration free. Bicep is provided for the managed path but is not on the critical path.
+
+**P5 implementation (2026-08-27), `deploy/compose/`:** the production stack is **one container** — the gateway over Streamable HTTP; brain-mcp is not a separate service but the gateway's stdio child, spawned per the vault's `config/servers.yaml` (`agent-runtime` and `surface-host` join the compose file at P6). Specifics a reader should know:
+
+- **Host publish is loopback-only** (`127.0.0.1:8090`); `tailscale serve` on the VM fronts it over the tailnet with TLS. That is how "no public ingress" is realized with host-level `tailscaled` — no host port is reachable from anywhere but the machine itself and the tailnet.
+- The gateway grew `GATEWAY_HOST` (bind interface; the container sets `0.0.0.0`) and `GATEWAY_RESOURCE` (the advertised PRM/challenge URL — the tailnet URL, decoupled from the bind address).
+- The **entrypoint rebuilds `_index/brain.db` only when missing** — derived state (§5.11) is absent on a fresh volume or restored backup, but a redundant rebuild is never run (salience lives in SQLite, §5.2).
+- The image (`oven/bun` pinned by digest, non-root, `--production` install) carries no `.env` and no vault — `.dockerignore` enforces the §9.1/§9.2 boundary at build time.
+- `compose.dev.yaml` overlays the P4 Keycloak container as IdP; `scripts/compose-smoke.sh` runs the full stack and drives unauth 401 → PRM → authed recall → step-up 403 from inside the network. CI runs it as the §8.2 e2e tier on every PR.
 
 ```mermaid
 flowchart LR

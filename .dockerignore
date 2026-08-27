@@ -1,0 +1,23 @@
+# Build context hygiene (§9.1/§9.2): the image must never contain the vault,
+# credentials, or owner-local files. bun auto-loads .env from cwd — keeping
+# .env out of the image is what keeps it out of every container process.
+.env
+vault/
+azure/
+questions-for-owner.md
+QUESTIONS-FOR-OWNER.md
+
+.git/
+.github/
+.githooks/
+node_modules/
+**/node_modules/
+docs/
+architecture/
+examples/
+*.md
+!packages/**/*.md
+
+# Derived / local
+**/_index/
+.DS_Store
