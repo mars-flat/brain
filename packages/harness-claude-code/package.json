@@ -1,0 +1,13 @@
+{
+  "name": "@brain/harness-claude-code",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Claude Code as a Mode A harness (§6.4): SessionEnd hook → episode envelope → brain ingest; the brain-memory skill carries the recall/capture protocol.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@brain/contracts": "workspace:*"
+  }
+}

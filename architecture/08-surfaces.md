@@ -173,6 +173,14 @@ export interface HarnessAdapter {
 
 That's the entire Claude Code integration. **Hermes later is a sibling package**, not a refactor: same port, different `install` and `normalizeEpisode`. When it arrives, the one design question to settle is procedural memory (Hermes skills) vs semantic memory (brain nodes) — leave that line fuzzy and you'll debug contradictory memory for months. Not a Phase 1–6 problem.
 
+**Built 2026-08-27, between P4 and P5** — the §11 argument ("every day the brain isn't running is a day of context you don't get back") applies to the harness as soon as the brain works, so Mode A shipped early with three deviations from the sketch above:
+
+- **Delivery is the CLI, not a POST.** The brain has no HTTP surface until P5, so the `SessionEnd` hook (`packages/harness-claude-code/hooks/session-end.ts`) writes the envelope and runs `brain ingest --now`. The POST swap lands in that one script when the gateway goes remote.
+- **The CLAUDE.md snippet grew into a skill.** Recall/capture is judgment, not configuration: `.claude/skills/brain-memory/` carries the protocol (recall before acting; capture the moment a durable fact appears; `pin` corrections; supersede reversals; never wait for session end), and a three-line `CLAUDE.md` points at it. The SessionEnd sweep is the backstop for what in-flight capture misses, not the primary path.
+- **`install()` is static for now** — the config it would write is committed to the repo instead (`.mcp.json`, `.claude/settings.json`, the skill). It starts writing real config at P5, when a remote gateway URL exists to install.
+
+The envelope is built by `normalizeEpisode`: deterministic episode id derived from the session id (rerunning the hook is a no-op even before the ledger's idempotency), thinking blocks / tool results / command tags / sidechain lines stripped so they never enter episodic storage, tool calls kept as digests per §5.7, oldest turns trimmed first under the §5.8 guard, and sessions below a small floor (two user turns / 200 user chars) skipped entirely — an extraction call costs money and a two-line session isn't memory.
+
 ### 6.5 Trust tiers
 
 | Tier | Surfaces | Reads | Writes | Shell/FS | Memory writes |
