@@ -115,19 +115,21 @@ The collision: revision 3's host (`t4g.medium` equivalent + 64 GiB disk + static
 
 *Cut the infrastructure* — the changes above take it from ~$42.51 to roughly **$36–39/mo**: drop the static IP (−$3.65), and use one 32 GiB disk instead of 64 GiB (the vault is markdown and a SQLite index — tens of megabytes, not tens of gigabytes). The 4 GB VM is the floor and stays; five Bun services plus sandboxed MCP containers (§4.6) will not fit in 2 GB.
 
-*Re-space the budgets* so the warning fires before the guillotine. Current values put `monthly-tripwire` above `auto-shutdown-cap`, which is why the config correctly calls it dead weight — it can never fire. Suggested:
+*Re-space the budgets* so the warning fires before the guillotine. The original values put `monthly-tripwire` above `auto-shutdown-cap`, which is why the config correctly called it dead weight — it could never fire. **Done 2026-08-27**, at double the suggested values (owner: the sponsorship credit pool grew substantially, so the ladder scales with it):
 
-| Budget | Now | Suggested | Why |
+| Budget | Was | Set | Why |
 |---|---|---|---|
-| `monthly-tripwire` | 100 CAD | **55 CAD** | ~140% of steady state. Fires *first*, as an early warning that something is off |
-| `auto-shutdown-cap` | 50 CAD | **90 CAD** | ~230% of steady state. Normal operation never trips it; a runaway still gets killed |
-| `total-credit-cap` | 1000 CAD | unchanged | Annual credit ceiling |
+| `monthly-tripwire` | 100 CAD | **110 CAD** | ~280% of steady state. Fires *first*, as an early warning that something is off |
+| `auto-shutdown-cap` | 75 CAD | **180 CAD** | ~460% of steady state. Normal operation never trips it; a runaway still gets killed |
+| `total-credit-cap` | 1000 CAD | **2000 CAD** | Annual credit ceiling, raised to track the larger pool |
+
+The action-group/webhook wiring on `auto-shutdown-cap` was carried through the update and re-verified. Ratios are looser than the 140%/230% originally suggested — deliberate: with ~2000 CAD of credit, a month of headroom costs little, and a tripwire at ~280% still warns days before the shutdown at ~460%.
 
 The principle: **an auto-shutdown that fires during normal operation isn't a safety net, it's an outage generator.** Set it where only a genuine runaway reaches it, and put a human-readable warning below it that actually has room to fire.
 
 **Two costs Azure budgets cannot see:**
 
-- **OpenAI model spend** bills to OpenAI, not Azure. Set a separate usage limit in the OpenAI platform dashboard (§13).
+- **OpenAI model spend** bills to OpenAI, not Azure. Set a separate usage limit in the OpenAI platform dashboard (§13). *Set — owner confirmed 2026-08-27.*
 - **The credit-exhaustion conversion.** No budget prevents it. The only real controls are watching `total-credit-cap` alerts and knowing the expiry date.
 
 ---
