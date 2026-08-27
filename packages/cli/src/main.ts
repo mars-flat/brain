@@ -30,6 +30,7 @@ import { recall } from "@brain/core";
 import { OpenAiModelClient } from "@brain/model-openai";
 import { SqliteQueue } from "@brain/queue-sqlite";
 import { FileSecretStore } from "@brain/secrets-file";
+import { backupVault } from "./backup.ts";
 import { formatReport, regressions, runEval, toBaseline } from "./eval.ts";
 import { runLint } from "./lint-cmd.ts";
 
@@ -48,6 +49,7 @@ Usage:
   brain pin <node-id> --correction "…" --reason "…"
   brain lint [--apply]                           proposals; --apply = mechanical fixes
   brain secret set|list|rm <name> [value]        south-bound upstream credentials (§4.3)
+  brain backup [--out <tar.gz>]                  push vault remote + tarball (§3.1 step 1)
 
 All commands take --vault <path>; default comes from BRAIN_VAULT_PATH
 (required, no default). Extraction uses OpenAI when OPENAI_API_KEY is set,
@@ -422,6 +424,7 @@ const { values, positionals } = parseArgs({
     batch: { type: "boolean", default: false },
     apply: { type: "boolean", default: false },
     extractor: { type: "string" },
+    out: { type: "string" },
     type: { type: "string" },
     correction: { type: "string" },
     reason: { type: "string" },
@@ -486,6 +489,18 @@ switch (command) {
       process.exit(2);
     }
     cmdPin(vaultPath(values.vault), nodeId, values.correction, values.reason);
+    break;
+  }
+  case "backup": {
+    const res = backupVault(vaultPath(values.vault), values.out);
+    const pushMsg =
+      res.pushed === "no-remote"
+        ? "no remote configured"
+        : res.pushed
+          ? "pushed to origin"
+          : "PUSH FAILED — tarball still written";
+    console.log(`backup: ${res.outPath} (${(res.bytes / 1024).toFixed(0)} KiB) — ${pushMsg}`);
+    if (res.pushed === false) process.exit(1);
     break;
   }
   case "lint":
