@@ -28,6 +28,9 @@ services:
       GATEWAY_AUDIENCE: ${GATEWAY_AUDIENCE:-brain-gateway}
       GATEWAY_RESOURCE: ${GATEWAY_RESOURCE:?advertised /mcp URL (tailnet)}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # queue = §5.8 batched cadence (`brain consolidate --batch` on a timer
+      # does the extraction); ingest returns fast and never bills inline.
+      BRAIN_INGEST_MODE: ${BRAIN_INGEST_MODE:-queue}
     volumes:
       - ${BRAIN_DATA_DIR:-/data}/vault:/data/vault
     security_opt:

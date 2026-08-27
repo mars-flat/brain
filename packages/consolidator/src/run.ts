@@ -28,7 +28,7 @@ import {
   resolveCandidate,
 } from "@brain/core";
 import { SqliteQueue } from "@brain/queue-sqlite";
-import type { Extractor } from "./extract.ts";
+import { ExtractionPending, type Extractor } from "./extract.ts";
 import { writeQuarantinedCandidate } from "./quarantine.ts";
 import {
   acquireRunLock,
@@ -70,6 +70,8 @@ export interface RunReport {
   locked: boolean;
   processed: ProcessedEpisode[];
   skipped: string[];
+  /** Batch extraction in flight (§5.8) — re-queued fresh, not a failure. */
+  waiting: string[];
   retried: Array<{ episodeId: string; reason: string }>;
   deadLettered: Array<{ episodeId: string; reason: string }>;
 }
@@ -81,6 +83,7 @@ export async function runConsolidator(opts: ConsolidatorOptions): Promise<RunRep
     locked: false,
     processed: [],
     skipped: [],
+    waiting: [],
     retried: [],
     deadLettered: [],
   };
@@ -108,6 +111,14 @@ export async function runConsolidator(opts: ConsolidatorOptions): Promise<RunRep
         report.processed.push(outcome);
         await queue.ack(lease.leaseId);
       } catch (err) {
+        if (err instanceof ExtractionPending) {
+          // Not a failure: ack the lease and re-enqueue fresh so the attempt
+          // counter never dead-letters an episode whose batch is merely slow.
+          report.waiting.push(episodeId);
+          await queue.ack(lease.leaseId);
+          await queue.enqueue({ episodeId, basename });
+          continue;
+        }
         const reason = err instanceof Error ? err.message : String(err);
         releaseReservations(opts.db, episodeId);
         if (lease.attempt >= maxAttempts) {

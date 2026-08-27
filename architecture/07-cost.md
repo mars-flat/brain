@@ -52,6 +52,8 @@ Three things drive the total, in order: **effort level per job**, **how many con
 
 **Everything background goes through the Batch API — it is a flat 50% discount and the workload is already shaped for it.** Consolidation is debounced ten minutes and lint runs nightly (§5.7, §5.9); neither is latency-sensitive, which is exactly the Batch API's trade (most batches finish within an hour, 24h ceiling). Structured outputs, prompt caching, and tools all work inside a batch, so the consolidator's schema-validated extraction needs no redesign.
 
+*Implemented at P5 (§12 Q4):* `ModelClient` grew `submitBatch`/`pollBatch`; `brain consolidate --batch` runs one cadence tick on a timer (collect → drain → submit), and `BRAIN_INGEST_MODE=queue` keeps `brain.ingest` from billing inline on the VM. The batch request is byte-identical to the sync one — batching changes cost and latency, never extraction behavior.
+
 One consequence worth knowing: batched consolidation means a conversation's nodes may not exist for up to an hour, so two conversations close together won't see each other's extractions. The nightly full pass reconciles. For a personal system this is a non-issue; if it ever bites, that specific episode can go through the sync path.
 
 **Prompt caching on the extraction prompt.** The consolidator sends the same system prompt, node schema, and edge vocabulary with every episode — a stable prefix of a few thousand tokens. Cache it: reads bill at ~0.1×, writes at 1.25×, so it pays for itself from the second episode onward. Keep the episode itself *after* the cache breakpoint (§5.7 — caching is prefix-matched, so volatile content last).

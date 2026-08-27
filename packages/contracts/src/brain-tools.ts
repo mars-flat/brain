@@ -111,6 +111,12 @@ export interface BrainIngestResult {
   /** Episodes the consolidator run processed (0 when redelivered after success). */
   processed: number;
   retried: number;
+  /**
+   * True when the server runs batched consolidation (§5.8): the episode is
+   * stored + enqueued and the background cadence extracts it — nothing was
+   * consolidated inline.
+   */
+  queued?: boolean;
 }
 
 export interface BrainPinInput {

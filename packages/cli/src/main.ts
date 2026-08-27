@@ -20,6 +20,7 @@ import {
   MarkerExtractor,
   type QueuedEpisode,
   type RunReport,
+  runBatchCycle,
   runConsolidator,
   ulid,
   writePin,
@@ -42,6 +43,7 @@ Usage:
   brain doctor
   brain ingest <envelope.json> [--now]           validate, store, enqueue (§5.7)
   brain consolidate [--extractor marker|openai]  run the single writer once
+  brain consolidate --batch                      one Batch-API cadence tick (§5.8)
   brain note <text…> [--type <t>]                capture directly (enqueue + run)
   brain pin <node-id> --correction "…" --reason "…"
   brain lint [--apply]                           proposals; --apply = mechanical fixes
@@ -240,12 +242,14 @@ function printRunReport(report: RunReport): void {
     for (const w of p.warnings) console.warn(`  warning: ${w}`);
   }
   for (const s of report.skipped) console.log(`· ${s} already consolidated`);
+  for (const w of report.waiting) console.log(`… ${w} waiting on batch extraction (§5.8)`);
   for (const r of report.retried) console.log(`↻ ${r.episodeId} will retry: ${r.reason}`);
   for (const d of report.deadLettered)
     console.error(`✗ ${d.episodeId} dead-lettered to quarantine/: ${d.reason}`);
   if (
     !report.processed.length &&
     !report.skipped.length &&
+    !report.waiting.length &&
     !report.retried.length &&
     !report.deadLettered.length
   )
@@ -261,6 +265,23 @@ async function cmdConsolidate(vault: string, extractorFlag: string | undefined):
     extractor: pickExtractor(extractorFlag),
   });
   printRunReport(report);
+}
+
+/** One cadence tick of batched consolidation (§12 Q4): collect → drain → submit. */
+async function cmdConsolidateBatch(vault: string): Promise<void> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) {
+    console.error("error: brain consolidate --batch needs OPENAI_API_KEY");
+    process.exit(2);
+  }
+  const db = openDb(dbPath(vault));
+  ensureConsolidatorTables(db);
+  const cycle = await runBatchCycle({ vaultPath: vault, db, model: new OpenAiModelClient(key) });
+  for (const c of cycle.collected)
+    console.log(`⇣ batch ${c.batchId} collected: ${c.ok} ok, ${c.failed} failed`);
+  printRunReport(cycle.run);
+  if (cycle.batchId)
+    console.log(`⇡ submitted batch ${cycle.batchId} (${cycle.submitted.length} episodes)`);
 }
 
 async function cmdIngest(
@@ -398,6 +419,7 @@ const { values, positionals } = parseArgs({
     update: { type: "boolean", default: false },
     help: { type: "boolean", default: false },
     now: { type: "boolean", default: false },
+    batch: { type: "boolean", default: false },
     apply: { type: "boolean", default: false },
     extractor: { type: "string" },
     type: { type: "string" },
@@ -445,7 +467,8 @@ switch (command) {
     break;
   }
   case "consolidate":
-    await cmdConsolidate(vaultPath(values.vault), values.extractor);
+    if (values.batch) await cmdConsolidateBatch(vaultPath(values.vault));
+    else await cmdConsolidate(vaultPath(values.vault), values.extractor);
     break;
   case "note": {
     const text = rest.join(" ").trim();
