@@ -94,6 +94,8 @@ flowchart LR
 
 Estimates are working days and they're guesses. **P2 is most likely to double** — extraction quality is tuning, not coding. **P6 grew from 3 to 5 days** because revision 2 had no server-side agent loop at all (§6.0).
 
+**P4½ (2026-08-27): `harness-claude-code` Mode A shipped early**, out of phase order. The "brain before gateway" logic above compounds once both work: every Claude Code session that isn't captured is lost context, and P5 was blocked on the owner anyway. Scope and deviations in §6.4.
+
 ---
 
 ## 12. Open questions

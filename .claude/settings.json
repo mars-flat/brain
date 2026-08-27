@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bun \"$CLAUDE_PROJECT_DIR/packages/harness-claude-code/hooks/session-end.ts\"",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  }
+}
