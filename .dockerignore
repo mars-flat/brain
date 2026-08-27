@@ -2,6 +2,7 @@
 # credentials, or owner-local files. bun auto-loads .env from cwd — keeping
 # .env out of the image is what keeps it out of every container process.
 .env
+**/.env
 vault/
 azure/
 questions-for-owner.md
