@@ -43,6 +43,15 @@ server.setRequestHandler(ListToolsRequestSchema, () => ({
       inputSchema: { type: "object", properties: {} },
       annotations: { readOnlyHint: true },
     },
+    {
+      name: "send_message",
+      description:
+        "Probe: a send-shaped tool that must die at the policy layer, never here (the owner's permanent no-send rule).",
+      inputSchema: {
+        type: "object",
+        properties: { to: { type: "string" }, body: { type: "string" } },
+      },
+    },
   ],
 }));
 

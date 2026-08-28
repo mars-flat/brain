@@ -144,6 +144,16 @@
         "@modelcontextprotocol/sdk": "1.30.0",
       },
     },
+    "packages/mcp-google": {
+      "name": "@brain/mcp-google",
+      "version": "0.1.0",
+      "bin": {
+        "mcp-google": "./src/main.ts",
+      },
+      "dependencies": {
+        "@modelcontextprotocol/sdk": "1.30.0",
+      },
+    },
   },
   "packages": {
     "@biomejs/biome": ["@biomejs/biome@2.5.10", "", { "optionalDependencies": { "@biomejs/cli-darwin-arm64": "2.5.10", "@biomejs/cli-darwin-x64": "2.5.10", "@biomejs/cli-linux-arm64": "2.5.10", "@biomejs/cli-linux-arm64-musl": "2.5.10", "@biomejs/cli-linux-x64": "2.5.10", "@biomejs/cli-linux-x64-musl": "2.5.10", "@biomejs/cli-win32-arm64": "2.5.10", "@biomejs/cli-win32-x64": "2.5.10" }, "bin": { "biome": "bin/biome" } }, "sha512-WRKXARA3kTuiV5sxqTpobJ/I0MVd4vk3pOL6wnp5az4LntFIhWTj1RWZq3DI9PCEN3lXcqy7p5aqUHzvq8AXyQ=="],
@@ -181,6 +191,8 @@
     "@brain/gateway": ["@brain/gateway@workspace:packages/gateway"],
 
     "@brain/harness-claude-code": ["@brain/harness-claude-code@workspace:packages/harness-claude-code"],
+
+    "@brain/mcp-google": ["@brain/mcp-google@workspace:packages/mcp-google"],
 
     "@brain/model-openai": ["@brain/model-openai@workspace:adapters/model-openai"],
 

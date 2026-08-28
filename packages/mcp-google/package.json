@@ -1,0 +1,16 @@
+{
+  "name": "@brain/mcp-google",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Thin Gmail + Drive MCP server over the plain REST APIs, one instance per Google account (W2). Mail is read + label control with no send tool; Drive is full CRUD with trash-first deletes.",
+  "bin": {
+    "mcp-google": "./src/main.ts"
+  },
+  "exports": {
+    ".": "./src/server.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0"
+  }
+}
