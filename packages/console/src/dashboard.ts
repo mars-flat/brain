@@ -21,6 +21,11 @@ interface Tile {
 
 const cache = new Map<string, { at: number; value: Tile }>();
 
+/** Manual dashboard refresh (§15.4): drop every tile result. */
+export function clearTileCache(): void {
+  cache.clear();
+}
+
 async function cached(key: string, ttlMs: number, make: () => Promise<Tile>): Promise<Tile> {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < ttlMs) return hit.value;
@@ -187,6 +192,8 @@ export async function dashboardPage(
   store: BrainStore,
   db: Database,
   sub: string,
+  /** Pre-escaped feedback line from the refresh route, if any. */
+  notice = "",
 ): Promise<string> {
   const tiles: Tile[] = [
     await gatewayTile(cfg),
@@ -222,7 +229,11 @@ export async function dashboardPage(
   return page(
     "dashboard",
     `<h1>dashboard</h1>
-     <p class="muted">signed in as ${esc(sub)}</p>
+     <div class="row">
+       <p class="muted">signed in as ${esc(sub)}</p>
+       <form method="post" action="/dashboard/refresh"><button class="btn" type="submit">refresh all cards</button></form>
+       ${notice}
+     </div>
      <div class="grid">${tileHtml}</div>
      <h2>services</h2>
      <div class="grid">${svcHtml || `<p class="muted">no services configured — add a services: section to config/console.yaml in the vault</p>`}</div>

@@ -100,6 +100,9 @@ the costs endpoint rejects regular keys (403, `api.usage.read` is
 admin-only), so this is a separate, optional credential (§13). Probe
 results cache 5 min on success but only 30 s on failure, so a probe that
 failed once at container start recovers fast instead of pinning the card.
+A manual "refresh all cards" button drops every tile and probe cache —
+server-throttled to one forced refresh per minute so upstream APIs never
+see a button-mash.
 The managed identity needs a one-time Reader grant at subscription scope —
 an owner-run `az role assignment create` (IAM changes stay human).
 

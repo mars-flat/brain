@@ -253,6 +253,35 @@ describe("dashboard (W1.4)", () => {
     expect(body).toContain(`href="/logout"`); // the nav logout control
   });
 
+  test("manual refresh drops caches once per minute, authed only", async () => {
+    const cookie = await login();
+    const anon = await fetch(`${console_.url}/dashboard/refresh`, {
+      method: "POST",
+      redirect: "manual",
+    });
+    expect(anon.status).toBe(302); // stranger → login bounce, no cache drop
+    const first = await fetch(`${console_.url}/dashboard/refresh`, {
+      method: "POST",
+      headers: { cookie },
+      redirect: "manual",
+    });
+    expect(first.status).toBe(303);
+    expect(first.headers.get("location")).toBe("/dashboard?refreshed=1");
+    const page = await fetch(`${console_.url}/dashboard?refreshed=1`, { headers: { cookie } });
+    expect(await page.text()).toContain("refreshed — every card refetched");
+    const second = await fetch(`${console_.url}/dashboard/refresh`, {
+      method: "POST",
+      headers: { cookie },
+      redirect: "manual",
+    });
+    expect(second.status).toBe(303);
+    expect(second.headers.get("location")).toMatch(/\/dashboard\?throttled=\d+/);
+    const throttledPage = await fetch(`${console_.url}${second.headers.get("location")}`, {
+      headers: { cookie },
+    });
+    expect(await throttledPage.text()).toContain("throttled — next refresh in");
+  });
+
   test("expiry tile grades urgency", () => {
     const now = new Date("2026-08-27T00:00:00Z");
     const tile = expiryTile(

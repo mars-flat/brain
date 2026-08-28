@@ -55,6 +55,10 @@ ul.plain { list-style:none; padding:0; } ul.plain li { margin:.3rem 0; }
 table.slim { width:100%; font-size:.9rem; } table.slim td, table.slim th { border:none; border-bottom:1px solid var(--line); padding:.25rem .5rem; text-align:left; }
 .scroll { overflow-x:auto; }
 p.sect { margin:.7rem 0 .15rem; }
+.row { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; }
+.row p { margin:.2rem 0; }
+button.btn { font:inherit; font-size:.85rem; color:var(--fg); background:var(--card); border:1px solid var(--line); border-radius:6px; padding:.3rem .8rem; cursor:pointer; }
+button.btn:hover { border-color:var(--accent); color:var(--accent); }
 .svgwrap { overflow-x:auto; } .svgwrap svg { min-width: 60rem; width:100%; height:auto; }
 .ok { color:#3c7d4e; } .warn { color:#b57316; } .bad { color:#b3402e; }
 blockquote { border-left:3px solid var(--line); margin:0; padding:.1rem 1rem; color:var(--muted); }
