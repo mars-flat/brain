@@ -207,7 +207,7 @@ export async function dashboardPage(
   const linkHtml = [...groups.entries()]
     .map(
       ([g, links]) =>
-        `<div class="card"><h3>${esc(g)}</h3><ul class="plain">${links
+        `<div class="card links"><h3>${esc(g)}</h3><ul class="plain">${links
           .map(
             (l) =>
               `<li><a href="${esc(l.url)}" rel="noreferrer">${esc(l.title)}</a>${l.note ? ` <span class="muted">— ${esc(l.note)}</span>` : ""}</li>`,

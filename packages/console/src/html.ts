@@ -50,7 +50,7 @@ h1,h2,h3 { line-height:1.25; }
 .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding: .9rem 1.1rem; margin: .7rem 0; }
 .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(24rem,1fr)); gap:.7rem; }
 ul.plain { list-style:none; padding:0; } ul.plain li { margin:.3rem 0; }
-.card ul.plain li { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.card.links ul.plain li { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 table.slim { width:100%; font-size:.9rem; } table.slim td, table.slim th { border:none; border-bottom:1px solid var(--line); padding:.25rem .5rem; text-align:left; }
 .scroll { overflow-x:auto; }
 p.sect { margin:.7rem 0 .15rem; }

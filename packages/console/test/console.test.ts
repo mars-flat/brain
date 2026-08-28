@@ -157,6 +157,7 @@ describe("dashboard (W1.4)", () => {
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain("Example portal");
+    expect(body).toContain(`class="card links"`); // one-line truncation is links-only; other cards wrap
     expect(body).toContain("test-token");
     expect(body).toContain("unavailable"); // the unreachable gateway tile degraded, page did not
     expect(body).toContain("nodes");

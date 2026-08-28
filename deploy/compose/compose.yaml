@@ -72,7 +72,10 @@ services:
       CONSOLE_GATEWAY_PRM_URL: http://gateway:8090/.well-known/oauth-protected-resource
       # Optional: lets the dashboard's service probes check these keys live
       # (§15.4). Absent keys just degrade the cards to config-only.
+      # OPENAI_ADMIN_KEY is an org Admin key (api.usage.read) — the only
+      # kind the costs endpoint accepts; it powers the spend line.
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_ADMIN_KEY: ${OPENAI_ADMIN_KEY:-}
       VERCEL_API_TOKEN: ${VERCEL_API_TOKEN:-}
     volumes:
       - ${BRAIN_DATA_DIR:-/data}/vault:/data/vault
