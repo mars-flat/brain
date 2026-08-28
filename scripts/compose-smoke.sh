@@ -21,6 +21,11 @@ export BRAIN_DATA_DIR="${SCRATCH}"
 # the gateway service. Never a real value here.
 export GATEWAY_ISSUER="http://keycloak:8081/realms/brain"
 export GATEWAY_RESOURCE="http://127.0.0.1:8090/mcp"
+# Console interpolation (§15) — the dev overlay overrides these per-service,
+# but the base file's ${VAR:?} guards evaluate regardless.
+export CONSOLE_BASE_URL="http://127.0.0.1:8091"
+export CONSOLE_CLIENT_ID="brain-cli"
+export CONSOLE_SESSION_SECRET="dev-only-session-secret"
 
 cleanup() {
   "${COMPOSE[@]}" logs --no-color gateway 2>/dev/null | tail -20 || true

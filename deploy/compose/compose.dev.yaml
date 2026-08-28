@@ -34,3 +34,13 @@ services:
     depends_on:
       keycloak:
         condition: service_healthy
+
+  console:
+    environment:
+      CONSOLE_BASE_URL: http://127.0.0.1:8091
+      CONSOLE_ISSUER: http://keycloak:8081/realms/brain
+      CONSOLE_CLIENT_ID: brain-cli
+      CONSOLE_SESSION_SECRET: dev-only-session-secret
+    depends_on:
+      keycloak:
+        condition: service_healthy

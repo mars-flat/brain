@@ -82,6 +82,19 @@
         "@brain/secrets-file": "workspace:*",
       },
     },
+    "packages/console": {
+      "name": "@brain/console",
+      "version": "0.1.0",
+      "bin": {
+        "brain-console": "./src/main.ts",
+      },
+      "dependencies": {
+        "@brain/brainstore": "workspace:*",
+        "@brain/contracts": "workspace:*",
+        "jose": "6.2.10",
+        "marked": "16.4.1",
+      },
+    },
     "packages/consolidator": {
       "name": "@brain/consolidator",
       "version": "0.1.0",
@@ -156,6 +169,8 @@
     "@brain/brainstore": ["@brain/brainstore@workspace:packages/brainstore"],
 
     "@brain/cli": ["@brain/cli@workspace:packages/cli"],
+
+    "@brain/console": ["@brain/console@workspace:packages/console"],
 
     "@brain/consolidator": ["@brain/consolidator@workspace:packages/consolidator"],
 
@@ -328,6 +343,8 @@
     "json5": ["json5@2.2.3", "", { "bin": { "json5": "lib/cli.js" } }, "sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg=="],
 
     "kleur": ["kleur@3.0.3", "", {}, "sha512-eTIzlVOSUR+JxdDFepEYcBMtZ9Qqdef+rnzWdRZuMbOywu5tO2w2N7rqjoANZ5k9vywhL6Br1VRjUIgTQx4E8w=="],
+
+    "marked": ["marked@16.4.1", "", { "bin": { "marked": "bin/marked.js" } }, "sha512-ntROs7RaN3EvWfy3EZi14H4YxmT6A5YvywfhO+0pm+cH/dnSQRmdAmoFIc3B9aiwTehyk7pESH4ofyBY+V5hZg=="],
 
     "math-intrinsics": ["math-intrinsics@1.1.0", "", {}, "sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g=="],
 

@@ -49,3 +49,43 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+
+  # The web console (§15): same image, different entrypoint. Read-only over
+  # the vault by code discipline; identity via OIDC (§15.2). Loopback publish —
+  # the TLS front (Caddy) is the only thing that reaches it from outside.
+  console:
+    image: ghcr.io/mars-flat/brain-gateway:${TAG:-local}
+    restart: unless-stopped
+    entrypoint: ["bun", "/app/packages/console/src/main.ts"]
+    ports:
+      - "127.0.0.1:8091:8091"
+    environment:
+      BRAIN_VAULT_PATH: /data/vault
+      CONSOLE_HOST: 0.0.0.0
+      CONSOLE_PORT: "8091"
+      CONSOLE_BASE_URL: ${CONSOLE_BASE_URL:?public base URL of the console}
+      CONSOLE_ISSUER: ${GATEWAY_ISSUER:?IdP issuer URL}
+      CONSOLE_CLIENT_ID: ${CONSOLE_CLIENT_ID:?OIDC client id for the console}
+      CONSOLE_CLIENT_SECRET: ${CONSOLE_CLIENT_SECRET:-}
+      CONSOLE_SESSION_SECRET: ${CONSOLE_SESSION_SECRET:?random >=16 chars}
+      CONSOLE_ALLOWED_SUB: ${CONSOLE_ALLOWED_SUB:-}
+      CONSOLE_GATEWAY_PRM_URL: http://gateway:8090/.well-known/oauth-protected-resource
+    volumes:
+      - ${BRAIN_DATA_DIR:-/data}/vault:/data/vault
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    depends_on:
+      - gateway
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bun",
+          "-e",
+          "const r = await fetch('http://127.0.0.1:8091/healthz'); if (!r.ok) process.exit(1)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s

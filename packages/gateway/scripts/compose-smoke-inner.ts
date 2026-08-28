@@ -131,4 +131,12 @@ if (redelivered.new_nodes !== 0)
   fail(`redelivery consolidated ${redelivered.new_nodes} nodes — not idempotent`);
 console.log(`5. SessionEnd delivery → +${first.new_nodes} node, redelivery no-op ✓`);
 
+// 6 — the console (§15) is up and gating: healthz open, everything else authed.
+const consoleHealth = await fetch("http://console:8091/healthz");
+if (!consoleHealth.ok) fail(`console healthz → ${consoleHealth.status}`);
+const consoleRoot = await fetch("http://console:8091/", { redirect: "manual" });
+if (consoleRoot.status !== 302 || consoleRoot.headers.get("location") !== "/login")
+  fail(`console / unauthenticated → ${consoleRoot.status}, wanted 302 to /login`);
+console.log("6. console healthy, unauthenticated → login ✓");
+
 console.log("compose smoke: PASS");

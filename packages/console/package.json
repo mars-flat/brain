@@ -1,0 +1,19 @@
+{
+  "name": "@brain/console",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The web console (W1): authenticated read-only vault viewer + ops dashboard, server-rendered, loopback-bound behind the TLS front.",
+  "bin": {
+    "brain-console": "./src/main.ts"
+  },
+  "exports": {
+    ".": "./src/server.ts"
+  },
+  "dependencies": {
+    "@brain/brainstore": "workspace:*",
+    "@brain/contracts": "workspace:*",
+    "jose": "6.2.10",
+    "marked": "16.4.1"
+  }
+}
