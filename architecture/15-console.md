@@ -60,10 +60,13 @@ layout on a canvas, no library — the CSP admits only same-origin scripts,
 and at vault scale O(n²) repulsion is nothing. Data ships as `/graph.json`
 from `loadGraph()`; nodes are sized by degree, colored by a fixed
 type→slot mapping from a CVD-validated categorical palette (both console
-surfaces; identity never rides color alone — hover tooltips, a
+surfaces; identity never rides color alone — hover cards, a
 type-toggle legend, and the index page as the table view). Superseded
-nodes render faded. Hover focuses a neighborhood with edge labels; click
-opens the node page. **The console never writes** — the single-writer
+nodes render faded. Hover focuses a neighborhood (eased dim, edge
+labels, a summary-bearing card); click opens the node page. An
+Obsidian-style settings panel (localStorage-persisted) drives display
+(arrows, node size, link width, label density, animate) and forces
+(repel, link distance, center pull), plus a node search filter. **The console never writes** — the single-writer
 consolidator remains the only writer (§5.7); read-only is a code-level
 discipline (SQLite WAL needs fs write access even for readers).
 
