@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "brain-gateway": {
+    "tool-gateway": {
       "command": "bun",
       "args": ["packages/gateway/src/main.ts"],
       "env": {

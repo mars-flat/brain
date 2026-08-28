@@ -135,7 +135,7 @@ export async function buildGateway(opts: GatewayOptions): Promise<RunningGateway
   // a time, so the HTTP layer makes one per session sharing these deps.
   const makeServer = (): Server => {
     const s = new Server(
-      { name: "brain-gateway", version: "0.1.0" },
+      { name: "tool-gateway", version: "0.1.0" },
       { capabilities: { tools: {} } },
     );
     s.setRequestHandler(ListToolsRequestSchema, () => ({

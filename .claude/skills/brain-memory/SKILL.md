@@ -1,15 +1,17 @@
 ---
 name: brain-memory
-description: Use the brain (graph memory over the owner's vault, reached through the brain-gateway MCP server) in both directions — recall before acting on anything it may already know (past decisions, preferences, constraints, people, project history), and capture durable facts the moment they emerge (a decision made, a preference stated, a correction issued, a constraint discovered). Also covers correcting memory — pin corrections, supersede reversals. Trigger whenever a conversation needs or produces personal or project memory.
+description: Use the brain (graph memory over the owner's vault, reached through the tool-gateway MCP server — the brain's tools are upstreams behind that gateway) in both directions — recall before acting on anything it may already know (past decisions, preferences, constraints, people, project history), and capture durable facts the moment they emerge (a decision made, a preference stated, a correction issued, a constraint discovered). Also covers correcting memory — pin corrections, supersede reversals. Trigger whenever a conversation needs or produces personal or project memory.
 ---
 
 # Brain memory protocol
 
 The brain is the owner's long-term memory: an Obsidian vault of typed,
-linked nodes behind the `brain-gateway` MCP server. This skill is the
-protocol for using it well. Mechanics: find tools with `tools_search`
-(it matches capability text, not the word "brain"), inspect with
-`tools_describe`, invoke with `tools_call`.
+linked nodes reached through the `tool-gateway` MCP server. The gateway
+is not the brain — it fronts many upstream MCP servers, and the brain
+(`brain.*` URNs) is one of them. This skill is the protocol for using it
+well. Mechanics: find tools with `tools_search` (it matches capability
+text, not the word "brain"), inspect with `tools_describe`, invoke with
+`tools_call`.
 
 ## Recall — before acting, not after
 

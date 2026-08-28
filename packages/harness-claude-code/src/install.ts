@@ -30,7 +30,7 @@ export async function install(cfg: InstallConfig): Promise<InstallResult> {
   const mcpPath = join(cfg.targetDir, ".mcp.json");
   const mcp = readJson(mcpPath);
   const servers = (mcp.mcpServers ?? {}) as Record<string, unknown>;
-  servers["brain-gateway"] = {
+  servers["tool-gateway"] = {
     type: "http",
     url: cfg.gatewayUrl,
     ...(cfg.oauthClientId ? { oauth: { clientId: cfg.oauthClientId, callbackPort: 8484 } } : {}),

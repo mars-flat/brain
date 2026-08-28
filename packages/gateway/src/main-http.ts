@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * brain-gateway over Streamable HTTP with OAuth resource-server auth (§4.3).
+ * tool-gateway over Streamable HTTP with OAuth resource-server auth (§4.3).
  *
  *   GATEWAY_ISSUER    IdP issuer (default: local Keycloak realm)
  *   GATEWAY_AUDIENCE  expected aud claim (default: brain-gateway)
@@ -15,7 +15,7 @@ import { startHttpGateway } from "./http.ts";
 
 const vault = process.env.BRAIN_VAULT_PATH;
 if (!vault) {
-  console.error("brain-gateway: BRAIN_VAULT_PATH is required (§9.1)");
+  console.error("tool-gateway: BRAIN_VAULT_PATH is required (§9.1)");
   process.exit(2);
 }
 
@@ -32,5 +32,5 @@ const running = await startHttpGateway({
   },
 });
 console.error(
-  `brain-gateway listening at ${running.url} (issuer: ${process.env.GATEWAY_ISSUER ?? "http://localhost:8081/realms/brain"})`,
+  `tool-gateway listening at ${running.url} (issuer: ${process.env.GATEWAY_ISSUER ?? "http://localhost:8081/realms/brain"})`,
 );

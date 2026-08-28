@@ -85,7 +85,7 @@ export class UpstreamPool {
 
   private async connect(u: Upstream): Promise<void> {
     try {
-      const client = new Client({ name: "brain-gateway", version: "0.1.0" });
+      const client = new Client({ name: "tool-gateway", version: "0.1.0" });
       const transport = new StdioClientTransport({
         command: u.config.command,
         args: this.resolveArgs(u.config.args),
