@@ -20,16 +20,16 @@ TEAM="$(grep '^VERCEL_TEAM_ID=' .env | cut -d= -f2- || true)"
 VOLUME="brain_certs"
 docker volume create "$VOLUME" >/dev/null
 
-mode=run
-docker run --rm -v "$VOLUME":/certs goacme/lego@sha256:7cddf252ccf0ec00b71cbd4dcd548fdbc780006b05ae630e5fa4a981353c5728 \
-  list --path /certs 2>/dev/null | grep -q "$DOMAIN" && mode=renew
-
+# lego v5 CLI: everything via env, `run` both obtains and renews (it
+# no-ops while the existing cert is >30 days from expiry).
 docker run --rm -v "$VOLUME":/certs \
   -e VERCEL_API_TOKEN="$TOKEN" -e VERCEL_TEAM_ID="$TEAM" \
+  -e LEGO_PATH=/certs -e LEGO_ACCEPT_TOS=true -e LEGO_EMAIL="$EMAIL" \
+  -e LEGO_DOMAINS="$DOMAIN" -e LEGO_DNS=vercel \
   goacme/lego@sha256:7cddf252ccf0ec00b71cbd4dcd548fdbc780006b05ae630e5fa4a981353c5728 \
-  --accept-tos --path /certs --email "$EMAIL" --dns vercel -d "$DOMAIN" "$mode"
+  run
 
 # Caddy reads certs at start; reload picks up renewals without downtime.
 docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null ||
   docker compose restart caddy >/dev/null 2>&1 || true
-echo "CERTS-OK $DOMAIN ($mode)"
+echo "CERTS-OK $DOMAIN"
