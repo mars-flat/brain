@@ -126,9 +126,15 @@ config); an unreachable gateway degrades the whole section to roster-only.
 
 ### 15.5 Deliberately not built
 
-Secret *reveals* in the browser (the draft's step-up flow) wait until the
-need is proven — `brain secret` on the box covers it, and the master key
-stays off the VM's web path meanwhile. Also skipped: SPAs, ~~graph
+Secret *reveals* in the browser wait until the need is proven — `brain
+secret` on the box covers it, and the master key stays off the VM's web
+path meanwhile. The sketch, preserved here from the retired draft: the
+page carries names and metadata only; a reveal is click → fresh IdP
+re-auth (`max_age=300`, the web analog of §4.3 step-up) → value fetched
+over the authed channel with `Cache-Control: no-store` → clipboard-copy
+button → wiped from the DOM after ~30 s, never rendered into initial HTML
+or a GET URL; every reveal appends who/which/when — never the value — to
+the hash-chained audit (§4). Also skipped: SPAs, ~~graph
 visualizations (v1)~~ *(deferral ended 2026-08-28: the owner asked; built
 server-light in §15.3 — the pages stay server-rendered, the graph is the
 one canvas)*, and any new secret storage.
