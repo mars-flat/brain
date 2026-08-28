@@ -48,6 +48,7 @@ h1,h2,h3 { line-height:1.25; }
 .chip.type { color:var(--accent); border-color:var(--accent); }
 .muted { color:var(--muted); }
 .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding: .9rem 1.1rem; margin: .7rem 0; }
+.card:target { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(24rem,1fr)); gap:.7rem; }
 ul.plain { list-style:none; padding:0; } ul.plain li { margin:.3rem 0; }
 .card.links ul.plain li { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
