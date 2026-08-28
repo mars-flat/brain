@@ -94,6 +94,26 @@ OnUnitActiveSec=15min
 WantedBy=timers.target
 EOF
 
+# ── monthly edge-cert renewal (§15.1; deploy/vm/certs.sh is lego DNS-01) ─
+cat >/etc/systemd/system/brain-certs.service <<'EOF'
+[Unit]
+Description=obtain/renew the edge TLS certificate (lego DNS-01)
+[Service]
+Type=oneshot
+Environment=HOME=/root
+ExecStart=/usr/bin/bash /opt/brain/deploy/vm/certs.sh
+EOF
+cat >/etc/systemd/system/brain-certs.timer <<'EOF'
+[Unit]
+Description=monthly edge cert renewal
+[Timer]
+OnCalendar=monthly
+Persistent=true
+RandomizedDelaySec=1h
+[Install]
+WantedBy=timers.target
+EOF
+
 # ── nightly vault push: the private remote is the backup (§12 Q1) ────────
 cat >/etc/systemd/system/brain-vault-push.service <<'EOF'
 [Unit]
@@ -115,6 +135,7 @@ EOF
 
 systemctl daemon-reload
 systemctl enable -q --now brain-consolidate.timer brain-vault-push.timer
+systemctl enable -q brain-certs.timer 2>/dev/null || true # armed once the edge env exists
 
 # ── first bring-up: build locally (the GHCR package may still be private;
 #    subsequent deploys pull by tag via deploy.sh) ───────────────────────
