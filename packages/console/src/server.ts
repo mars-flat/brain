@@ -10,10 +10,11 @@ import { join } from "node:path";
 import { BrainStore, openDb } from "@brain/brainstore";
 import { architecturePage } from "./architecture.ts";
 import { type ConsoleConfig, loadVaultConsoleConfig } from "./config.ts";
-import { dashboardPage } from "./dashboard.ts";
+import { clearTileCache, dashboardPage } from "./dashboard.ts";
 import { graphJson, graphPage } from "./graph.ts";
 import { esc, page } from "./html.ts";
 import { buildAuthRequest, discover, exchangeCode, type OidcClient } from "./oidc.ts";
+import { clearProbeCache } from "./services.ts";
 import { cookieHeader, openSession, readCookie, type Session, sealSession } from "./session.ts";
 import { episodesPage, indexPage, nodePage, searchPage } from "./vault-view.ts";
 
@@ -46,6 +47,10 @@ export function startConsole(cfg: ConsoleConfig): RunningConsole {
     });
   const redirect = (to: string, headers: Record<string, string> = {}) =>
     new Response(null, { status: 302, headers: { location: to, ...headers } });
+
+  // Manual dashboard refresh throttle: at most one forced cache drop per
+  // minute, whatever the button-mashing rate — upstream APIs stay calm.
+  let lastForcedRefresh = 0;
 
   const server = Bun.serve({
     port: cfg.port,
@@ -147,9 +152,31 @@ export function startConsole(cfg: ConsoleConfig): RunningConsole {
         const rendered = nodePage(store, id);
         return rendered ? html(rendered) : html(errorPage(`no node “${esc(id)}”`), 404);
       }
+      if (path === "/dashboard/refresh" && req.method === "POST") {
+        const wait = 60_000 - (Date.now() - lastForcedRefresh);
+        if (wait > 0)
+          return new Response(null, {
+            status: 303,
+            headers: { location: `/dashboard?throttled=${Math.ceil(wait / 1000)}` },
+          });
+        lastForcedRefresh = Date.now();
+        clearTileCache();
+        clearProbeCache();
+        return new Response(null, {
+          status: 303,
+          headers: { location: "/dashboard?refreshed=1" },
+        });
+      }
       if (path === "/dashboard") {
         const vaultCfg = loadVaultConsoleConfig(cfg.vaultPath);
-        return html(await dashboardPage(cfg, vaultCfg, store, db, session.sub));
+        const throttled = Number(url.searchParams.get("throttled"));
+        const notice =
+          url.searchParams.get("refreshed") === "1"
+            ? `<p class="ok">refreshed — every card refetched live</p>`
+            : Number.isFinite(throttled) && throttled > 0
+              ? `<p class="warn">throttled — next refresh in ${Math.min(Math.ceil(throttled), 60)}s</p>`
+              : "";
+        return html(await dashboardPage(cfg, vaultCfg, store, db, session.sub, notice));
       }
       if (path === "/architecture") return html(architecturePage());
       return html(errorPage("not found"), 404);

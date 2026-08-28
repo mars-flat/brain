@@ -296,6 +296,11 @@ async function vercelProbe(): Promise<{ html: string; cls: Grade }> {
 
 const probeCache = new Map<string, { at: number; value: { html: string; cls: Grade } }>();
 
+/** Manual dashboard refresh (§15.4): drop every probe result. */
+export function clearProbeCache(): void {
+  probeCache.clear();
+}
+
 async function runProbe(
   svc: ServiceEntry,
   issuer: string,
