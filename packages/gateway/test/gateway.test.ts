@@ -21,6 +21,12 @@ const FIXTURE = join(import.meta.dir, "fake-upstream.ts");
 
 const TEST_POLICY: PolicyDocument = [
   { match: { tool: "*.purge_*" }, effect: "deny", reason: "destructive" },
+  // The owner's permanent no-send rule (§4.5) — mirrors the real vault policy.
+  {
+    match: { tool: ["*.send_*", "*.send", "*send_message*", "*send_email*", "*send_draft*"] },
+    effect: "deny",
+    reason: "email sending is disabled at the gateway, permanently, by owner rule",
+  },
   { match: { kind: "read" }, effect: "allow" },
   { default: "confirm" },
 ];
@@ -73,8 +79,10 @@ describe("classification (§4.3 risk tiers)", () => {
   });
 
   test("env expansion in server config", () => {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: expandEnv's own placeholder syntax
     expect(expandEnv("${HOME}/x", { HOME: "/h" })).toBe("/h/x");
     expect(expandEnv("plain", {})).toBe("plain");
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: expandEnv's own placeholder syntax
     expect(expandEnv("${MISSING}", {})).toBe("");
   });
 });
@@ -106,7 +114,7 @@ describe("gateway over a real MCP client connection", () => {
     const fake = servers.find((s) => s.name === "fake");
     const ghost = servers.find((s) => s.name === "ghost");
     expect(fake?.status).toBe("up");
-    expect(fake?.tool_count).toBe(4);
+    expect(fake?.tool_count).toBe(5);
     expect(ghost?.status).toBe("down");
   });
 
@@ -205,6 +213,16 @@ describe("gateway over a real MCP client connection", () => {
     });
     expect(res.isError).toBe(true);
     expect(JSON.stringify(res.content)).toContain("denied by policy rule #0");
+  });
+
+  test("send-shaped tools die at the policy layer even when an upstream advertises one (W2)", async () => {
+    const res = await client.callTool({
+      name: "tools_call",
+      arguments: { urn: "fake.send_message", args: { to: "x", body: "y" } },
+    });
+    expect(res.isError).toBe(true);
+    expect(JSON.stringify(res.content)).toContain("denied by policy rule #1");
+    expect(JSON.stringify(res.content)).toContain("sending is disabled");
   });
 
   test("unknown urn errors cleanly", async () => {

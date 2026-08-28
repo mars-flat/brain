@@ -17,6 +17,12 @@
 - match: { surface: [discord], tool: ["shell.*", "fs.write", "*.delete_*"] }
   effect: deny
 
+# The no-send rule (W2): send-shaped tools die here by pattern, before any
+# upstream call — even if some upstream ever advertises one.
+- match: { tool: ["*.send_*", "*.send", "*send_message*", "*send_email*", "*send_draft*"] }
+  effect: deny
+  reason: "email sending is disabled at the gateway, permanently, by owner rule"
+
 - match: { kind: read }
   effect: allow
 

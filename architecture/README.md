@@ -2,7 +2,7 @@
 
 **Status:** Revision 5 built through P5 — Azure host, OpenAI `gpt-5.6-luna`, Bun runtime. **P0–P5 complete (2026-08-27): the brain serves remotely** from `brain-vm` over the tailnet with Auth0 auth. **P6 (Discord) deferred by the owner.** See Current status below.
 **Code repo:** `mars-flat/brain` — **public** · **Vault:** `brain/vault/`, its own local git repo, never tracked here ([§9.1](./11-repo-safety.md))
-**MCP revision targeted:** `2026-07-28` · **Last updated:** 2026-08-27
+**MCP revision targeted:** `2026-07-28` · **Last updated:** 2026-08-28
 
 ---
 
@@ -99,6 +99,23 @@ gateway now stamps `ms` on call/error audit events), and the latest
 calls. Trailing-7-day *view* window — the append-only chain is never
 truncated (§15.4). Same day, the console's front door became the graph
 tab, with the vault (nodes + episodes behind one toggle) second (§15.3).
+
+**W2 is built and laptop-verified (2026-08-28) — Google mail + Drive
+behind the gateway.** `packages/mcp-google` (per-server docs live in its
+README — architecture documents only the connection pattern): a thin
+stdio MCP server over the plain REST APIs, one instance per account,
+wired in the private vault's `servers.yaml` with `${secret:…}` refresh
+tokens (§4.3 south-bound plane) and risk kinds carried by MCP annotations
+(§4.4). Mail is read + label control with **structurally no send tool**;
+the permanent send-deny policy rule is mirrored in the example vault and
+now proven at the policy layer by test (a probe upstream advertises a
+send-shaped tool; it dies before any upstream call). The compose e2e
+smoke grew four W2 legs against a fake Google API (search + full-body
+read, confirm-gated archive, Drive create→rename→trash→untrash, both
+halves of no-send). Live from the laptop: all three account instances up
+through the real gateway with real reads. Remaining for the VM leg: the
+owner-run secrets copy (master key + client creds — §W2 handoff), a
+vault pull + gateway restart, then the done-when through the domain.
 
 **One human blocker remains, and it only gates P6: the Discord bot** ([§13](./13-setup.md) has the walkthrough) — **deferred by the owner** for now. Open questions accumulate in `QUESTIONS-FOR-OWNER.md` at the repo root (local-only, gitignored).
 

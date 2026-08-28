@@ -14,6 +14,31 @@ COMPOSE=(docker compose -f deploy/compose/compose.yaml -f deploy/compose/compose
 # index into it, and the container's uid (1000) differs from CI's runner uid.
 SCRATCH="$(mktemp -d)"
 cp -R examples/vault-example "${SCRATCH}/vault"
+
+# W2 leg: a mcp-google instance against the fake Google API the inner script
+# starts on 127.0.0.1:18860 (same network namespace as the gateway's spawned
+# upstreams), plus the send-probe fixture that proves the policy deny fires
+# on an advertised send-shaped tool. Synthetic values only — never real.
+cat >> "${SCRATCH}/vault/config/servers.yaml" <<'YAML'
+
+  - name: g-test
+    command: bun
+    args: [packages/mcp-google/src/main.ts]
+    env:
+      GOOGLE_OAUTH_CLIENT_ID: test-client
+      GOOGLE_OAUTH_CLIENT_SECRET: test-secret
+      GOOGLE_REFRESH_TOKEN: fake-refresh-token
+      GOOGLE_ACCOUNT_LABEL: g-test
+      GOOGLE_TOKEN_URL: http://127.0.0.1:18860/token
+      GOOGLE_GMAIL_BASE: http://127.0.0.1:18860/gmail/v1
+      GOOGLE_DRIVE_BASE: http://127.0.0.1:18860/drive/v3
+      GOOGLE_UPLOAD_BASE: http://127.0.0.1:18860/upload/drive/v3
+
+  - name: probe
+    command: bun
+    args: [packages/gateway/test/fake-upstream.ts]
+YAML
+
 chmod -R a+rwX "${SCRATCH}"
 
 export BRAIN_DATA_DIR="${SCRATCH}"

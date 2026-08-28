@@ -14,6 +14,9 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 // Relative on purpose: the harness package resolves its own deps under the
 // container's isolated install layout; the gateway package never depends on it.
 import { deliverEpisode } from "../../harness-claude-code/src/deliver.ts";
+// The W2 fake Google API — runs in-process here; the g-test upstream the
+// smoke overlay wires into servers.yaml reaches it over 127.0.0.1.
+import { startFakeGoogle } from "../../mcp-google/test/fake-google.ts";
 
 const GW = "http://127.0.0.1:8090";
 const ISSUER = process.env.GATEWAY_ISSUER ?? "http://keycloak:8081/realms/brain";
@@ -138,5 +141,97 @@ const consoleRoot = await fetch("http://console:8091/", { redirect: "manual" });
 if (consoleRoot.status !== 302 || consoleRoot.headers.get("location") !== "/login")
   fail(`console / unauthenticated → ${consoleRoot.status}, wanted 302 to /login`);
 console.log("6. console healthy, unauthenticated → login ✓");
+
+// ── W2: the in-house Google server through the full composed stack ──
+const fakeGoogle = startFakeGoogle(18860);
+const g = new Client({ name: "compose-smoke-google", version: "0" });
+await g.connect(
+  new StreamableHTTPClientTransport(new URL(`${GW}/mcp`), {
+    requestInit: {
+      headers: { authorization: `Bearer ${await token("tools:read tools:write")}` },
+    },
+  }),
+);
+
+type CallShape = {
+  ok?: boolean;
+  needs_confirm?: boolean;
+  confirm_token?: string;
+  result?: { structuredContent?: Record<string, unknown> };
+};
+const gcall = async (urn: string, args: Record<string, unknown>) => {
+  const first = await g.callTool({ name: "tools_call", arguments: { urn, args } });
+  let sc = first.structuredContent as CallShape | undefined;
+  if (sc?.needs_confirm === true) {
+    const second = await g.callTool({
+      name: "tools_call",
+      arguments: { urn, args, confirm_token: sc.confirm_token },
+    });
+    sc = second.structuredContent as CallShape | undefined;
+  }
+  if (sc?.ok !== true) fail(`${urn}: ${JSON.stringify(first.content).slice(0, 300)}`);
+  return sc.result?.structuredContent ?? {};
+};
+
+// 7 — search all mail, read a full message body.
+const inbox = (await gcall("g-test.mail_search", { query: "engine" })) as {
+  results?: Array<{ id: string; subject?: string }>;
+};
+if (!inbox.results?.length) fail("g-test.mail_search returned nothing");
+const msg = (await gcall("g-test.mail_get_message", { id: inbox.results[0]?.id })) as {
+  body?: { text?: string };
+};
+if (!msg.body?.text?.includes("Jacquard")) fail("mail_get_message body not decoded");
+console.log(`7. mail search → ${inbox.results.length} hits, full body decoded ✓`);
+
+// 8 — archive is a confirm-gated write: remove INBOX via the token round-trip.
+const archived = (await gcall("g-test.mail_modify_labels", {
+  message_ids: [inbox.results[0]?.id],
+  remove_label_ids: ["INBOX"],
+})) as { results?: Array<{ label_ids: string[] }> };
+if (archived.results?.[0]?.label_ids.includes("INBOX")) fail("archive left INBOX in place");
+console.log("8. archive via confirm round-trip ✓");
+
+// 9 — Drive lifecycle, every mutation confirm-gated: create → rename → trash → untrash.
+const created = (await gcall("g-test.drive_create", {
+  name: "smoke.txt",
+  mime_type: "text/plain",
+  content: "compose smoke",
+})) as { id?: string };
+if (!created.id) fail("drive_create returned no id");
+const renamed = (await gcall("g-test.drive_update", {
+  id: created.id,
+  name: "smoke-final.txt",
+})) as { name?: string };
+if (renamed.name !== "smoke-final.txt") fail(`rename → ${renamed.name}`);
+const trashed = (await gcall("g-test.drive_trash", { id: created.id })) as { trashed?: boolean };
+if (trashed.trashed !== true) fail("drive_trash did not trash");
+const untrashed = (await gcall("g-test.drive_untrash", { id: created.id })) as {
+  trashed?: boolean;
+};
+if (untrashed.trashed !== false) fail("drive_untrash did not restore");
+console.log("9. drive create → rename → trash → untrash ✓");
+
+// 10 — the no-send guarantee, both halves: no send-shaped tool exists on the
+// Google server (unknown urn), and a send-shaped tool an upstream DOES
+// advertise dies at the policy layer before any upstream call.
+const noTool = await g.callTool({
+  name: "tools_call",
+  arguments: { urn: "g-test.mail_send_message", args: {} },
+});
+if (!noTool.isError || !JSON.stringify(noTool.content).includes("unknown tool"))
+  fail("g-test.mail_send_message should not exist");
+const denied = await g.callTool({
+  name: "tools_call",
+  arguments: { urn: "probe.send_message", args: { to: "x", body: "y" } },
+});
+if (!denied.isError || !JSON.stringify(denied.content).includes("denied by policy"))
+  fail(
+    `probe.send_message should be policy-denied: ${JSON.stringify(denied.content).slice(0, 200)}`,
+  );
+console.log("10. no-send: structurally absent + policy-denied when advertised ✓");
+
+await g.close();
+fakeGoogle.stop();
 
 console.log("compose smoke: PASS");
