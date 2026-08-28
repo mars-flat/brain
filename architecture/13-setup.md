@@ -28,6 +28,7 @@ Everything an agent structurally cannot do: create accounts, accept terms, enter
 | ~~**P4**~~ | ~~IdP account (Auth0/Clerk)~~ **Resolved:** local **Keycloak** container is the P4 IdP (owner, §12 Q6) — `docker compose -f deploy/keycloak/compose.yaml up -d` auto-imports the realm. **No account, no browser signup.** | **No** — fully local |
 | **P5** | ~~Azure budget adjustment (§3.2); GitHub↔Entra federated credential~~ **done 2026-08-27** (budgets re-spaced; `brain-deploy` app + id-pinned federated credential; `rg-brain` + `brain-vm` provisioned). Remaining human steps: the three below | Only the Auth0 credential blocks finishing P5 |
 | **P6** | **Discord application + bot token**, your Discord user ID | 🔴 **Yes** — blocks P6 |
+| **W1.6** (optional) | **OpenAI Admin API key** for the dashboard's spend line — regular keys 403 on the costs endpoint (`api.usage.read` is admin-only). Platform → Settings → Organization → Admin keys; lands as `OPENAI_ADMIN_KEY` in laptop `.env` + VM compose `.env` | No — the card shows a hint instead |
 
 ### The three P5 human steps — all done 2026-08-27
 

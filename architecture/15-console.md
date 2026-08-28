@@ -92,6 +92,11 @@ the sponsorship subscription reports as zero (credit burn ≠ "spend" to the
 Consumption API; the card says so rather than pretending). `oidc` checks
 the console's own issuer discovery; `openai`/`vercel` validate keys the
 env already carries (compose passes them through, absent = config-only).
+The openai card adds month-to-date spend when `OPENAI_ADMIN_KEY` is set —
+the costs endpoint rejects regular keys (403, `api.usage.read` is
+admin-only), so this is a separate, optional credential (§13). Probe
+results cache 5 min on success but only 30 s on failure, so a probe that
+failed once at container start recovers fast instead of pinning the card.
 The managed identity needs a one-time Reader grant at subscription scope —
 an owner-run `az role assignment create` (IAM changes stay human).
 

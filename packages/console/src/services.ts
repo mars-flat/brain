@@ -51,7 +51,7 @@ async function armToken(): Promise<{ token: string; via: string } | null> {
   try {
     const res = await fetch(
       "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fmanagement.azure.com%2F",
-      { headers: { Metadata: "true" }, signal: AbortSignal.timeout(1500) },
+      { headers: { Metadata: "true" }, signal: AbortSignal.timeout(3000) },
     );
     if (res.ok) {
       const token = ((await res.json()) as { access_token?: string }).access_token;
@@ -222,6 +222,35 @@ async function oidcProbe(issuer: string): Promise<{ html: string; cls: Grade }> 
   };
 }
 
+/**
+ * Month-to-date OpenAI spend. The costs endpoint needs the org-level
+ * `api.usage.read` scope, which regular API keys lack (verified: 403) —
+ * only an Admin API key carries it, so this is a separate optional env.
+ */
+async function openaiSpend(): Promise<string> {
+  const admin = process.env.OPENAI_ADMIN_KEY;
+  if (!admin)
+    return ` · <span class="muted">spend needs OPENAI_ADMIN_KEY (admin key, api.usage.read)</span>`;
+  const now = new Date();
+  const start = Math.floor(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) / 1000);
+  const res = await fetch(
+    `https://api.openai.com/v1/organization/costs?start_time=${start}&limit=31`,
+    { headers: { authorization: `Bearer ${admin}` }, signal: AbortSignal.timeout(8000) },
+  );
+  if (!res.ok) return ` · <span class="warn">spend unavailable: HTTP ${res.status}</span>`;
+  const data = (await res.json()) as {
+    data?: Array<{ results?: Array<{ amount?: { value?: number; currency?: string } }> }>;
+  };
+  let total = 0;
+  let currency = "usd";
+  for (const bucket of data.data ?? [])
+    for (const r of bucket.results ?? []) {
+      total += r.amount?.value ?? 0;
+      currency = r.amount?.currency ?? currency;
+    }
+  return ` · <strong>$${total.toFixed(2)}</strong> <span class="muted">${esc(currency.toUpperCase())} this month</span>`;
+}
+
 async function openaiProbe(): Promise<{ html: string; cls: Grade }> {
   const key = process.env.OPENAI_API_KEY;
   if (!key)
@@ -237,7 +266,7 @@ async function openaiProbe(): Promise<{ html: string; cls: Grade }> {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = (await res.json()) as { data?: unknown[] };
   return {
-    html: `<span class="ok">API key live</span> <span class="muted">· ${data.data?.length ?? 0} models visible</span>`,
+    html: `<span class="ok">API key live</span> <span class="muted">· ${data.data?.length ?? 0} models visible</span>${await openaiSpend()}`,
     cls: "ok",
   };
 }
@@ -273,7 +302,10 @@ async function runProbe(
 ): Promise<{ html: string; cls: Grade } | null> {
   if (!svc.probe) return null;
   const hit = probeCache.get(svc.name);
-  if (hit && Date.now() - hit.at < 300_000) return hit.value;
+  // Failures retry fast — a probe that failed once at container start
+  // (e.g. IMDS before a fresh identity propagates) must not pin the card
+  // to "unavailable" for the full success TTL.
+  if (hit && Date.now() - hit.at < (hit.value.cls === "ok" ? 300_000 : 30_000)) return hit.value;
   const run = async (): Promise<{ html: string; cls: Grade }> => {
     switch (svc.probe) {
       case "azure":
