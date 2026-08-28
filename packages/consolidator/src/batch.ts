@@ -18,6 +18,15 @@
  * (Pending re-queues reset the queue's attempt counter, so the fail count
  * lives here — without it a permanently failing episode would resubmit,
  * and bill, forever.)
+ *
+ * The cap counts only ITEM failures — evidence the episode itself is
+ * poison. A whole-batch failure (validation, quota, platform incident)
+ * never ran the episode, so it clears `fails` and the episode stays
+ * pending: dead-lettering healthy memory because the discount transport
+ * is down is the one unacceptable outcome. The bill-forever bound doesn't
+ * apply — a failed batch bills no inference and its input upload
+ * auto-expires — and the batch-level error is surfaced in the cycle
+ * report so a stuck loop is visible in the journal, not silent.
  */
 
 import type { Database } from "bun:sqlite";
@@ -89,7 +98,7 @@ export interface BatchCycleOptions extends Omit<ConsolidatorOptions, "extractor"
 
 export interface BatchCycleReport {
   /** Batches that finished this cycle (results stored or requests cleared). */
-  collected: Array<{ batchId: string; ok: number; failed: number }>;
+  collected: Array<{ batchId: string; ok: number; failed: number; error?: string }>;
   /** The consolidation pass over stored results. */
   run: RunReport;
   /** Episodes submitted in a new batch this cycle (empty → no batch created). */
@@ -110,17 +119,21 @@ export async function runBatchCycle(opts: BatchCycleOptions): Promise<BatchCycle
     const status = await opts.model.pollBatch(batch_id);
     if (status.status === "running") continue;
     if (status.status === "failed") {
-      // Items never attempted — mark every in-flight row failed so the next
-      // drain resubmits them (bounded by the per-episode fail cap).
+      // Items never attempted — record the error so the next drain
+      // resubmits them, and clear `fails`: a whole-batch failure is no
+      // evidence against the episode, and counting it dead-letters
+      // healthy memory during a platform incident (seen 2026-08-28).
+      // The trade — an infra blip forgives up to three prior item
+      // failures — costs at most three extra billed attempts.
       opts.db
         .query(
-          "UPDATE extraction_requests SET error = ?, fails = fails + 1 WHERE batch_id = ? AND candidates_json IS NULL",
+          "UPDATE extraction_requests SET error = ?, fails = 0 WHERE batch_id = ? AND candidates_json IS NULL",
         )
         .run(status.error, batch_id);
       opts.db
         .query("UPDATE extraction_batches SET status = 'failed' WHERE batch_id = ?")
         .run(batch_id);
-      report.collected.push({ batchId: batch_id, ok: 0, failed: 0 });
+      report.collected.push({ batchId: batch_id, ok: 0, failed: 0, error: status.error });
       continue;
     }
     let ok = 0;

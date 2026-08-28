@@ -280,7 +280,11 @@ async function cmdConsolidateBatch(vault: string): Promise<void> {
   ensureConsolidatorTables(db);
   const cycle = await runBatchCycle({ vaultPath: vault, db, model: new OpenAiModelClient(key) });
   for (const c of cycle.collected)
-    console.log(`⇣ batch ${c.batchId} collected: ${c.ok} ok, ${c.failed} failed`);
+    console.log(
+      c.error
+        ? `⇣ batch ${c.batchId} FAILED whole (episodes stay pending): ${c.error}`
+        : `⇣ batch ${c.batchId} collected: ${c.ok} ok, ${c.failed} failed`,
+    );
   printRunReport(cycle.run);
   if (cycle.batchId)
     console.log(`⇡ submitted batch ${cycle.batchId} (${cycle.submitted.length} episodes)`);
