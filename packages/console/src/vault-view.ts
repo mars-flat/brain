@@ -47,6 +47,14 @@ export function indexPage(store: BrainStore): string {
   );
 }
 
+/** Basenames of every ingested episode — for resolving non-node edge targets. */
+function episodeBasenames(store: BrainStore): Set<string> {
+  const rows = store.db.query("SELECT basename FROM episodes").all() as Array<{
+    basename: string;
+  }>;
+  return new Set(rows.map((r) => r.basename));
+}
+
 export function nodePage(store: BrainStore, id: string): string | null {
   const graph = store.loadGraph();
   const node = graph.nodes.get(id);
@@ -57,13 +65,24 @@ export function nodePage(store: BrainStore, id: string): string | null {
   const outbound = edges.filter((e) => e.from === id);
   const inbound = edges.filter((e) => e.to === id);
   const sources = store.nodeSources(id);
+  const episodes = episodeBasenames(store);
+
+  // An edge target is a node, an episode (derived_from provenance), or a
+  // dangling wikilink — only the first two earn a link; a dead /node/
+  // link for the others is worse than the truth.
+  const targetHtml = (other: string): string => {
+    if (graph.nodes.has(other)) return `<a href="/node/${esc(other)}">${esc(other)}</a>`;
+    if (episodes.has(other))
+      return `<a href="/episodes#${esc(other)}">${esc(other)}</a> <span class="muted">(episode)</span>`;
+    return `${esc(other)} <span class="muted">(not in graph)</span>`;
+  };
 
   const edgeList = (list: typeof edges, dir: "out" | "in") =>
     list
       .map((e) => {
         const other = dir === "out" ? e.to : e.from;
         const arrow = dir === "out" ? `${esc(e.rel)} →` : `← ${esc(e.rel)}`;
-        return `<li><span class="muted">${arrow}</span> <a href="/node/${esc(other)}">${esc(other)}</a></li>`;
+        return `<li><span class="muted">${arrow}</span> ${targetHtml(other)}</li>`;
       })
       .join("");
 
@@ -89,7 +108,10 @@ export function nodePage(store: BrainStore, id: string): string | null {
      ${
        sources.length
          ? `<h3>provenance</h3><ul class="plain">${sources
-             .map((s) => `<li class="muted">episode ${esc(s)}</li>`)
+             .map(
+               (s) =>
+                 `<li class="muted">episode ${episodes.has(s) ? `<a href="/episodes#${esc(s)}">${esc(s)}</a>` : esc(s)}</li>`,
+             )
              .join("")}</ul>`
          : ""
 }`,
@@ -119,14 +141,32 @@ export function searchPage(store: BrainStore, query: string): string {
 }
 
 export function episodesPage(store: BrainStore): string {
-  const episodes = store.episodes({}).slice().reverse();
+  // Queried directly (not store.episodes) because the anchor id must be
+  // the BASENAME — that's what edges and provenance reference — and the
+  // EpisodeRef contract doesn't carry it.
+  const episodes = (
+    store.db
+      .query(
+        `SELECT episode_id, basename, started_at, surface, harness, labels_json
+         FROM episodes ORDER BY started_at DESC, basename DESC`,
+      )
+      .all() as Array<{
+      episode_id: string | null;
+      basename: string;
+      started_at: string | null;
+      surface: string | null;
+      harness: string | null;
+      labels_json: string;
+    }>
+  ).map((e) => ({ ...e, labels: JSON.parse(e.labels_json) as string[] }));
   const items = episodes
     .map(
       (e) =>
-        `<div class="card"><strong>${esc(e.episode_id)}</strong>
-         <span class="chip">${esc(e.surface)}</span><span class="chip">${esc(e.harness)}</span>
-         <span class="muted">${esc(e.started_at)}</span>
-         ${e.labels.map((l) => `<span class="chip">${esc(l)}</span>`).join("")}</div>`,
+        `<div class="card" id="${esc(e.basename)}"><strong>${esc(e.basename)}</strong>
+         <span class="chip">${esc(e.surface ?? "")}</span><span class="chip">${esc(e.harness ?? "")}</span>
+         <span class="muted">${esc(e.started_at ?? "")}</span>
+         ${e.labels.map((l) => `<span class="chip">${esc(l)}</span>`).join("")}
+         ${e.episode_id && e.episode_id !== e.basename ? `<div class="muted">${esc(e.episode_id)}</div>` : ""}</div>`,
     )
     .join("");
   return page(

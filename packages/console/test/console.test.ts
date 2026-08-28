@@ -25,6 +25,25 @@ let vault: string;
 beforeAll(async () => {
   vault = mkdtempSync(join(tmpdir(), "console-vault-"));
   cpSync(EXAMPLE, vault, { recursive: true });
+  // A node whose edges cover the non-node target cases: one points at an
+  // episode (derived_from provenance), one dangles at nothing.
+  writeFileSync(
+    join(vault, "nodes", "concept", "edge-target-cases.md"),
+    `---
+id: edge-target-cases
+type: concept
+title: "Edge target cases"
+created: 2026-08-28
+updated: 2026-08-28
+status: active
+confidence: high
+derived_from: ["[[2026-03-14-disk-failure-postmortem]]"]
+about: ["[[ghost-node]]"]
+summary: >
+  Test fixture: edges to an episode and to a nonexistent node.
+---
+`,
+  );
   mkdirSync(join(vault, "_index"), { recursive: true });
   rebuild(openDb(join(vault, "_index", "brain.db")), loadVault(vault));
   writeFileSync(
@@ -137,6 +156,22 @@ describe("viewer (W1.3)", () => {
       headers: { cookie },
     });
     expect(await res.text()).toContain("/node/htmx-server-rendered-ui");
+  });
+
+  test("edge targets that aren't nodes never render dead /node/ links", async () => {
+    const cookie = await login();
+    const res = await fetch(`${console_.url}/node/edge-target-cases`, { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    // episode target → anchored link into the episodes page
+    expect(body).toContain(`href="/episodes#2026-03-14-disk-failure-postmortem"`);
+    expect(body).not.toContain(`href="/node/2026-03-14-disk-failure-postmortem"`);
+    // dangling target → plain text, labeled, unlinked
+    expect(body).toContain("not in graph");
+    expect(body).not.toContain(`href="/node/ghost-node"`);
+    // and the anchor actually exists on /episodes
+    const eps = await fetch(`${console_.url}/episodes`, { headers: { cookie } });
+    expect(await eps.text()).toContain(`id="2026-03-14-disk-failure-postmortem"`);
   });
 
   test("missing node 404s; hostile id 400s", async () => {
