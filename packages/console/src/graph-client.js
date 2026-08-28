@@ -228,21 +228,25 @@ function draw(focus) {
   const lineColor = ink("--line");
   const fgColor = ink("--fg");
   const mutedColor = ink("--muted");
+  const outColor = ink("--g-edge-out");
+  const inColor = ink("--g-edge-in");
 
   for (const e of edges) {
     const a = byId.get(e.from);
     const b = byId.get(e.to);
     if (!a || !b || !visible(a) || !visible(b)) continue;
     const lit = focus?.has(a.id) && focus?.has(b.id) && (a === hover || b === hover || !hover);
-    const eAlpha = focus ? (lit ? lerp(0.35, 0.9, focusT) : lerp(0.35, 0.06, focusT)) : 0.35;
+    const eAlpha = focus ? (lit ? lerp(0.45, 0.9, focusT) : lerp(0.45, 0.06, focusT)) : 0.45;
+    // Direction relative to the hovered node: leaving it vs entering it.
+    const eColor = lit && hover ? (a === hover ? outColor : inColor) : lineColor;
     ctx.globalAlpha = eAlpha;
-    ctx.strokeStyle = lineColor;
+    ctx.strokeStyle = eColor;
     ctx.lineWidth = ((lit && focus ? 1.6 : 1) * S.linkWidth) / view.k;
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
     ctx.stroke();
-    if (S.arrows) drawArrow(a, b, eAlpha, lineColor);
+    if (S.arrows) drawArrow(a, b, eAlpha, eColor);
     if (lit && focus && hover && view.k > 0.7) {
       ctx.globalAlpha = lerp(0, 0.9, focusT);
       ctx.fillStyle = mutedColor;
