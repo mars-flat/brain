@@ -30,7 +30,12 @@ if (!DOMAIN || !MGMT_ID || !MGMT_SECRET) {
 }
 
 const BASE = `https://${DOMAIN}/api/v2`;
-const AUDIENCE = "brain-gateway";
+// The API identifier IS the token audience. MCP clients (RFC 8707/9728)
+// request access by the resource's canonical URL, and Auth0 looks that
+// exact string up as an API identifier — so production must register the
+// real /mcp URL (env, §9.4: the domain stays out of this public file).
+// The bare-name default remains for dev stacks.
+const AUDIENCE = process.env.GATEWAY_AUDIENCE ?? "brain-gateway";
 const SCOPES = [
   { value: "brain:read", description: "read memory: recall, expand, neighbors, timeline, trace" },
   { value: "brain:write", description: "write memory: note, pin, ingest" },
@@ -83,6 +88,10 @@ if (rs) {
     scopes: SCOPES,
     skip_consent_for_verifiable_first_party_clients: true,
     token_lifetime: 86400,
+    // Interactive MCP clients request offline_access so a session
+    // survives token expiry; without this flag Auth0 silently withholds
+    // the refresh token and the owner re-logs-in daily.
+    allow_offline_access: true,
   });
   console.log(`+ API ${AUDIENCE} created`);
 }
@@ -111,8 +120,16 @@ const cli = await ensureClient("brain-cli", {
   token_endpoint_auth_method: "none",
   oidc_conformant: true,
   grant_types: ["authorization_code", "refresh_token"],
-  // RFC 8252 loopback redirects: Auth0 ignores the port for native apps.
-  callbacks: ["http://127.0.0.1/callback", "http://localhost/callback"],
+  // RFC 8252 loopback redirects — with an Auth0 gotcha: the port is
+  // ignored ONLY for the IP literal 127.0.0.1, never for `localhost`
+  // (discovered live 2026-08-28: Claude Code redirects to
+  // localhost:8484 and got "Callback URL mismatch"). Ports on localhost
+  // must be listed exactly.
+  callbacks: [
+    "http://127.0.0.1/callback",
+    "http://localhost/callback",
+    "http://localhost:8484/callback", // Claude Code MCP oauth callbackPort
+  ],
 });
 
 const hook = await ensureClient("brain-hook", {
