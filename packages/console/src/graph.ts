@@ -70,8 +70,8 @@ export function graphPage(store: BrainStore): string {
   return page(
     "graph",
     `<style>
-      #graphwrap { ${vars(0)} position:relative; }
-      @media (prefers-color-scheme: dark) { #graphwrap { ${vars(1)} } }
+      #graphwrap { ${vars(0)} --g-edge-out:#2a78d6; --g-edge-in:#eb6834; position:relative; }
+      @media (prefers-color-scheme: dark) { #graphwrap { ${vars(1)} --g-edge-out:#3987e5; --g-edge-in:#d95926; } }
       #graph { width:100%; height:min(78vh, 60rem); min-height:24rem; display:block;
         background:var(--card); border:1px solid var(--line); border-radius:10px; cursor:grab; touch-action:none; }
       #legend { display:flex; flex-wrap:wrap; gap:.4rem; margin:.6rem 0; }
@@ -106,7 +106,8 @@ export function graphPage(store: BrainStore): string {
     </style>
     <div id="graphwrap">
       <h1>graph</h1>
-      <p class="muted">${g.nodes.size} nodes · ${g.edges.length} edges — drag to pan, wheel to zoom, hover to focus a neighborhood, click a node to open it. Legend chips toggle types.</p>
+      <p class="muted">${g.nodes.size} nodes · ${g.edges.length} edges — drag to pan, wheel to zoom, hover to focus a neighborhood
+        (<span style="color:var(--g-edge-out)">outbound</span> / <span style="color:var(--g-edge-in)">inbound</span> edges), click a node to open it. Legend chips toggle types.</p>
       <div id="legend">${chips}</div>
       <div id="stage">
         <details id="gpanel" open>
