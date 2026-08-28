@@ -1,7 +1,8 @@
 # brain — working in this repo
 
 This repo hosts a personal memory system and eats its own dogfood: the
-`brain-gateway` MCP server in `.mcp.json` exposes the owner's brain.
+`tool-gateway` MCP server in `.mcp.json` exposes the owner's brain —
+the brain MCP server is one upstream behind it (§4), not the gateway itself.
 
 - **Recall before acting** on anything the brain may already know — past
   decisions, constraints, preferences, project history. The `brain-memory`

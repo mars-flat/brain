@@ -166,7 +166,7 @@ export interface HarnessAdapter {
 
 1. **MCP config** — one entry, and Claude Code discovers auth by spec:
    ```json
-   { "mcpServers": { "brain-gateway": { "type": "http", "url": "https://gw.example.com/mcp" } } }
+   { "mcpServers": { "tool-gateway": { "type": "http", "url": "https://gw.example.com/mcp" } } }
    ```
 2. **`SessionEnd` hook** — a small script that reads the transcript, calls `normalizeEpisode`, and POSTs the envelope.
 3. **`CLAUDE.md` snippet** — instructs the model to `brain.recall` at session start and before consequential decisions.

@@ -208,6 +208,8 @@ Every tool gets a stable URN `<server>.<namespace>.<tool>`. Collisions become im
 
 P3 implementation notes (`packages/gateway`): the wire tool names are `tools_search` / `tools_describe` / `tools_call` / `tools_servers` — the tool-name charset is `[a-zA-Z0-9_-]`, so the dotted names above are conceptual. Measured base context: **298 tokens** for all four (budget said <1k). Array results wrap as `{results: […]}` because MCP `structuredContent` must be an object. Risk classification authority order: config override → MCP tool annotations (`readOnlyHint`/`destructiveHint`) → name heuristic → `write` (confirm-default makes the fallback safe). Confirm tokens are single-use, bound to `sha256(urn+args)`, 5-minute TTL. The audit log is hash-chained JSONL at `vault/_index/audit.jsonl` storing arg *digests*, never values; call/error events also stamp the upstream duration as `ms` (W1.7 — feeds the console's analytics panel, §15.4). A 120/min sliding-window rate cap guards the runaway-agent case (§7). Identity is static (`owner`/`cli`/`high`) until P4 derives it from authn.
 
+Naming (2026-08-28): the gateway registers with MCP clients as **`tool-gateway`** — renamed from `brain-gateway`, which misread this section: the brain MCP server is one upstream behind the pool, not the gateway's identity. Deployed identifiers deliberately keep the old prefix and are **not** renamed with it: the OAuth audience `brain-gateway` (live Auth0 API + Keycloak realm), the GHCR image `ghcr.io/mars-flat/brain-gateway`, and the `BRAIN_GATEWAY_URL` / `BRAIN_HOOK_*` env names baked into the VM and SessionEnd hooks. Renaming those is a coordinated migration (IdP, VM env, registry), separate from the client-facing name.
+
 ### 4.5 Policy engine
 
 ```yaml

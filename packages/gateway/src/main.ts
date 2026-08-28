@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * brain-gateway over stdio (P3 transport; Streamable HTTP + OAuth arrive
+ * tool-gateway over stdio (P3 transport; Streamable HTTP + OAuth arrive
  * with P4). BRAIN_VAULT_PATH required, no default (§9.1).
  */
 
@@ -10,7 +10,7 @@ import { buildGateway } from "./server.ts";
 
 const vault = process.env.BRAIN_VAULT_PATH;
 if (!vault) {
-  console.error("brain-gateway: BRAIN_VAULT_PATH is required (§9.1)");
+  console.error("tool-gateway: BRAIN_VAULT_PATH is required (§9.1)");
   process.exit(2);
 }
 

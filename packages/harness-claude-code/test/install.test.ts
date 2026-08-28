@@ -31,7 +31,7 @@ describe("claudeCodeHarness.install (§6.4 P5)", () => {
         { type: string; url: string; oauth?: { clientId: string; callbackPort: number } }
       >;
     };
-    expect(mcp.mcpServers["brain-gateway"]).toEqual({
+    expect(mcp.mcpServers["tool-gateway"]).toEqual({
       type: "http",
       url: URL_A,
       oauth: { clientId: "client-abc", callbackPort: 8484 },
@@ -59,7 +59,7 @@ describe("claudeCodeHarness.install (§6.4 P5)", () => {
     const second = await claudeCodeHarness.install({ gatewayUrl: URL_A, targetDir: dir });
 
     const mcp = readJson(join(dir, ".mcp.json")) as { mcpServers: Record<string, unknown> };
-    expect(Object.keys(mcp.mcpServers).sort()).toEqual(["brain-gateway", "other"]);
+    expect(Object.keys(mcp.mcpServers).sort()).toEqual(["other", "tool-gateway"]);
 
     const settings = readJson(join(dir, ".claude", "settings.json")) as {
       statusLine: unknown;
