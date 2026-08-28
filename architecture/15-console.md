@@ -115,6 +115,24 @@ see a button-mash.
 The managed identity needs a one-time Reader grant at subscription scope —
 an owner-run `az role assignment create` (IAM changes stay human).
 
+**Gateway call analytics** (W1.7, 2026-08-28, owner-requested) — a
+mini-Datadog section: stat tiles, hourly ok/error/blocked bars, top tools
+with latency percentiles, and the latest calls, over a trailing 7-day
+window. The source is the gateway's own hash-chained audit log (§4.2),
+read straight from `_index/audit.jsonl` on the vault mount — no new
+endpoint, no cache to warm, and the panel keeps working while the gateway
+is down. The gateway now stamps `ms` (upstream duration) on call/error
+audit events to feed it. Two deliberate scope lines: **7 days is the view
+window, not retention** — the owner asked for 7-day logs; deleting audit
+lines would break the hash chain's nothing-was-ever-removed proof, so the
+file stays append-only (~KBs/year at real volume) and the window lives in
+the renderer. And the panel sees only gateway MCP traffic — direct CLI
+runs and the consolidator never transit it; their trail stays the ledger
+and vault git history. Charts are server-rendered inline SVG themed by the
+page's CSS variables (the CSP admits no chart library); the outcome trio
+is CVD-validated against both surfaces, with legend labels, per-bucket
+titles, and the table as non-color carriers.
+
 **MCP upstream status** — deliberately separate from service cards (SaaS ≠
 MCP servers): the roster comes from the same private `servers.yaml` the
 gateway reads, live state from a new unauthenticated gateway endpoint
@@ -126,9 +144,15 @@ config); an unreachable gateway degrades the whole section to roster-only.
 
 ### 15.5 Deliberately not built
 
-Secret *reveals* in the browser (the draft's step-up flow) wait until the
-need is proven — `brain secret` on the box covers it, and the master key
-stays off the VM's web path meanwhile. Also skipped: SPAs, ~~graph
+Secret *reveals* in the browser wait until the need is proven — `brain
+secret` on the box covers it, and the master key stays off the VM's web
+path meanwhile. The sketch, preserved here from the retired draft: the
+page carries names and metadata only; a reveal is click → fresh IdP
+re-auth (`max_age=300`, the web analog of §4.3 step-up) → value fetched
+over the authed channel with `Cache-Control: no-store` → clipboard-copy
+button → wiped from the DOM after ~30 s, never rendered into initial HTML
+or a GET URL; every reveal appends who/which/when — never the value — to
+the hash-chained audit (§4). Also skipped: SPAs, ~~graph
 visualizations (v1)~~ *(deferral ended 2026-08-28: the owner asked; built
 server-light in §15.3 — the pages stay server-rendered, the graph is the
 one canvas)*, and any new secret storage.

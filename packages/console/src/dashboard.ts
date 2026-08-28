@@ -9,6 +9,7 @@ import type { Database } from "bun:sqlite";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { BrainStore } from "@brain/brainstore";
+import { auditSection } from "./audit-view.ts";
 import type { ConsoleConfig, ExpiryItem, VaultConsoleConfig } from "./config.ts";
 import { esc, page } from "./html.ts";
 import { serviceCards, tokenRows } from "./services.ts";
@@ -235,6 +236,8 @@ export async function dashboardPage(
        ${notice}
      </div>
      <div class="grid">${tileHtml}</div>
+     <h2>gateway calls <span class="muted">— last 7 days</span></h2>
+     ${auditSection(cfg.vaultPath)}
      <h2>services</h2>
      <div class="grid">${svcHtml || `<p class="muted">no services configured — add a services: section to config/console.yaml in the vault</p>`}</div>
      <h2>mcp servers</h2>

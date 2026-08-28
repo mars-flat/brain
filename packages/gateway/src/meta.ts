@@ -195,6 +195,7 @@ async function execute(
   argsDigest: string,
   identity: GatewayIdentity,
 ): Promise<ToolsCallResult> {
+  const started = deps.clock().getTime();
   try {
     const result = await deps.pool.call(urn, args);
     deps.audit.append({
@@ -204,6 +205,7 @@ async function execute(
       urn,
       argsDigest,
       outcome: "ok",
+      ms: deps.clock().getTime() - started,
     });
     return { ok: true, result, untrusted_content: true };
   } catch (e) {
@@ -215,6 +217,7 @@ async function execute(
       urn,
       argsDigest,
       outcome: message.slice(0, 200),
+      ms: deps.clock().getTime() - started,
     });
     throw new GatewayCallError(`upstream error from ${urn}: ${message}`, "upstream_error");
   }

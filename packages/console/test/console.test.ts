@@ -67,6 +67,64 @@ services:
     join(vault, "config", "servers.yaml"),
     `servers:\n  - { name: alpha, command: bun, args: [nonexistent.ts] }\n`,
   );
+  // A synthetic audit trail for the analytics panel (W1.7): the console
+  // only reads ts + event, so fake hashes are fine here. One event sits
+  // outside the 7-day window and one line is torn — both must vanish
+  // silently, not break the page.
+  const ago = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+  const audit = (ts: string, event: Record<string, unknown>) =>
+    JSON.stringify({ seq: 1, ts, prev: "x", event, hash: "x" });
+  writeFileSync(
+    join(vault, "_index", "audit.jsonl"),
+    `${[
+      audit(ago(1), {
+        type: "decision",
+        principal: "owner",
+        surface: "http",
+        urn: "brain.recall",
+        kind: "read",
+        effect: "allow",
+        argsDigest: "sha256:d1",
+      }),
+      audit(ago(1), {
+        type: "call",
+        principal: "owner",
+        surface: "http",
+        urn: "brain.recall",
+        argsDigest: "sha256:d1",
+        outcome: "ok",
+        ms: 42,
+      }),
+      audit(ago(2), {
+        type: "decision",
+        principal: "owner",
+        surface: "http",
+        urn: "files.delete_everything",
+        kind: "admin",
+        effect: "deny",
+        argsDigest: "sha256:d2",
+      }),
+      audit(ago(3), {
+        type: "error",
+        principal: "owner",
+        surface: "http",
+        urn: "brain.note",
+        argsDigest: "sha256:d3",
+        outcome: "MCP error -32001: Request timed out",
+        ms: 40000,
+      }),
+      audit(ago(30), { type: "rate_limited", principal: "owner", surface: "http", urn: "-" }),
+      audit(ago(9 * 24), {
+        type: "call",
+        principal: "owner",
+        surface: "cli",
+        urn: "ancient.tool",
+        outcome: "ok",
+        ms: 5,
+      }),
+      "this line is torn and not json",
+    ].join("\n")}\n`,
+  );
 
   idp = await startMockIdp(IDP_PORT);
   console_ = startConsole(
@@ -232,6 +290,23 @@ describe("dashboard (W1.4)", () => {
     expect(body).toContain("alpha"); // MCP roster from servers.yaml
     expect(body).toContain("unknown"); // gateway health unreachable → status degrades
     expect(body).toContain("open console ↗");
+  });
+
+  test("audit panel: stats, charts, and latest calls from the trailing 7 days", async () => {
+    const cookie = await login();
+    const body = await (await fetch(`${console_.url}/dashboard`, { headers: { cookie } })).text();
+    expect(body).toContain(`id="audit"`);
+    expect(body).toContain("calls executed · 7d");
+    expect(body).toContain("1 denied, 1 rate-limited");
+    expect(body).toContain(`<svg`); // the hourly outcome bars
+    expect(body).toContain("gateway calls per hour");
+    expect(body).toContain("brain.recall"); // top tools + latest calls
+    expect(body).toContain(">42<"); // the ok call's duration in the table
+    expect(body).toContain("denied");
+    expect(body).toContain("rate-limited");
+    expect(body).toContain(`<td class="muted">read</td>`); // kind joined from the decision line
+    expect(body).not.toContain("ancient.tool"); // outside the window
+    expect(body).not.toContain("this line is torn"); // malformed input vanishes
   });
 
   test("graph front door: page, data, and script all serve behind auth", async () => {
