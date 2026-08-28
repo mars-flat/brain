@@ -114,7 +114,7 @@ describe("auth (W1.2)", () => {
     const cookie = await login();
     const home = await fetch(`${console_.url}/`, { headers: { cookie } });
     expect(home.status).toBe(200);
-    expect(await home.text()).toContain("the brain");
+    expect(await home.text()).toContain("<canvas"); // the graph is the front door
   });
 
   test("logout clears the session and lands locally — no IdP bounce", async () => {
@@ -163,15 +163,39 @@ describe("viewer (W1.3)", () => {
     const res = await fetch(`${console_.url}/node/edge-target-cases`, { headers: { cookie } });
     expect(res.status).toBe(200);
     const body = await res.text();
-    // episode target → anchored link into the episodes page
-    expect(body).toContain(`href="/episodes#2026-03-14-disk-failure-postmortem"`);
+    // episode target → anchored link into the vault tab's episodes view
+    expect(body).toContain(`href="/vault?view=episodes#2026-03-14-disk-failure-postmortem"`);
     expect(body).not.toContain(`href="/node/2026-03-14-disk-failure-postmortem"`);
     // dangling target → plain text, labeled, unlinked
     expect(body).toContain("not in graph");
     expect(body).not.toContain(`href="/node/ghost-node"`);
-    // and the anchor actually exists on /episodes
-    const eps = await fetch(`${console_.url}/episodes`, { headers: { cookie } });
+    // and the anchor actually exists in the episodes view
+    const eps = await fetch(`${console_.url}/vault?view=episodes`, { headers: { cookie } });
     expect(await eps.text()).toContain(`id="2026-03-14-disk-failure-postmortem"`);
+  });
+
+  test("vault tab toggles between nodes and episodes; old routes redirect", async () => {
+    const cookie = await login();
+    const nodesView = await fetch(`${console_.url}/vault`, { headers: { cookie } });
+    expect(nodesView.status).toBe(200);
+    const nodesBody = await nodesView.text();
+    expect(nodesBody).toContain(`class="seg"`); // the nodes/episodes toggle
+    expect(nodesBody).toContain(`href="/vault?view=episodes"`);
+    const epsView = await fetch(`${console_.url}/vault?view=episodes`, { headers: { cookie } });
+    expect(await epsView.text()).toContain("newest first");
+    // standalone routes are gone but bookmarks land where the content went
+    const oldEps = await fetch(`${console_.url}/episodes`, {
+      headers: { cookie },
+      redirect: "manual",
+    });
+    expect(oldEps.status).toBe(302);
+    expect(oldEps.headers.get("location")).toBe("/vault?view=episodes");
+    const oldGraph = await fetch(`${console_.url}/graph`, {
+      headers: { cookie },
+      redirect: "manual",
+    });
+    expect(oldGraph.status).toBe(302);
+    expect(oldGraph.headers.get("location")).toBe("/");
   });
 
   test("missing node 404s; hostile id 400s", async () => {
@@ -210,10 +234,10 @@ describe("dashboard (W1.4)", () => {
     expect(body).toContain("open console ↗");
   });
 
-  test("graph tab: page, data, and script all serve behind auth", async () => {
+  test("graph front door: page, data, and script all serve behind auth", async () => {
     const cookie = await login();
-    expect((await fetch(`${console_.url}/graph`, { redirect: "manual" })).status).toBe(302);
-    const pageRes = await fetch(`${console_.url}/graph`, { headers: { cookie } });
+    expect((await fetch(`${console_.url}/`, { redirect: "manual" })).status).toBe(302);
+    const pageRes = await fetch(`${console_.url}/`, { headers: { cookie } });
     expect(pageRes.status).toBe(200);
     const body = await pageRes.text();
     expect(body).toContain("<canvas");

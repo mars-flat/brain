@@ -4,9 +4,11 @@
 
 ## 15. `packages/console` — the authenticated vault viewer + ops dashboard
 
-Added post-P5 (W1, 2026-08-27). Two things behind one login on one real
-domain: the root is the **live vault**, rendered read-only; `/dashboard` is
-the **ops hub** for everything running behind the brain. The concrete
+Added post-P5 (W1, 2026-08-27). Behind one login on one real domain: the
+root is the **graph** — the owner promoted it to the front door
+(2026-08-28); `/vault` is the **live vault**, rendered read-only, with the
+node index and the episode timeline behind one nodes/episodes toggle;
+`/dashboard` is the **ops hub** for everything running behind the brain. The concrete
 hostname, tenant, and tailnet names are deployment config and never appear
 in this public repo (§9.2/§9.4) — examples below use placeholders.
 
@@ -53,17 +55,24 @@ via `@brain/brainstore` — parsing, wikilink vocabulary, and search already
 existed; the viewer is a thin server-rendered layer (marked + a CSS file's
 worth of style, CSP `default-src 'self'`, zero external assets). Node pages
 show summary/body with `[[wikilinks]]` resolved to viewer links, typed
-edges both directions, pins, and provenance; plus index-by-type, episode
-timeline, and FTS5 search. `/graph` (owner-requested, 2026-08-28 — ends
-the §15.5 deferral) renders the typed graph itself: a hand-rolled force
+edges both directions, pins, and provenance; plus index-by-type, the
+episode timeline, and FTS5 search. The index and timeline share the one
+`/vault` tab behind a segmented nodes/episodes toggle — episodes stopped
+being a standalone section (owner's call, 2026-08-28; the old `/episodes`
+and `/graph` routes 302 to where the content went). The graph tab
+(owner-requested, 2026-08-28 — ends the §15.5 deferral; promoted to the
+root route the same day) renders the typed graph itself: a hand-rolled force
 layout on a canvas, no library — the CSP admits only same-origin scripts,
 and at vault scale O(n²) repulsion is nothing. Data ships as `/graph.json`
 from `loadGraph()`; nodes are sized by degree, colored by a fixed
 type→slot mapping from a CVD-validated categorical palette (both console
 surfaces; identity never rides color alone — hover cards, a
 type-toggle legend, and the index page as the table view). Superseded
-nodes render faded. Hover focuses a neighborhood (eased dim, edge
-labels, a summary-bearing card); click opens the node page. An
+nodes render faded. Hover traces a node's edges — direction-colored,
+labeled, with a summary-bearing card — **without touching opacity**: the
+owner wants the graph steady under the cursor (2026-08-28), so the eased
+dim serves only the search filter, and base edge opacity sits higher
+instead. Click opens the node page. An
 Obsidian-style settings panel (localStorage-persisted) drives display
 (arrows, node size, link width, label density, animate) and forces
 (repel, link distance, center pull), plus a node search filter. **The console never writes** — the single-writer

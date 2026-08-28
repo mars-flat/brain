@@ -6,7 +6,10 @@
  *
  * Obsidian-style controls: a settings panel (display + force sliders,
  * arrows, animate, node search) persisted to localStorage, an eased
- * focus-dim on hover/search, and a summary-bearing hover card.
+ * focus-dim on search, and a summary-bearing hover card. Hover never
+ * changes opacity (owner's call, 2026-08-28) — the neighborhood reads
+ * through direction color, line width, and edge labels, so the graph
+ * stays steady under the cursor.
  * Interactions: drag background = pan, wheel = zoom, drag node = move,
  * hover = highlight neighborhood + card, click = open the node page,
  * legend chip = toggle a type.
@@ -174,7 +177,7 @@ const reheat = (a = 0.4) => {
   alpha = Math.max(alpha, a);
 };
 
-// ── focus (hover neighborhood, or search matches) ────────────────────────
+// ── focus (search matches — the only thing that dims) ────────────────────
 
 function neighborhood(center) {
   const ids = new Set([center.id]);
@@ -186,7 +189,6 @@ function neighborhood(center) {
 }
 
 function focusSet() {
-  if (hover) return neighborhood(hover);
   if (query) {
     const s = new Set();
     for (const n of nodes)
@@ -231,24 +233,28 @@ function draw(focus) {
   const outColor = ink("--g-edge-out");
   const inColor = ink("--g-edge-in");
 
+  const hood = hover ? neighborhood(hover) : null;
+
   for (const e of edges) {
     const a = byId.get(e.from);
     const b = byId.get(e.to);
     if (!a || !b || !visible(a) || !visible(b)) continue;
-    const lit = focus?.has(a.id) && focus?.has(b.id) && (a === hover || b === hover || !hover);
-    const eAlpha = focus ? (lit ? lerp(0.45, 0.9, focusT) : lerp(0.45, 0.06, focusT)) : 0.45;
+    const onHover = hover && (a === hover || b === hover);
+    const lit = focus?.has(a.id) && focus?.has(b.id);
+    // Hover leaves alpha at base — only the search dim eases it.
+    const eAlpha = focus ? (lit ? lerp(0.6, 0.9, focusT) : lerp(0.6, 0.06, focusT)) : 0.6;
     // Direction relative to the hovered node: leaving it vs entering it.
-    const eColor = lit && hover ? (a === hover ? outColor : inColor) : lineColor;
+    const eColor = onHover ? (a === hover ? outColor : inColor) : lineColor;
     ctx.globalAlpha = eAlpha;
     ctx.strokeStyle = eColor;
-    ctx.lineWidth = ((lit && focus ? 1.6 : 1) * S.linkWidth) / view.k;
+    ctx.lineWidth = ((onHover || (lit && focus) ? 1.6 : 1) * S.linkWidth) / view.k;
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
     ctx.stroke();
     if (S.arrows) drawArrow(a, b, eAlpha, eColor);
-    if (lit && focus && hover && view.k > 0.7) {
-      ctx.globalAlpha = lerp(0, 0.9, focusT);
+    if (onHover && view.k > 0.7) {
+      ctx.globalAlpha = 0.9;
       ctx.fillStyle = mutedColor;
       ctx.font = `italic ${10 / view.k}px sans-serif`;
       ctx.fillText(e.rel, (a.x + b.x) / 2 + 4 / view.k, (a.y + b.y) / 2 - 4 / view.k);
@@ -270,7 +276,8 @@ function draw(focus) {
       ctx.stroke();
     }
     const labeled =
-      (focus && focus.has(n.id)) ||
+      hood?.has(n.id) ||
+      focus?.has(n.id) ||
       (S.labels > 0 && (labelRank.get(n.id) ?? 999) < 12 * S.labels * Math.max(view.k, 0.4));
     if (!dim && labeled) {
       ctx.fillStyle = fgColor;

@@ -50,6 +50,11 @@ h1,h2,h3 { line-height:1.25; }
 .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding: .9rem 1.1rem; margin: .7rem 0; }
 .card:target { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(24rem,1fr)); gap:.7rem; }
+.seg { display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden; margin:.2rem 0 .6rem; }
+.seg a { padding:.28rem .9rem; font-size:.85rem; font-weight:600; color:var(--muted); text-decoration:none; }
+.seg a + a { border-left:1px solid var(--line); }
+.seg a.on { background:var(--card); color:var(--accent); }
+.seg a:hover { color:var(--accent); }
 ul.plain { list-style:none; padding:0; } ul.plain li { margin:.3rem 0; }
 .card.links ul.plain li { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 table.slim { width:100%; font-size:.9rem; } table.slim td, table.slim th { border:none; border-bottom:1px solid var(--line); padding:.25rem .5rem; text-align:left; }
@@ -74,9 +79,8 @@ export function page(
 ): string {
   const nav = opts.authed
     ? `<nav class="top">
-        <a href="/">vault</a>
-        <a href="/episodes">episodes</a>
-        <a href="/graph">graph</a>
+        <a href="/">graph</a>
+        <a href="/vault">vault</a>
         <a href="/dashboard">dashboard</a>
         <a href="/architecture">architecture</a>
         <form action="/search" method="get"><input type="search" name="q" placeholder="search memory…"></form>
