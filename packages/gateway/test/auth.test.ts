@@ -72,6 +72,14 @@ describe("resource-server discovery and rejection (§4.3)", () => {
     expect(prm.scopes_supported).toContain("brain:read");
   });
 
+  test("upstream health is served unauthenticated for the console (§15.4)", async () => {
+    const res = await fetch(`http://127.0.0.1:${GW_PORT}/healthz/upstreams`);
+    expect(res.status).toBe(200);
+    const list = (await res.json()) as Array<{ name: string; status: string; tool_count: number }>;
+    expect(list.map((s) => s.name)).toEqual(["brain", "fake"]);
+    for (const s of list) expect(s.status).toBe("up");
+  });
+
   test("no token → 401 with resource_metadata challenge", async () => {
     const res = await fetch(gw.url, {
       method: "POST",

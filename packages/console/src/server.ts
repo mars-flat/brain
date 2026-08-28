@@ -8,10 +8,12 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { BrainStore, openDb } from "@brain/brainstore";
+import { architecturePage } from "./architecture.ts";
 import { type ConsoleConfig, loadVaultConsoleConfig } from "./config.ts";
 import { dashboardPage } from "./dashboard.ts";
+import { graphJson, graphPage } from "./graph.ts";
 import { esc, page } from "./html.ts";
-import { buildAuthRequest, exchangeCode, type OidcClient } from "./oidc.ts";
+import { buildAuthRequest, discover, exchangeCode, type OidcClient } from "./oidc.ts";
 import { cookieHeader, openSession, readCookie, type Session, sealSession } from "./session.ts";
 import { episodesPage, indexPage, nodePage, searchPage } from "./vault-view.ts";
 
@@ -97,8 +99,29 @@ export function startConsole(cfg: ConsoleConfig): RunningConsole {
         });
       }
 
-      if (path === "/logout")
-        return redirect("/login", { "set-cookie": cookieHeader(SESSION_COOKIE, "", 0, secure) });
+      if (path === "/logout") {
+        // Clear the session and STOP — bouncing straight to /login would
+        // let the IdP's SSO cookie sign the owner right back in, which
+        // makes the logout button a no-op. Ending the IdP session too is
+        // offered as an explicit second step.
+        const idpLogout = await discover(client.issuer)
+          .then((m) => m.end_session_endpoint)
+          .catch(() => undefined);
+        return html(
+          page(
+            "signed out",
+            `<h1>signed out</h1>
+             <p>your console session is gone.</p>
+             <ul class="plain">
+               <li><a href="/login">sign back in</a></li>
+               ${idpLogout ? `<li><a href="${esc(idpLogout)}" rel="noreferrer">also sign out at the identity provider</a> <span class="muted">— otherwise its single-sign-on session survives</span></li>` : ""}
+             </ul>`,
+            { authed: false },
+          ),
+          200,
+          { "set-cookie": cookieHeader(SESSION_COOKIE, "", 0, secure) },
+        );
+      }
 
       // ── everything below requires identity ─────────────────────────────
       const session = openSession(readCookie(req, SESSION_COOKIE), cfg.sessionSecret, Date.now());
@@ -108,6 +131,15 @@ export function startConsole(cfg: ConsoleConfig): RunningConsole {
 
       if (path === "/") return html(indexPage(store));
       if (path === "/episodes") return html(episodesPage(store));
+      if (path === "/graph") return html(graphPage(store));
+      if (path === "/graph.json")
+        return new Response(graphJson(store), {
+          headers: { "content-type": "application/json" },
+        });
+      if (path === "/graph.js")
+        return new Response(Bun.file(join(import.meta.dir, "graph-client.js")), {
+          headers: { "content-type": "text/javascript; charset=utf-8" },
+        });
       if (path === "/search") return html(searchPage(store, url.searchParams.get("q") ?? ""));
       if (path.startsWith("/node/")) {
         const id = decodeURIComponent(path.slice("/node/".length));
@@ -119,6 +151,7 @@ export function startConsole(cfg: ConsoleConfig): RunningConsole {
         const vaultCfg = loadVaultConsoleConfig(cfg.vaultPath);
         return html(await dashboardPage(cfg, vaultCfg, store, db, session.sub));
       }
+      if (path === "/architecture") return html(architecturePage());
       return html(errorPage("not found"), 404);
     },
   });

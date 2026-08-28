@@ -6,9 +6,12 @@
  */
 
 import type { Database } from "bun:sqlite";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { BrainStore } from "@brain/brainstore";
 import type { ConsoleConfig, ExpiryItem, VaultConsoleConfig } from "./config.ts";
 import { esc, page } from "./html.ts";
+import { serviceCards, tokenRows } from "./services.ts";
 
 interface Tile {
   title: string;
@@ -114,19 +117,68 @@ async function deployTile(): Promise<Tile> {
 export function expiryTile(expiries: ExpiryItem[], now = new Date()): Tile {
   if (expiries.length === 0)
     return { title: "credential expiries", html: `<span class="muted">none configured</span>` };
-  let worst: "ok" | "warn" | "bad" = "ok";
-  const rows = expiries
-    .slice()
-    .sort((a, b) => a.expires.localeCompare(b.expires))
-    .map((e) => {
-      const days = Math.floor((Date.parse(e.expires) - now.getTime()) / 86_400_000);
-      const cls = days < 7 ? "bad" : days < 21 ? "warn" : "ok";
-      if (cls === "bad" || (cls === "warn" && worst === "ok")) worst = cls;
-      return `<li><span class="${cls}">${days < 0 ? "EXPIRED" : `${days}d`}</span>
-        ${esc(e.name)} <span class="muted">${esc(e.expires)}${e.note ? ` — ${esc(e.note)}` : ""}</span></li>`;
+  const { html, worst } = tokenRows(expiries, now);
+  return { title: "credential expiries", html: `<ul class="plain">${html}</ul>`, cls: worst };
+}
+
+/**
+ * The MCP servers behind the gateway (§4.2): roster from the same private
+ * `config/servers.yaml` the gateway reads, live status from its internal
+ * /healthz/upstreams (never routed by the edge). A server in the roster
+ * that the gateway doesn't report means the gateway needs a restart to
+ * pick up config; the reverse means config drift the other way.
+ */
+async function mcpSection(cfg: ConsoleConfig): Promise<string> {
+  interface UpstreamHealth {
+    name: string;
+    status: string;
+    tool_count: number;
+    last_error: string | null;
+  }
+  let roster: Array<{ name: string; command?: string; args?: string[] }> = [];
+  try {
+    const file = join(cfg.vaultPath, "config", "servers.yaml");
+    if (existsSync(file)) {
+      const raw = Bun.YAML.parse(readFileSync(file, "utf8")) as {
+        servers?: Array<{ name: string; command?: string; args?: string[] }>;
+      } | null;
+      roster = raw?.servers ?? [];
+    }
+  } catch {}
+
+  let health = new Map<string, UpstreamHealth>();
+  let healthErr: string | null = null;
+  try {
+    const res = await fetch(cfg.gatewayHealthUrl, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const list = (await res.json()) as UpstreamHealth[];
+    health = new Map(list.map((s) => [s.name, s]));
+  } catch (e) {
+    healthErr = e instanceof Error ? e.message : String(e);
+  }
+
+  const names = [...new Set([...roster.map((r) => r.name), ...health.keys()])].sort();
+  const rows = names
+    .map((name) => {
+      const r = roster.find((x) => x.name === name);
+      const h = health.get(name);
+      const status = h
+        ? h.status === "up"
+          ? `<span class="ok">up</span>`
+          : `<span class="bad">down</span>`
+        : `<span class="warn">${healthErr ? "unknown" : "not loaded"}</span>`;
+      const runs = r ? esc([r.command ?? "", ...(r.args ?? [])].join(" ").slice(0, 60)) : "";
+      const err = h?.last_error ? `<span class="bad">${esc(h.last_error.slice(0, 80))}</span>` : "";
+      return `<tr><td>${esc(name)}</td><td>${status}</td>
+        <td>${h ? h.tool_count : "?"}</td><td class="muted">${runs}</td><td>${err}</td></tr>`;
     })
     .join("");
-  return { title: "credential expiries", html: `<ul class="plain">${rows}</ul>`, cls: worst };
+  const note = healthErr
+    ? `<p class="warn">gateway status unavailable: ${esc(healthErr.slice(0, 100))} — roster shown from config</p>`
+    : "";
+  return `<div class="card">${note}
+    ${names.length ? `<table class="slim"><tr><th>server</th><th>status</th><th>tools</th><th>runs</th><th>last error</th></tr>${rows}</table>` : `<p class="muted">no upstream servers configured</p>`}
+  </div>`;
 }
 
 export async function dashboardPage(
@@ -164,13 +216,20 @@ export async function dashboardPage(
     )
     .join("");
 
+  const svcHtml = await serviceCards(vaultCfg.services, cfg.issuer);
+  const mcpHtml = await mcpSection(cfg);
+
   return page(
     "dashboard",
     `<h1>dashboard</h1>
      <p class="muted">signed in as ${esc(sub)}</p>
      <div class="grid">${tileHtml}</div>
+     <h2>services</h2>
+     <div class="grid">${svcHtml || `<p class="muted">no services configured — add a services: section to config/console.yaml in the vault</p>`}</div>
+     <h2>mcp servers</h2>
+     ${mcpHtml}
      <h2>links</h2>
      <div class="grid">${linkHtml || `<p class="muted">no links configured — add config/console.yaml to the vault</p>`}</div>`,
-    { authed: true },
+    { authed: true, wide: true },
   );
 }

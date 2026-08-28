@@ -21,6 +21,8 @@ interface Discovery {
   token_endpoint: string;
   jwks_uri: string;
   issuer: string;
+  /** RP-initiated logout (Auth0/Keycloak publish it; optional per spec). */
+  end_session_endpoint?: string;
 }
 
 const discoveryCache = new Map<string, Discovery>();

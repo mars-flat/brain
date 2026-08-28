@@ -39,7 +39,11 @@ is a stateless HMAC cookie (HttpOnly, SameSite=Lax, 7d) so deploys never
 log the owner out. `CONSOLE_ALLOWED_SUB` pins the console to the owner's
 identity — any other authenticated user gets a 403 *that shows their sub*
 (pinning requires learning the sub once). Dev stack runs the same code
-against the compose Keycloak; only env differs.
+against the compose Keycloak; only env differs. Logout clears the cookie
+and lands on a **local** signed-out page rather than bouncing to `/login`
+— the IdP's SSO cookie would silently re-login and make the button a
+no-op; ending the IdP session too is offered as an explicit link
+(`end_session_endpoint` from discovery, when the issuer publishes one).
 
 ### 15.3 The viewer: render the source of truth, don't mirror it
 
@@ -50,7 +54,16 @@ existed; the viewer is a thin server-rendered layer (marked + a CSS file's
 worth of style, CSP `default-src 'self'`, zero external assets). Node pages
 show summary/body with `[[wikilinks]]` resolved to viewer links, typed
 edges both directions, pins, and provenance; plus index-by-type, episode
-timeline, and FTS5 search. **The console never writes** — the single-writer
+timeline, and FTS5 search. `/graph` (owner-requested, 2026-08-28 — ends
+the §15.5 deferral) renders the typed graph itself: a hand-rolled force
+layout on a canvas, no library — the CSP admits only same-origin scripts,
+and at vault scale O(n²) repulsion is nothing. Data ships as `/graph.json`
+from `loadGraph()`; nodes are sized by degree, colored by a fixed
+type→slot mapping from a CVD-validated categorical palette (both console
+surfaces; identity never rides color alone — hover tooltips, a
+type-toggle legend, and the index page as the table view). Superseded
+nodes render faded. Hover focuses a neighborhood with edge labels; click
+opens the node page. **The console never writes** — the single-writer
 consolidator remains the only writer (§5.7); read-only is a code-level
 discipline (SQLite WAL needs fs write access even for readers).
 
@@ -64,15 +77,53 @@ Links and expiry items come from the private vault (`config/console.yaml`),
 not the repo. The expiry tile grades urgency (green/amber/red by days
 left); the standing items it exists for: the DNS-API token (~90d) and the
 VM's Tailscale node key (~180d unless expiry is disabled per-machine).
-Planned, not yet built: Azure spend via a Reader-scoped managed identity on
-the VM, and live expiry dates pulled from provider APIs instead of config.
+
+Two sections grew out of that config file (W1.6, 2026-08-28):
+
+**Service cards** — one card per external SaaS the system leans on, from a
+`services:` list in the same private config: the account the owner signs
+in with, the official console link, per-credential expiry rows (same
+grading), and an optional **live probe** the console runs server-side.
+Probes exist only where no new secret is needed: `azure` reads ARM via the
+VM's system-assigned managed identity (IMDS; falls back to the az CLI on a
+dev laptop) for the VM roster + power state, a retail-rate monthly
+estimate (public Prices API, CAD), and budgets with `currentSpend` — which
+the sponsorship subscription reports as zero (credit burn ≠ "spend" to the
+Consumption API; the card says so rather than pretending). `oidc` checks
+the console's own issuer discovery; `openai`/`vercel` validate keys the
+env already carries (compose passes them through, absent = config-only).
+The managed identity needs a one-time Reader grant at subscription scope —
+an owner-run `az role assignment create` (IAM changes stay human).
+
+**MCP upstream status** — deliberately separate from service cards (SaaS ≠
+MCP servers): the roster comes from the same private `servers.yaml` the
+gateway reads, live state from a new unauthenticated gateway endpoint
+`GET /healthz/upstreams` (pool status: up/down, tool count, last error).
+Internal in practice — the edge routes only `/mcp*` and PRM to the
+gateway, so the endpoint never leaves the compose network. A roster row
+the gateway doesn't report renders "not loaded" (restart to pick up
+config); an unreachable gateway degrades the whole section to roster-only.
 
 ### 15.5 Deliberately not built
 
 Secret *reveals* in the browser (the draft's step-up flow) wait until the
 need is proven — `brain secret` on the box covers it, and the master key
-stays off the VM's web path meanwhile. Also skipped: SPAs, graph
-visualizations (v1), and any new secret storage.
+stays off the VM's web path meanwhile. Also skipped: SPAs, ~~graph
+visualizations (v1)~~ *(deferral ended 2026-08-28: the owner asked; built
+server-light in §15.3 — the pages stay server-rendered, the graph is the
+one canvas)*, and any new secret storage.
+
+### 15.6 The architecture tab
+
+`/architecture` renders the whole system as one server-side SVG — no
+external assets, themed by the page's CSS variables, hand-authored from
+small box/arrow helpers in `architecture.ts`. It deliberately duplicates
+the §2 mermaid overview at higher fidelity (edge, auth, deploy, and cost
+planes included): the console is where the owner actually looks, and a
+map you can open next to the dashboard earns its duplication. Hostnames
+and accounts stay out — the file is public (§9.4), so the diagram uses
+placeholders where the truth is private. When the architecture moves,
+this page is part of keeping the docs true (`architecture-sync`).
 
 ---
 
