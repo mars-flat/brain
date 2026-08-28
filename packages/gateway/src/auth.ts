@@ -17,7 +17,7 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 export interface AuthConfig {
   /** IdP issuer URL, e.g. http://localhost:8081/realms/brain */
   issuer: string;
-  /** Expected audience claim, e.g. brain-gateway */
+  /** Expected audience claim, e.g. tool-gateway */
   audience: string;
   /** Public URL of this resource (for PRM + challenges). */
   resource: string;

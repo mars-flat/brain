@@ -38,7 +38,7 @@ let gw: RunningGateway;
 let tmp: string;
 
 beforeAll(async () => {
-  tmp = mkdtempSync(join(tmpdir(), "brain-gateway-"));
+  tmp = mkdtempSync(join(tmpdir(), "tool-gateway-"));
   gw = await buildGateway({
     vaultPath: tmp,
     cwd: join(import.meta.dir, "..", "..", ".."),

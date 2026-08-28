@@ -47,8 +47,8 @@ jobs:
           provenance: mode=max
           sbom: true
           tags: |
-            ghcr.io/mars-flat/brain-gateway:${{ github.sha }}
-            ghcr.io/mars-flat/brain-gateway:latest
+            ghcr.io/mars-flat/tool-gateway:${{ github.sha }}
+            ghcr.io/mars-flat/tool-gateway:latest
 
   deploy:
     needs: image

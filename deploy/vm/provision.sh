@@ -62,7 +62,7 @@ TAG=latest
 BRAIN_DATA_DIR=/data
 BRAIN_INGEST_MODE=queue
 GATEWAY_ISSUER=${GATEWAY_ISSUER:-https://pending-auth0.invalid/}
-GATEWAY_AUDIENCE=brain-gateway
+GATEWAY_AUDIENCE=tool-gateway
 GATEWAY_RESOURCE=${GATEWAY_RESOURCE:-https://pending-tailnet.invalid/mcp}
 OPENAI_API_KEY=${OPENAI_API_KEY:-}
 EOF

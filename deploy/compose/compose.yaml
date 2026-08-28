@@ -16,7 +16,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/compose/Dockerfile
-    image: ghcr.io/mars-flat/brain-gateway:${TAG:-local}
+    image: ghcr.io/mars-flat/tool-gateway:${TAG:-local}
     restart: unless-stopped
     ports:
       - "127.0.0.1:8090:8090"
@@ -25,7 +25,7 @@ services:
       GATEWAY_HOST: 0.0.0.0
       GATEWAY_PORT: "8090"
       GATEWAY_ISSUER: ${GATEWAY_ISSUER:?IdP issuer URL}
-      GATEWAY_AUDIENCE: ${GATEWAY_AUDIENCE:-brain-gateway}
+      GATEWAY_AUDIENCE: ${GATEWAY_AUDIENCE:-tool-gateway}
       GATEWAY_RESOURCE: ${GATEWAY_RESOURCE:?advertised /mcp URL (tailnet)}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # queue = §5.8 batched cadence (`brain consolidate --batch` on a timer
@@ -59,7 +59,7 @@ services:
   # the vault by code discipline; identity via OIDC (§15.2). Loopback publish —
   # the TLS front (Caddy) is the only thing that reaches it from outside.
   console:
-    image: ghcr.io/mars-flat/brain-gateway:${TAG:-local}
+    image: ghcr.io/mars-flat/tool-gateway:${TAG:-local}
     restart: unless-stopped
     entrypoint: ["bun", "/app/packages/console/src/main.ts"]
     ports:
