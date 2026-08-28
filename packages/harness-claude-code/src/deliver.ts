@@ -51,7 +51,7 @@ export function resolveDeliveryTarget(
   } catch {
     // no config file — env may still carry everything
   }
-  const gatewayUrl = env.BRAIN_GATEWAY_URL ?? fromFile.gatewayUrl;
+  const gatewayUrl = env.TOOL_GATEWAY_URL ?? fromFile.gatewayUrl;
   if (!gatewayUrl) return null;
   return {
     gatewayUrl,

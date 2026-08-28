@@ -10,11 +10,11 @@
       "attributes": { "include.in.token.scope": "false" },
       "protocolMappers": [
         {
-          "name": "brain-gateway-aud",
+          "name": "tool-gateway-aud",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-audience-mapper",
           "config": {
-            "included.custom.audience": "brain-gateway",
+            "included.custom.audience": "tool-gateway",
             "access.token.claim": "true",
             "id.token.claim": "false"
           }

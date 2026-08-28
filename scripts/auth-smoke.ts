@@ -44,7 +44,7 @@ const gw = await startHttpGateway({
   vaultPath: join(repoRoot, "vault"),
   cwd: repoRoot,
   port: GW_PORT,
-  auth: { issuer: ISSUER, audience: "brain-gateway", resource: `http://127.0.0.1:${GW_PORT}/mcp` },
+  auth: { issuer: ISSUER, audience: "tool-gateway", resource: `http://127.0.0.1:${GW_PORT}/mcp` },
 });
 
 try {

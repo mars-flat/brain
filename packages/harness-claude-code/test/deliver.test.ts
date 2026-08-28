@@ -54,7 +54,7 @@ describe("resolveDeliveryTarget", () => {
 
   test("env alone is enough", () => {
     const t = resolveDeliveryTarget(
-      { BRAIN_GATEWAY_URL: GATEWAY, BRAIN_HOOK_CLIENT_ID: "id", BRAIN_HOOK_CLIENT_SECRET: "s" },
+      { TOOL_GATEWAY_URL: GATEWAY, BRAIN_HOOK_CLIENT_ID: "id", BRAIN_HOOK_CLIENT_SECRET: "s" },
       mkdtempSync(join(tmpdir(), "harness-")),
     );
     expect(t).toEqual({
@@ -76,7 +76,7 @@ describe("resolveDeliveryTarget", () => {
     );
     expect(resolveDeliveryTarget({}, dir)?.gatewayUrl).toBe("https://file.example/mcp");
     expect(resolveDeliveryTarget({}, dir)?.clientSecret).toBeUndefined();
-    expect(resolveDeliveryTarget({ BRAIN_GATEWAY_URL: GATEWAY }, dir)?.gatewayUrl).toBe(GATEWAY);
+    expect(resolveDeliveryTarget({ TOOL_GATEWAY_URL: GATEWAY }, dir)?.gatewayUrl).toBe(GATEWAY);
   });
 });
 

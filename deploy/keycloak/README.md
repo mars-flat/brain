@@ -21,7 +21,7 @@ S256), and an `owner`/`owner` user all import automatically.
 | | |
 |---|---|
 | Issuer | `http://localhost:8081/realms/brain` |
-| Gateway audience | `brain-gateway` |
+| Gateway audience | `tool-gateway` |
 | Admin console | `http://localhost:8081` (`admin`/`admin`) |
 | Test user | `owner` / `owner` |
 

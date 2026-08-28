@@ -31,7 +31,7 @@ beforeAll(async () => {
     port: GW_PORT,
     auth: {
       issuer: mockAs.issuer,
-      audience: "brain-gateway",
+      audience: "tool-gateway",
       resource: `http://127.0.0.1:${GW_PORT}/mcp`,
     },
     dbPath: ":memory:",

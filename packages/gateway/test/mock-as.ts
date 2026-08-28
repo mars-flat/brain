@@ -59,7 +59,7 @@ export async function startMockAS(port: number): Promise<MockAS> {
       return new SignJWT({ scope: opts.scope ?? "" })
         .setProtectedHeader({ alg: "RS256", kid: opts.kid ?? "mock-1" })
         .setIssuer(opts.issuer ?? issuer)
-        .setAudience(opts.aud ?? "brain-gateway")
+        .setAudience(opts.aud ?? "tool-gateway")
         .setSubject(opts.sub ?? "owner-sub")
         .setIssuedAt()
         .setExpirationTime(opts.expiresIn ?? "10m")

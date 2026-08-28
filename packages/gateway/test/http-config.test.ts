@@ -31,7 +31,7 @@ beforeAll(async () => {
     host: "0.0.0.0",
     auth: {
       issuer: mockAs.issuer,
-      audience: "brain-gateway",
+      audience: "tool-gateway",
       resource: RESOURCE,
     },
     dbPath: ":memory:",

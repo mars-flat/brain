@@ -2,7 +2,7 @@
  * Auth0 tenant configuration as code (§4.3, §12 Q6) — idempotent; re-run
  * freely. Creates everything the P5 gateway needs on a fresh tenant:
  *
- *   - resource server (API) `brain-gateway` with the §4.3 scopes
+ *   - resource server (API) `tool-gateway` with the §4.3 scopes
  *   - `brain-cli`      native + PKCE (loopback callbacks, port-agnostic)
  *   - `brain-hook`     M2M, granted brain:write only  (SessionEnd delivery)
  *   - `agent-runtime`  M2M, granted read+write scopes (P6)
@@ -35,7 +35,7 @@ const BASE = `https://${DOMAIN}/api/v2`;
 // exact string up as an API identifier — so production must register the
 // real /mcp URL (env, §9.4: the domain stays out of this public file).
 // The bare-name default remains for dev stacks.
-const AUDIENCE = process.env.GATEWAY_AUDIENCE ?? "brain-gateway";
+const AUDIENCE = process.env.GATEWAY_AUDIENCE ?? "tool-gateway";
 const SCOPES = [
   { value: "brain:read", description: "read memory: recall, expand, neighbors, timeline, trace" },
   { value: "brain:write", description: "write memory: note, pin, ingest" },
@@ -82,7 +82,7 @@ if (rs) {
   console.log(`✓ API ${AUDIENCE} exists`);
 } else {
   rs = await api<ResourceServer>("POST", "/resource-servers", {
-    name: "brain-gateway",
+    name: "tool-gateway",
     identifier: AUDIENCE,
     signing_alg: "RS256",
     scopes: SCOPES,
