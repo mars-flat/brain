@@ -112,13 +112,13 @@ send-shaped URN test proves the policy rule fires. All in the e2e style of
 ## W1 tail — the console's front door (blocked on DNS, then small)
 
 State: the console + gateway are healthy on the VM (loopback), tailnet-only.
-The domain migration to Vercel DNS **stalled**: registry delegation moved
-2026-08-27 ~8pm but Vercel never activated the zone (its stored NS scan
-stuck on `external`); the owner accepted overnight downtime; **if still
-stuck they roll nameservers back at GoDaddy and the redo is via Cloudflare
-(pre-warmed zone = zero-outage), not Vercel DNS**. A DNS-API token for
-cert automation exists in `.env` (`VERCEL_API_TOKEN`; becomes a Cloudflare
-token if the redo happens).
+**DNS is resolved**: the Vercel-DNS migration stalled ~2h15m post-delegation
+(their zone activation lag — lesson: Cloudflare's pre-warmed flow next time)
+but activated 2026-08-27 ~10pm. The site serves globally again, and the
+`brain` subdomain A record points at the VM's tailnet IP (ttl 300) —
+resolvable by anyone, reachable only on the tailnet (§15.1). The DNS-API
+token for DNS-01 cert automation is `VERCEL_API_TOKEN` in `.env`
+(expires ~2026-11-25 — it's on the dashboard expiry list).
 
 Remaining, once DNS resolves (design: local `WEB-CONSOLE-DRAFT.md`,
 uncommitted, has the full picture; sanitized version is
