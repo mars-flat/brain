@@ -92,6 +92,14 @@ all of it lives in the private vault's `config/console.yaml` (§15.4).
 The VM's managed identity has its Reader grant (owner-run 2026-08-28,
 `azure/azure-config.md` §7); the IMDS path verifies on the next deploy.
 
+**W1.7 is done (2026-08-28) — call analytics on the dashboard.** A
+mini-Datadog section over the gateway's hash-chained audit log: stat
+tiles, hourly outcome bars, top tools with latency percentiles (the
+gateway now stamps `ms` on call/error audit events), and the latest
+calls. Trailing-7-day *view* window — the append-only chain is never
+truncated (§15.4). Same day, the console's front door became the graph
+tab, with the vault (nodes + episodes behind one toggle) second (§15.3).
+
 **One human blocker remains, and it only gates P6: the Discord bot** ([§13](./13-setup.md) has the walkthrough) — **deferred by the owner** for now. Open questions accumulate in `QUESTIONS-FOR-OWNER.md` at the repo root (local-only, gitignored).
 
 **Keeping this document true:** the `architecture-sync` skill (`.claude/skills/`) is the protocol. Read the relevant chapter before building; when an implementation decision differs from what's written here, edit the doc in the same commit as the code. Stale docs are a bug.

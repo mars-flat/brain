@@ -18,6 +18,8 @@ export interface AuditEvent {
   ruleIndex?: number;
   argsDigest?: string;
   outcome?: string;
+  /** Upstream call duration — on call/error events only (W1.7 analytics). */
+  ms?: number;
 }
 
 interface AuditLine {

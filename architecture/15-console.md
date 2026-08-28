@@ -115,6 +115,24 @@ see a button-mash.
 The managed identity needs a one-time Reader grant at subscription scope —
 an owner-run `az role assignment create` (IAM changes stay human).
 
+**Gateway call analytics** (W1.7, 2026-08-28, owner-requested) — a
+mini-Datadog section: stat tiles, hourly ok/error/blocked bars, top tools
+with latency percentiles, and the latest calls, over a trailing 7-day
+window. The source is the gateway's own hash-chained audit log (§4.2),
+read straight from `_index/audit.jsonl` on the vault mount — no new
+endpoint, no cache to warm, and the panel keeps working while the gateway
+is down. The gateway now stamps `ms` (upstream duration) on call/error
+audit events to feed it. Two deliberate scope lines: **7 days is the view
+window, not retention** — the owner asked for 7-day logs; deleting audit
+lines would break the hash chain's nothing-was-ever-removed proof, so the
+file stays append-only (~KBs/year at real volume) and the window lives in
+the renderer. And the panel sees only gateway MCP traffic — direct CLI
+runs and the consolidator never transit it; their trail stays the ledger
+and vault git history. Charts are server-rendered inline SVG themed by the
+page's CSS variables (the CSP admits no chart library); the outcome trio
+is CVD-validated against both surfaces, with legend labels, per-bucket
+titles, and the table as non-color carriers.
+
 **MCP upstream status** — deliberately separate from service cards (SaaS ≠
 MCP servers): the roster comes from the same private `servers.yaml` the
 gateway reads, live state from a new unauthenticated gateway endpoint

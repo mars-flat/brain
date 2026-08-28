@@ -236,6 +236,17 @@ describe("gateway over a real MCP client connection", () => {
 });
 
 describe("audit chain (§4.2)", () => {
+  test("executed calls carry a numeric duration (W1.7 analytics)", async () => {
+    const raw = await Bun.file(join(tmp, "audit.jsonl")).text();
+    const calls = raw
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l) as { event: { type: string; ms?: number } })
+      .filter((l) => l.event.type === "call");
+    expect(calls.length).toBeGreaterThan(0);
+    for (const c of calls) expect(typeof c.event.ms).toBe("number");
+  });
+
   test("hash chain verifies; args appear only as digests; tampering detected", async () => {
     const path = join(tmp, "audit.jsonl");
     const verdict = AuditLog.verify(path);
