@@ -129,6 +129,10 @@ inboxes, read a full message, archive via confirm; Drive create → rename
   it. Caddy must not start before `certs.sh` has run once.
 - **Whoever changes the vault must reindex** (or rely on the deploy
   gate's rebuild). Salience lives only in SQLite (§5.2).
+- **The vault belongs to uid 1000** (the container user); root operates
+  git for push/backup only. Any root-context write (ad-hoc pull, root
+  exec) strands root-owned files the consolidator EACCESes on. Deploys
+  self-heal ownership; `deploy/vm/vault-pull.sh` is the safe ad-hoc pull.
 - **GitHub OIDC subjects embed account/repo ids** — Entra federated
   credentials must use the id-pinned form.
 - **Vercel DNS zone activation lags delegation** (~2h REFUSED window,
@@ -137,6 +141,26 @@ inboxes, read a full message, archive via confirm; Drive create → rename
   pay-as-you-go conversion only on exhaustion/term-expiry, §3.2); all
   third-party tiers are free and far under limits; Auth0 M2M tokens
   (1k/mo) are the one metered thing — disk token caches keep it ~5%.
+
+## Judgment calls (standing policy — survives handoff rotations)
+
+Also captured in the brain as `owner-question-handling-policy`; if you
+rotate this handoff, carry this section forward or re-capture it first.
+
+- **Decide yourself and note it**: library choices within the
+  constraints, file organization, test structure — anything a careful
+  engineer would just pick.
+- **Ask the owner** for anything that changes a locked decision in
+  README §0, adds a paid service or a human setup step, or touches the
+  vault/public-repo boundary.
+- **Non-blocking questions** accumulate in `QUESTIONS-FOR-OWNER.md`
+  (repo root, gitignored); the owner answers inline between work chunks.
+  Check it at session start.
+- **Blocked work still files its question there — then pivot** to other
+  work rather than stalling. Genuinely interactive decisions in a live
+  session use AskUserQuestion.
+- **Every open question ships with a stated default** so silence never
+  blocks (the §12 table's "my default if you don't weigh in" column).
 
 ## When you finish a chunk
 

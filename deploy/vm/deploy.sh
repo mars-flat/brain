@@ -33,9 +33,14 @@ deploy_tag() {
   # the doctor gate: vault git pulls land content the VM never indexed,
   # and a deploy must verify the system can be made consistent, not fail
   # because someone pushed notes (rebuild is salience-preserving, §5.2).
+  # Same spirit for ownership: the container user is uid 1000 but this
+  # script (and any ad-hoc op) runs as root, and one root-context
+  # consolidate/pull strands root-owned files the consolidator then
+  # EACCESes on (2026-08-28: 97 stranded files broke a supersede write).
   set_tag "$1" &&
     { docker compose pull -q || docker compose build -q; } &&
     docker compose up -d --no-build --wait &&
+    find /data/vault -not -user 1000 -exec chown 1000:1000 {} + &&
     docker compose exec -T gateway bun /app/packages/cli/src/main.ts rebuild --vault /data/vault &&
     docker compose exec -T gateway bun /app/packages/cli/src/main.ts doctor --vault /data/vault
 }
