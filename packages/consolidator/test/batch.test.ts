@@ -200,13 +200,15 @@ describe("batched consolidation (§12 Q4)", () => {
     expect(after.run.deadLettered).toEqual([]);
   });
 
-  test("a whole-batch failure resubmits the episodes (bounded by the same cap)", async () => {
+  test("a whole-batch failure resubmits the episodes and surfaces the error", async () => {
     const { episode, model, cycle } = await setup("infra hiccup");
     await cycle();
     model.failWhole("batch_1", "quota exceeded");
     const r = await cycle();
-    // Collected the failure, resubmitted in the same cycle.
+    // Collected the failure (error visible, not a silent 0/0), resubmitted
+    // in the same cycle.
     expect(r.collected[0]?.batchId).toBe("batch_1");
+    expect(r.collected[0]?.error).toBe("quota exceeded");
     expect(r.submitted).toEqual([episode.episode_id]);
     expect(model.submissions.length).toBe(2);
 
@@ -217,6 +219,39 @@ describe("batched consolidation (§12 Q4)", () => {
     }));
     const done = await cycle();
     expect(done.run.processed[0]?.newNodes).toEqual(["batch-cycle-fact"]);
+  });
+
+  test("whole-batch failures never dead-letter: items were never attempted", async () => {
+    const { model, cycle } = await setup("platform incident");
+    // Two item-level failures first — the cap is two-thirds spent.
+    for (let round = 1; round <= 2; round++) {
+      await cycle();
+      model.finish(`batch_${round}`, (item) => ({
+        customId: item.customId,
+        ok: false,
+        error: "model exploded",
+      }));
+    }
+    // A long platform incident: every batch fails whole, far past the
+    // item cap. The episode must stay pending, not dead-letter — and the
+    // infra failure clears the item-fail count (no evidence against the
+    // episode itself).
+    for (let round = 3; round <= 8; round++) {
+      const r = await cycle();
+      expect(r.run.deadLettered).toEqual([]);
+      expect(model.submissions.length).toBe(round);
+      model.failWhole(`batch_${round}`, "Cannot find file, or organization does not have access");
+    }
+    // Incident over: the episode consolidates as if nothing happened.
+    await cycle();
+    model.finish("batch_9", (item) => ({
+      customId: item.customId,
+      ok: true,
+      result: extractionResult([CANDIDATE]),
+    }));
+    const done = await cycle();
+    expect(done.run.processed[0]?.newNodes).toEqual(["batch-cycle-fact"]);
+    expect(done.run.deadLettered).toEqual([]);
   });
 
   test("redelivered episodes stay idempotent through the batch path", async () => {
