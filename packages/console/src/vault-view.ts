@@ -20,8 +20,26 @@ const TYPE_ORDER = [
   "event",
 ];
 
-export function indexPage(store: BrainStore): string {
+export type VaultView = "nodes" | "episodes";
+
+/** One tab, two views: the node index and the episode timeline share the
+ *  vault page behind a segmented toggle — episodes stopped being a
+ *  standalone section (owner's call, 2026-08-28). */
+export function vaultPage(store: BrainStore, view: VaultView): string {
   const counts = store.counts();
+  const seg = (v: VaultView, href: string, label: string) =>
+    `<a href="${href}"${v === view ? ` class="on"` : ""}>${label}</a>`;
+  return page(
+    "vault",
+    `<h1>vault</h1>
+     <p class="muted">${counts.nodes} nodes · ${counts.edges} edges · ${counts.episodes} episodes · ${counts.pins} pins — live from the vault</p>
+     <div class="seg">${seg("nodes", "/vault", "nodes")}${seg("episodes", "/vault?view=episodes", "episodes")}</div>
+     ${view === "episodes" ? episodesSection(store) : nodesSection(store)}`,
+    { authed: true },
+  );
+}
+
+function nodesSection(store: BrainStore): string {
   const graph = store.loadGraph();
   const byType = new Map<string, Array<{ id: string; title: string }>>();
   for (const n of graph.nodes.values()) {
@@ -38,13 +56,7 @@ export function indexPage(store: BrainStore): string {
       return `<div class="card"><h3>${esc(t)} <span class="muted">${nodes.length}</span></h3><ul class="plain">${items}</ul></div>`;
     })
     .join("");
-  return page(
-    "brain",
-    `<h1>the brain</h1>
-     <p class="muted">${counts.nodes} nodes · ${counts.edges} edges · ${counts.episodes} episodes · ${counts.pins} pins — live from the vault</p>
-     <div class="grid">${sections}</div>`,
-    { authed: true },
-  );
+  return `<div class="grid">${sections}</div>`;
 }
 
 /** Basenames of every ingested episode — for resolving non-node edge targets. */
@@ -73,7 +85,7 @@ export function nodePage(store: BrainStore, id: string): string | null {
   const targetHtml = (other: string): string => {
     if (graph.nodes.has(other)) return `<a href="/node/${esc(other)}">${esc(other)}</a>`;
     if (episodes.has(other))
-      return `<a href="/episodes#${esc(other)}">${esc(other)}</a> <span class="muted">(episode)</span>`;
+      return `<a href="/vault?view=episodes#${esc(other)}">${esc(other)}</a> <span class="muted">(episode)</span>`;
     return `${esc(other)} <span class="muted">(not in graph)</span>`;
   };
 
@@ -110,7 +122,7 @@ export function nodePage(store: BrainStore, id: string): string | null {
          ? `<h3>provenance</h3><ul class="plain">${sources
              .map(
                (s) =>
-                 `<li class="muted">episode ${episodes.has(s) ? `<a href="/episodes#${esc(s)}">${esc(s)}</a>` : esc(s)}</li>`,
+                 `<li class="muted">episode ${episodes.has(s) ? `<a href="/vault?view=episodes#${esc(s)}">${esc(s)}</a>` : esc(s)}</li>`,
              )
              .join("")}</ul>`
          : ""
@@ -140,7 +152,7 @@ export function searchPage(store: BrainStore, query: string): string {
   );
 }
 
-export function episodesPage(store: BrainStore): string {
+function episodesSection(store: BrainStore): string {
   // Queried directly (not store.episodes) because the anchor id must be
   // the BASENAME — that's what edges and provenance reference — and the
   // EpisodeRef contract doesn't carry it.
@@ -169,9 +181,5 @@ export function episodesPage(store: BrainStore): string {
          ${e.episode_id && e.episode_id !== e.basename ? `<div class="muted">${esc(e.episode_id)}</div>` : ""}</div>`,
     )
     .join("");
-  return page(
-    "episodes",
-    `<h1>episodes</h1><p class="muted">${episodes.length} total, newest first</p>${items}`,
-    { authed: true },
-  );
+  return `<p class="muted">${episodes.length} total, newest first</p>${items}`;
 }

@@ -106,8 +106,8 @@ export function graphPage(store: BrainStore): string {
     </style>
     <div id="graphwrap">
       <h1>graph</h1>
-      <p class="muted">${g.nodes.size} nodes · ${g.edges.length} edges — drag to pan, wheel to zoom, hover to focus a neighborhood
-        (<span style="color:var(--g-edge-out)">outbound</span> / <span style="color:var(--g-edge-in)">inbound</span> edges), click a node to open it. Legend chips toggle types.</p>
+      <p class="muted">${g.nodes.size} nodes · ${g.edges.length} edges — drag to pan, wheel to zoom, hover to trace a node's edges
+        (<span style="color:var(--g-edge-out)">outbound</span> / <span style="color:var(--g-edge-in)">inbound</span>), click a node to open it. Legend chips toggle types.</p>
       <div id="legend">${chips}</div>
       <div id="stage">
         <details id="gpanel" open>

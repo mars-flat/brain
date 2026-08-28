@@ -16,7 +16,7 @@ import { esc, page } from "./html.ts";
 import { buildAuthRequest, discover, exchangeCode, type OidcClient } from "./oidc.ts";
 import { clearProbeCache } from "./services.ts";
 import { cookieHeader, openSession, readCookie, type Session, sealSession } from "./session.ts";
-import { episodesPage, indexPage, nodePage, searchPage } from "./vault-view.ts";
+import { nodePage, searchPage, vaultPage } from "./vault-view.ts";
 
 const SESSION_COOKIE = "console_session";
 const OAUTH_COOKIE = "console_oauth";
@@ -134,9 +134,15 @@ export function startConsole(cfg: ConsoleConfig): RunningConsole {
       if (cfg.allowedSubs.length > 0 && !cfg.allowedSubs.includes(session.sub))
         return html(errorPage("session identity is not the pinned owner"), 403);
 
-      if (path === "/") return html(indexPage(store));
-      if (path === "/episodes") return html(episodesPage(store));
-      if (path === "/graph") return html(graphPage(store));
+      // The graph is the front door; the vault (with its episodes view)
+      // is the second tab. Old bookmarks land where the content went.
+      if (path === "/") return html(graphPage(store));
+      if (path === "/vault")
+        return html(
+          vaultPage(store, url.searchParams.get("view") === "episodes" ? "episodes" : "nodes"),
+        );
+      if (path === "/episodes") return redirect("/vault?view=episodes");
+      if (path === "/graph") return redirect("/");
       if (path === "/graph.json")
         return new Response(graphJson(store), {
           headers: { "content-type": "application/json" },
