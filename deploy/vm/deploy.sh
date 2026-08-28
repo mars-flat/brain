@@ -27,11 +27,16 @@ set_tag() {
 }
 
 deploy_tag() {
-  # Pull from GHCR; while the package is still private (owner flips it —
-  # QUESTIONS P5-4) build the identical image from the checked-out commit.
+  # Pull from GHCR (falls back to building the identical image from the
+  # checked-out commit if the registry is unreachable). ALL services ride
+  # the tag — the console shares the image (§15). Rebuild the index before
+  # the doctor gate: vault git pulls land content the VM never indexed,
+  # and a deploy must verify the system can be made consistent, not fail
+  # because someone pushed notes (rebuild is salience-preserving, §5.2).
   set_tag "$1" &&
-    { docker compose pull -q gateway || docker compose build -q gateway; } &&
-    docker compose up -d --no-build --wait gateway &&
+    { docker compose pull -q || docker compose build -q; } &&
+    docker compose up -d --no-build --wait &&
+    docker compose exec -T gateway bun /app/packages/cli/src/main.ts rebuild --vault /data/vault &&
     docker compose exec -T gateway bun /app/packages/cli/src/main.ts doctor --vault /data/vault
 }
 
