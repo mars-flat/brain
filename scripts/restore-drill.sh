@@ -38,6 +38,11 @@ echo "3. stack up on restored data"
 export BRAIN_DATA_DIR="${SCRATCH}"
 export GATEWAY_ISSUER="http://keycloak:8081/realms/brain"
 export GATEWAY_RESOURCE="http://127.0.0.1:8090/mcp"
+# Console interpolation (§15) — the dev overlay overrides these per-service,
+# but the base file's ${VAR:?} guards evaluate regardless.
+export CONSOLE_BASE_URL="http://127.0.0.1:8091"
+export CONSOLE_CLIENT_ID="brain-cli"
+export CONSOLE_SESSION_SECRET="dev-only-session-secret"
 "${COMPOSE[@]}" up -d --build --wait
 
 echo "4. doctor"

@@ -1,0 +1,78 @@
+# The Web Console
+
+> Part of [`architecture/`](./README.md). Section numbers (§N) are stable across files — grep them.
+
+## 15. `packages/console` — the authenticated vault viewer + ops dashboard
+
+Added post-P5 (W1, 2026-08-27). Two things behind one login on one real
+domain: the root is the **live vault**, rendered read-only; `/dashboard` is
+the **ops hub** for everything running behind the brain. The concrete
+hostname, tenant, and tailnet names are deployment config and never appear
+in this public repo (§9.2/§9.4) — examples below use placeholders.
+
+### 15.1 Exposure model: a real domain that only the tailnet can reach
+
+The §3.1 posture (zero public ingress) survives contact with a public
+domain: public DNS points `console.example.com` at the VM's **tailnet IP**.
+Anyone can resolve the name; only tailnet devices can route to it. TLS is a
+real Let's Encrypt certificate obtained via **DNS-01** (which needs a DNS
+API, not reachability — the domain's DNS host must have one; GoDaddy's is
+closed to small accounts, which forces the zone onto an API-capable host
+first). Caddy fronts 443 and proxies to the loopback-bound services — it
+subsumes `tailscale serve`, and `GATEWAY_RESOURCE` migrates to the real
+domain. Documented escalation if a no-tailnet device ever matters:
+Cloudflare Tunnel + Access, addable without touching the app.
+
+The window to know about: between the registry delegation flip and the new
+DNS host serving the zone, fresh resolver lookups SERVFAIL. It cannot be
+pre-warmed; schedule migrations for quiet hours.
+
+### 15.2 Auth: OIDC session on top of the network gate
+
+Same trust chain as the gateway (§4.3), different grant: the console is a
+**confidential authorization-code + PKCE client** against the same IdP
+tenant; the id_token verifies against the issuer JWKS (jose); the session
+is a stateless HMAC cookie (HttpOnly, SameSite=Lax, 7d) so deploys never
+log the owner out. `CONSOLE_ALLOWED_SUB` pins the console to the owner's
+identity — any other authenticated user gets a 403 *that shows their sub*
+(pinning requires learning the sub once). Dev stack runs the same code
+against the compose Keycloak; only env differs.
+
+### 15.3 The viewer: render the source of truth, don't mirror it
+
+No static site generator, no Obsidian Publish, no rebuild step: the console
+reads the same `/data/vault` (and FTS5 index) the consolidator maintains,
+via `@brain/brainstore` — parsing, wikilink vocabulary, and search already
+existed; the viewer is a thin server-rendered layer (marked + a CSS file's
+worth of style, CSP `default-src 'self'`, zero external assets). Node pages
+show summary/body with `[[wikilinks]]` resolved to viewer links, typed
+edges both directions, pins, and provenance; plus index-by-type, episode
+timeline, and FTS5 search. **The console never writes** — the single-writer
+consolidator remains the only writer (§5.7); read-only is a code-level
+discipline (SQLite WAL needs fs write access even for readers).
+
+### 15.4 The dashboard: links + live truth + expiry radar
+
+Tiles are server-side fetches, briefly cached, individually degradable — an
+unreachable source renders a warning, never a broken page: gateway health
+(PRM probe), vault stats + last commit/push, consolidation queue and batch
+depth (§5.8 tables), last deploy (GitHub API), and **credential expiries**.
+Links and expiry items come from the private vault (`config/console.yaml`),
+not the repo. The expiry tile grades urgency (green/amber/red by days
+left); the standing items it exists for: the DNS-API token (~90d) and the
+VM's Tailscale node key (~180d unless expiry is disabled per-machine).
+Planned, not yet built: Azure spend via a Reader-scoped managed identity on
+the VM, and live expiry dates pulled from provider APIs instead of config.
+
+### 15.5 Deliberately not built
+
+Secret *reveals* in the browser (the draft's step-up flow) wait until the
+need is proven — `brain secret` on the box covers it, and the master key
+stays off the VM's web path meanwhile. Also skipped: SPAs, graph
+visualizations (v1), and any new secret storage.
+
+---
+
+---
+
+[← Index](./README.md)
