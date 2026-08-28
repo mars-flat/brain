@@ -183,6 +183,8 @@ describe("dashboard (W1.4)", () => {
     const body = await pageRes.text();
     expect(body).toContain("<canvas");
     expect(body).toContain(`data-type="concept"`); // legend chip for a type the example vault has
+    expect(body).toContain(`id="gs-repel"`); // the Obsidian-style settings panel
+    expect(body).toContain(`id="gs-arrows"`);
     const dataRes = await fetch(`${console_.url}/graph.json`, { headers: { cookie } });
     const graph = (await dataRes.json()) as {
       nodes: Array<{ id: string; type: string; degree: number; active: boolean }>;
@@ -190,6 +192,9 @@ describe("dashboard (W1.4)", () => {
     };
     expect(graph.nodes.length).toBeGreaterThan(0);
     expect(graph.edges.length).toBeGreaterThan(0);
+    expect(
+      (graph.nodes as Array<{ summary?: string }>).some((n) => (n.summary ?? "").length > 0),
+    ).toBe(true); // hover cards need summaries
     for (const e of graph.edges) {
       // every edge endpoint resolves — the client never draws dangling links
       expect(graph.nodes.some((n) => n.id === e.from)).toBe(true);
