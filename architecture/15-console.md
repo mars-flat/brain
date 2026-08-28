@@ -20,7 +20,10 @@ API, not reachability — the domain's DNS host must have one; GoDaddy's is
 closed to small accounts, which forces the zone onto an API-capable host
 first). Caddy fronts 443 and proxies to the loopback-bound services — it
 subsumes `tailscale serve`, and `GATEWAY_RESOURCE` migrates to the real
-domain. Documented escalation if a no-tailnet device ever matters:
+domain. *Implemented:* Caddy runs under the compose profile `edge`
+(production-only; dev stacks never interpolate it), serving a certificate
+that `deploy/vm/certs.sh` obtains and renews via lego DNS-01 with a
+monthly systemd timer — vanilla Caddy image, no DNS plugin build. Documented escalation if a no-tailnet device ever matters:
 Cloudflare Tunnel + Access, addable without touching the app.
 
 The window to know about: between the registry delegation flip and the new

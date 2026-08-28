@@ -1,0 +1,27 @@
+# The edge (§15.1): one TLS front on the real domain, reachable only over
+# the tailnet (public DNS resolves to a tailnet IP nothing else can route).
+# The certificate is obtained/renewed by lego via DNS-01 (deploy/vm/certs.sh)
+# into the shared certs volume — Caddy only serves it.
+#
+# CONSOLE_DOMAIN comes from the environment so no real hostname lives in
+# this public file (§9.4).
+
+{
+	auto_https off
+}
+
+https://{$CONSOLE_DOMAIN} {
+	tls /certs/certificates/{$CONSOLE_DOMAIN}.crt /certs/certificates/{$CONSOLE_DOMAIN}.key
+
+	encode gzip
+
+	handle /mcp* {
+		reverse_proxy gateway:8090
+	}
+	handle /.well-known/oauth-protected-resource* {
+		reverse_proxy gateway:8090
+	}
+	handle {
+		reverse_proxy console:8091
+	}
+}
