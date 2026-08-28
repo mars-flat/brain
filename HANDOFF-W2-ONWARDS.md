@@ -1,164 +1,143 @@
-# Handoff: W2 and the open tails
+# Handoff: W2 and the small tails
 
-You're continuing a personal LLM system whose brain now runs **fully
-remote**: an Azure VM serves the tool gateway (OAuth resource server
-against the owner's Auth0 tenant) and the web console over the owner's
-tailnet; deploys ride push-to-main with a doctor-gated rollback; the vault
-backs itself up nightly to its private remote. **P0–P5 are done. P6
-(Discord) is deferred by the owner until they provide a bot token.**
-This file replaces `HANDOFF-P5-ONWARDS.md` (rotated out with P5's close).
+You're continuing a personal LLM system whose brain runs **fully remote
+behind its own domain**: an Azure VM serves the tool gateway (OAuth
+resource server against the owner's Auth0 tenant) and the web console —
+live vault viewer + ops dashboard — through a Caddy TLS edge on the
+owner's real domain, reachable **only over their tailnet** (public DNS
+resolves to a tailnet IP nothing else can route). Deploys ride
+push-to-main with a doctor-gated rollback; the vault backs itself up
+nightly to its private remote; the owner has logged in and the console is
+**pinned to their identity**. **P0–P5 and the W1 console/edge are done.
+P6 (Discord) stays deferred until the owner provides a bot token.**
 
 ## First: read the spec, then keep it true
 
 1. `architecture/README.md` — locked decisions, nav, **Current status**.
-2. Only the chapter for what you're touching (`§N` references are greppable).
+2. Only the chapter for what you're touching (`§N` refs are greppable;
+   the console/edge chapter is `architecture/15-console.md`).
 3. The `architecture-sync` skill is mandatory: doc edits ride the same
-   commit as the code that changes them. **Owner rule (2026-08-28):
-   `architecture/` documents the *pattern* of connecting MCP servers, never
-   individual servers** — per-server docs live in the server package's README.
-4. The `brain-memory` skill: recall before acting, capture as you go. The
-   brain itself now holds much of this project's history — use it.
-5. Identity hygiene (§9.4) is enforced by CI: no emails, domains, tailnet
-   names, or home paths in tracked files. Deployment identity lives in
-   `.env` / the VM's compose `.env` / the private vault config /
-   `QUESTIONS-FOR-OWNER.md` (gitignored). When this file names an account,
-   it uses short-names; the mapping lives in the owner's answers file.
+   commit as the code. **Owner rule: `architecture/` documents the
+   *pattern* of connecting MCP servers, never individual servers** —
+   per-server docs live in the server package's README.
+4. The `brain-memory` skill: recall before acting, capture as you go —
+   the brain holds this project's history, including everything below.
+5. Identity hygiene (§9.4), CI-enforced: no emails, domains, tailnet
+   names, subs, or home paths in tracked files. Deployment identity lives
+   in `.env`, the VM's compose `.env`, the private vault config, and
+   `QUESTIONS-FOR-OWNER.md` (gitignored). This file uses short-names.
 
-## W2 — Google mail + Drive behind the gateway (PLAN B: in-house)
+## W2 — Google mail + Drive behind the gateway (the main build)
 
-**Decided path** (owner, 2026-08-28): Google's hosted Workspace/Gmail/Drive
-MCP servers are gated behind the Workspace Developer Preview Program
-(human-reviewed form); the owner declined to enroll. So: **build the thin
-in-house server** over the plain REST APIs. If the owner ever enrolls,
-hosted servers become a config swap at the URN seam — but do not plan on it.
+**Decided**: Google's hosted Workspace MCP servers are preview-gated
+(human-reviewed form; owner declined). Build the **thin in-house server**
+over the plain REST APIs. Hosted becomes a config swap at the URN seam if
+the owner ever enrolls — don't plan on it.
 
-### What already exists (don't redo)
+### Ready and verified (don't redo)
 
-- **Google Cloud**: project `brain` with Gmail API, Drive API (+ the three
-  MCP APIs, unusable without preview) enabled; OAuth consent published
-  ("In production" — critical: Testing mode kills refresh tokens in 7 days);
-  a Desktop OAuth client whose id/secret are in the laptop `.env` as
+- **Google Cloud**: project `brain`; Gmail + Drive APIs enabled; consent
+  screen **published/In production** (Testing mode kills refresh tokens
+  in 7 days); Desktop OAuth client in laptop `.env` as
   `GOOGLE_OAUTH_CLIENT_ID/SECRET`.
-- **Consents**: `scripts/google-auth.ts <short-name> <email>` runs one
-  browser consent and stores the refresh token as `${secret:google/<name>}`
-  (envelope-encrypted, syncs via the vault repo). Scopes: `gmail.modify` +
-  `drive`. Account short-names: `g-2k05`, `g-2006`, `g-z` (emails in
-  `QUESTIONS-FOR-OWNER.md`). Check `brain secret list` — at rotation time
-  `google/g-2k05` was stored; the other two consents may still be pending.
-- **Policy**: the vault's `config/policy.yaml` already carries a permanent
-  deny for send-shaped tools (`*.send_*`, `*send_message*`, …) and the
-  `brain.ingest` allow. The send deny is an owner rule; never remove it.
+- **All three consents are DONE and verified**: refresh tokens stored as
+  `${secret:google/g-2k05|g-2006|g-z}` (envelope-encrypted, synced via
+  the vault repo), scopes `gmail.modify` + `drive`, each proven live
+  against Gmail (labels.list) and Drive (about.get) REST with correct
+  identity. Re-consent if ever needed: `scripts/google-auth.ts`.
+- **Policy**: the vault's `config/policy.yaml` permanently denies
+  send-shaped tools (`*.send_*`, `*send_message*`, …). Owner rule; never
+  remove. `brain.ingest` allow for http/cli is also there.
 
 ### Build: `packages/mcp-google`
 
-One stdio MCP server, instantiated per account by the gateway. Per the
-owner: **mail = read + label control, structurally no send; Drive = full
-CRUD with trash-first deletes.**
+One stdio MCP server, instantiated per account. **Mail = read + label
+control, structurally no send (no send/draft tools); Drive = full CRUD,
+trash-first deletes.**
 
-- `mail_search` (messages.list `q=` — full Gmail query syntax), `mail_get_message`,
-  `mail_get_thread` (full bodies), `mail_list_labels`, `mail_create_label`,
-  `mail_modify_labels` (add/remove label ids — covers archive = remove
-  INBOX, spam = add SPAM, custom categories, read/unread). **No send tool,
-  no draft tool.**
+- `mail_search` (messages.list `q=`), `mail_get_message`,
+  `mail_get_thread` (full bodies), `mail_list_labels`,
+  `mail_create_label`, `mail_modify_labels` (add/remove ids — archive =
+  remove INBOX, spam = add SPAM, custom categories, read/unread).
 - `drive_search` (files.list `q=`), `drive_get_metadata`, `drive_read`
-  (files.get alt=media; files.export for Google-native formats),
-  `drive_create` (upload), `drive_update` (content + metadata:
-  rename/move via files.update), `drive_copy`, `drive_trash` /
-  `drive_untrash` (update `trashed`), `drive_list_recent`.
-  `drive_delete_forever` only if you name it so the kind classifier flags
-  it admin (§4.3) — step-up + confirm.
-- Kind classification (§4.4 heuristics): the `search/get/list/read`
-  prefixes auto-read; `modify/create/update/trash` fall through to write →
-  the owner's default-confirm policy. Add `kinds:` overrides in
-  `servers.yaml` only if a name misclassifies.
-- Token handling: refresh-token → access-token exchange in-process with
-  expiry-aware caching (the pattern lives in
-  `packages/harness-claude-code/src/deliver.ts`). Env in: `GOOGLE_OAUTH_CLIENT_ID`,
-  `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` (resolved by the
-  gateway from `${secret:google/<name>}`), `GOOGLE_ACCOUNT_LABEL`.
-- Tests: fake Google token + API endpoints via `Bun.serve` (the repo has
-  this pattern in `packages/console/test/mock-idp.ts` and
-  `adapters/model-openai/test/batch.test.ts`). Never the real API in CI;
-  never real identity in fixtures.
+  (alt=media; files.export for Google-native), `drive_create`,
+  `drive_update` (content + rename/move), `drive_copy`, `drive_trash`/
+  `drive_untrash`, `drive_list_recent`. `drive_delete_forever` only if
+  named so the §4.4 classifier flags it admin (step-up + confirm).
+- Kinds: `search/get/list/read` prefixes auto-read; the rest fall to
+  write → default-confirm. `kinds:` overrides in `servers.yaml` if needed.
+- Tokens: refresh→access exchange in-process with expiry caching (pattern:
+  `packages/harness-claude-code/src/deliver.ts`). Env: the two client
+  vars, `GOOGLE_REFRESH_TOKEN` (gateway resolves `${secret:google/<n>}`),
+  `GOOGLE_ACCOUNT_LABEL`.
+- Tests: fake Google endpoints via `Bun.serve` (patterns:
+  `packages/console/test/mock-idp.ts`,
+  `adapters/model-openai/test/batch.test.ts`). No real APIs or identity
+  in CI/fixtures.
 
-### Wiring (private vault, `config/servers.yaml`)
+### Wiring + VM prerequisites
 
-Three entries (names are URN prefixes): `g-2k05`, `g-2006`, `g-z` — each
-`command: bun`, `args: [packages/mcp-google/src/main.ts]`, env as above
-with its own `${secret:google/<name>}`. Do **not** wire the Workspace
-`search_corpus` or any plain API as tools.
-
-### VM prerequisites (the step everyone forgets)
-
-1. `GOOGLE_OAUTH_CLIENT_ID/SECRET` must be added to the VM's
-   `deploy/compose/.env` (they're client credentials, not account secrets).
-2. **The gateway resolves `${secret:...}` on the VM, and the VM has no
-   secrets master key yet** — copy it once over Tailscale SSH:
-   `scp <vault>/secrets/master.key root@<vm-tailnet-name>:/data/secrets/master.key`
-   (0600; path expectations in `packages/gateway` / `adapters/secrets-file`).
-   The VM already holds the vault plaintext; the owner accepted this.
-3. Vault `servers.yaml`/`policy.yaml` changes reach the VM via
-   `git -C /data/vault pull` + gateway restart; deploys now rebuild the
-   index before the doctor gate, so pushes don't fail deploys.
+- Private vault `config/servers.yaml`: three entries `g-2k05`/`g-2006`/
+  `g-z`, `command: bun`, `args: [packages/mcp-google/src/main.ts]`, each
+  with its own secret ref. Don't wire Workspace `search_corpus` or plain
+  APIs as tools.
+- `GOOGLE_OAUTH_CLIENT_ID/SECRET` → VM `deploy/compose/.env` (client
+  creds, not account secrets — owner-run push script pattern).
+- **The VM has no secrets master key**: copy once,
+  `scp <vault>/secrets/master.key root@<vm>:/data/secrets/master.key`
+  (0600). Without it the gateway can't resolve `${secret:...}` upstreams.
+- Vault config reaches the VM via `git -C /data/vault pull` + gateway
+  restart; deploys rebuild the index before the doctor gate.
 
 ### Done-when
 
-From the owner's laptop through the VM gateway (Auth0 token): search each
-of the three inboxes; read a full message; archive something via
-confirm; create a Drive file, rename it, trash it, untrash it. A denied
-send-shaped URN test proves the policy rule fires. All in the e2e style of
-`scripts/compose-smoke.sh` where feasible (fake Google API in CI).
+Through `https://<domain>/mcp` with an Auth0 token: search all three
+inboxes, read a full message, archive via confirm; Drive create → rename
+→ trash → untrash. A send-shaped URN is denied by policy. E2e in the
+`scripts/compose-smoke.sh` style with a fake Google API in CI.
 
-## W1 tail — the console's front door (blocked on DNS, then small)
+## Small tails (nothing blocking; pick off opportunistically)
 
-State: the console + gateway are healthy on the VM (loopback), tailnet-only.
-**DNS is resolved**: the Vercel-DNS migration stalled ~2h15m post-delegation
-(their zone activation lag — lesson: Cloudflare's pre-warmed flow next time)
-but activated 2026-08-27 ~10pm. The site serves globally again, and the
-`brain` subdomain A record points at the VM's tailnet IP (ttl 300) —
-resolvable by anyone, reachable only on the tailnet (§15.1). The DNS-API
-token for DNS-01 cert automation is `VERCEL_API_TOKEN` in `.env`
-(expires ~2026-11-25 — it's on the dashboard expiry list).
-
-Remaining, once DNS resolves (design: local `WEB-CONSOLE-DRAFT.md`,
-uncommitted, has the full picture; sanitized version is
-`architecture/15-console.md`):
-
-1. Caddy in compose: DNS-01 cert, routes `/` + `/dashboard` → console
-   :8091, `/mcp` → gateway :8090; retire `tailscale serve`; migrate
-   `GATEWAY_RESOURCE`/`BRAIN_GATEWAY_URL`/Claude Code local-scope config to
-   the real domain.
-2. Auth0 `brain-console` client (confidential web app, callback
-   `<base>/callback`) — doesn't exist yet: extend `scripts/auth0-setup.ts`
-   (idempotent) and have the owner re-mint a Management credential for one
-   run, or give them the dashboard steps. Then `CONSOLE_CLIENT_ID/SECRET`
-   into the VM `.env` (placeholder sits there now).
-3. Owner's first login ("Continue with Google") → pin `CONSOLE_ALLOWED_SUB`
-   and add a gateway-policy principal pin.
-4. Dashboard expiry tile data (`config/console.yaml` in the vault):
-   `VERCEL_API_TOKEN` ~2026-11-25; the VM's Tailscale **node key**
-   (~180d unless disabled per-machine); Azure sponsorship **credit expiry**
-   (owner checks portal → Cost Management → Credits). Azure spend tile
-   wants a Reader-scoped managed identity on the VM (designed, unbuilt).
+1. **Dashboard config** — `config/console.yaml` in the private vault
+   (schema in `packages/console/src/config.ts`): links (Azure portal,
+   Tailscale, Auth0, GitHub, GHCR, OpenAI usage) + expiry items: the
+   DNS-API token `VERCEL_API_TOKEN` (~2026-11-25 — renewals + DNS
+   automation die with it); the VM's Tailscale **node key** (~180d unless
+   "disable key expiry" is set per-machine); Azure sponsorship **credit
+   expiry** (owner reads portal → Cost Management → Credits). The edge
+   TLS cert (to 2026-11-26) self-renews monthly — list it, don't fear it.
+2. **Gateway principal pinning** — the console is pinned
+   (`CONSOLE_ALLOWED_SUB` on the VM), the gateway is not. Careful design:
+   the policy language has no negation, and `brain-hook`'s
+   client-credentials subject (`<clientid>@clients`) must stay allowed.
+3. **Azure spend tile** — wants a Reader-scoped managed identity on
+   brain-vm (designed in §15.4, unbuilt).
+4. **Laptop as second vault writer** — CLI notes still commit locally;
+   rebase-pull before pushing. Long-term: laptop writes via the gateway.
 
 ## Standing facts a future agent should not relearn
 
-- Three HOME gremlins: `az vm run-command`, systemd units, and the deploy
-  workflow's inline script all run without `HOME`; git dies without it.
-  All patched — keep `Environment=HOME=/root` / `export HOME=/root`.
-- Secrets cannot transit the agent's own tool calls (permission classifier).
-  Owner-run scratchpad scripts with base64-armored payloads is the pattern.
-- The vault currently has two git writers (laptop CLI notes + VM
-  consolidator); rebase-pull before pushing from the laptop. Long-term the
-  laptop should write via the gateway.
-- Whoever changes the vault must reindex (or rely on the deploy gate's
-  rebuild). Salience lives only in SQLite (§5.2).
-- GitHub OIDC subjects embed account/repo ids — Entra federated credentials
-  must use the id-pinned form.
-- Owner cost posture: Azure sponsorship credits burn first (card only on
-  exhaustion/term-expiry — silent conversion, §3.2); every third-party tier
-  in use is free and comfortably under its limits; the one metered thing is
-  Auth0 M2M tokens (1k/mo) — the disk token caches keep usage ~5% of that.
+- **HOME gremlins ×3**: `az vm run-command`, systemd units, and the
+  deploy workflow's inline script all run without `HOME`; git dies. Keep
+  `Environment=HOME=/root` / `export HOME=/root`.
+- **Secrets cannot transit the agent's own tool calls** (permission
+  classifier). Owner-run scratchpad scripts with base64-armored payloads.
+- **lego is v5**: env-driven CLI (`LEGO_*` vars + bare `run`); the v4
+  flag syntax is gone. `deploy/vm/certs.sh` is correct; monthly
+  `brain-certs.timer` renews and reloads Caddy.
+- **The edge is a compose profile** (`edge`), enabled only on the VM via
+  `COMPOSE_PROFILES=edge` in its `.env` — dev stacks never interpolate
+  it. Caddy must not start before `certs.sh` has run once.
+- **Whoever changes the vault must reindex** (or rely on the deploy
+  gate's rebuild). Salience lives only in SQLite (§5.2).
+- **GitHub OIDC subjects embed account/repo ids** — Entra federated
+  credentials must use the id-pinned form.
+- **Vercel DNS zone activation lags delegation** (~2h REFUSED window,
+  unboundable). If DNS ever moves again: Cloudflare's pre-warmed flow.
+- **Cost posture**: Azure sponsorship credits burn first (silent
+  pay-as-you-go conversion only on exhaustion/term-expiry, §3.2); all
+  third-party tiers are free and far under limits; Auth0 M2M tokens
+  (1k/mo) are the one metered thing — disk token caches keep it ~5%.
 
 ## When you finish a chunk
 
