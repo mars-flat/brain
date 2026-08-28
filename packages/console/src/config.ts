@@ -23,6 +23,8 @@ export interface ConsoleConfig {
   allowedSubs: string[];
   /** Unauthenticated PRM endpoint of the gateway, for the health tile. */
   gatewayPrmUrl: string;
+  /** Gateway upstream-status endpoint (internal; Caddy never routes it). */
+  gatewayHealthUrl: string;
   sessionTtlMs: number;
 }
 
@@ -48,6 +50,9 @@ export function loadConfig(env: Record<string, string | undefined>): ConsoleConf
       .filter(Boolean),
     gatewayPrmUrl:
       env.CONSOLE_GATEWAY_PRM_URL ?? "http://127.0.0.1:8090/.well-known/oauth-protected-resource",
+    gatewayHealthUrl:
+      env.CONSOLE_GATEWAY_HEALTH_URL ??
+      `${new URL(env.CONSOLE_GATEWAY_PRM_URL ?? "http://127.0.0.1:8090/").origin}/healthz/upstreams`,
     sessionTtlMs: 7 * 24 * 3600_000,
   };
 }
@@ -66,18 +71,48 @@ export interface ExpiryItem {
   note?: string;
 }
 
+/** A credential/token the owner holds for an external service. */
+export interface ServiceToken {
+  name: string;
+  /** YYYY-MM-DD; absent = does not expire (or expiry unknown — say so in note). */
+  expires?: string;
+  note?: string;
+}
+
+/**
+ * One external SaaS the system depends on (Azure, Auth0, …). Everything
+ * here is owner-private truth (accounts, expiry dates) and so lives in the
+ * vault, never this repo (§9.2/§9.4). `probe` names a built-in live check
+ * the dashboard runs server-side; services without one render config-only.
+ */
+export interface ServiceEntry {
+  name: string;
+  /** Which identity the owner uses to sign in to this service. */
+  account?: string;
+  /** The service's official console/portal URL. */
+  console?: string;
+  /** Built-in live probe: azure | oidc | openai | vercel. */
+  probe?: string;
+  /** Azure probe only: the subscription id to query. */
+  subscription?: string;
+  tokens?: ServiceToken[];
+  note?: string;
+}
+
 export interface VaultConsoleConfig {
   links: ConsoleLink[];
   expiries: ExpiryItem[];
+  services: ServiceEntry[];
 }
 
 /** `config/console.yaml` in the private vault; absent file = empty config. */
 export function loadVaultConsoleConfig(vaultPath: string): VaultConsoleConfig {
   const file = join(vaultPath, "config", "console.yaml");
-  if (!existsSync(file)) return { links: [], expiries: [] };
+  if (!existsSync(file)) return { links: [], expiries: [], services: [] };
   const raw = Bun.YAML.parse(readFileSync(file, "utf8")) as {
     links?: ConsoleLink[];
     expiries?: ExpiryItem[];
+    services?: ServiceEntry[];
   } | null;
-  return { links: raw?.links ?? [], expiries: raw?.expiries ?? [] };
+  return { links: raw?.links ?? [], expiries: raw?.expiries ?? [], services: raw?.services ?? [] };
 }

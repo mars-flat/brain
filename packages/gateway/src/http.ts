@@ -66,6 +66,15 @@ export async function startHttpGateway(opts: HttpGatewayOptions): Promise<Runnin
         return;
       }
 
+      // Upstream pool status for the console's MCP section (§15.4).
+      // Unauthenticated like PRM, but internal in practice: the edge
+      // Caddyfile routes only /mcp* and PRM here, so this never leaves
+      // the compose network / VM loopback.
+      if (req.method === "GET" && url.pathname === "/healthz/upstreams") {
+        sendJson(res, 200, gateway.deps.pool.status());
+        return;
+      }
+
       if (url.pathname !== "/mcp") {
         sendJson(res, 404, { error: "not_found" });
         return;

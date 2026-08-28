@@ -27,7 +27,7 @@ Section numbers (§N) are stable across files and greppable, so a cross-referenc
 | [12-roadmap](./12-roadmap.md) | Repo layout, build phases, open questions | 116 |
 | [13-setup](./13-setup.md) | **Prerequisites and the Discord bot walkthrough** | 83 |
 | [14-appendix](./14-appendix.md) | What not to build, glossary, revision-3 audit | 46 |
-| [15-console](./15-console.md) | The web console: authenticated vault viewer + ops dashboard | 80 |
+| [15-console](./15-console.md) | The web console: authenticated vault viewer + ops dashboard | 121 |
 
 *Same idea as the brain's own `index.md` ([§5.1](./05-brain-model.md)): a cheap catalog you always read, pointing at expensive detail you load on demand.*
 
@@ -77,6 +77,20 @@ The P5 build detail:
 - **Landed and green**: the private vault remote (`mars-flat/brain-vault`, §12 Q1 closed); the one-container Compose stack + dev-IdP overlay with the five-step e2e smoke in CI (§3.1); the §6.4 SessionEnd POST swap (`brain.ingest` eighth tool, client_credentials delivery with disk token cache, CLI fallback) and a real `install()`; batched consolidation (§12 Q4 — `brain consolidate --batch` cadence, pending-vs-failing semantics, `BRAIN_INGEST_MODE=queue`); the OIDC deploy pipeline (multi-arch GHCR image with SBOM/provenance, id-pinned federated credential, run-command deploy with doctor-gated rollback, §8.6); `brain backup` + `scripts/restore-drill.sh` — **the §3.1 restore drill passed against the real vault** (doctor green, 26 nodes recalled through the restored stack).
 - **Azure, live**: `brain-vm` (B2pls_v2 ARM, no public IP, 32 GiB data disk) is provisioned and **serving the brain** — gateway healthy, doctor green, real key set, batch-consolidation and vault-push timers armed (`Environment=HOME=/root` — systemd, run-command, and the workflow wrapper all lack `HOME` and git dies without it). First push-to-main deploy came back `DEPLOY-OK` through the doctor gate; GHCR package is public so deploys pull. **Tailnet live**: `https://brain-vm.tail57f6ea.ts.net/mcp` behind `tailscale serve` TLS; laptop leg verified; Tailscale SSH enabled for ops. **The strict VM-sourced restore drill passed** (backup on the VM → tailnet transfer → restore on the laptop → doctor + authed recall).
 - **Auth0, live**: tenant configured by `scripts/auth0-setup.ts` (idempotent, Management-credential in `.env`); issuer swapped on the VM in one line; scope step-up, headless delivery, queue → consolidate → vault push all verified from the laptop over the tailnet.
+
+**W1.6 is done (2026-08-28) — the dashboard grew teeth.** Service cards
+(per-SaaS account, console link, credential expiry grading, live probes —
+Azure ARM via the VM's managed identity with az-CLI dev fallback: VM
+roster/state, retail-rate estimate, budgets; OpenAI/Vercel key checks;
+issuer discovery), an **MCP upstream status** section over the gateway's
+new internal `GET /healthz/upstreams`, a logout flow that doesn't get
+silently re-logged-in by IdP SSO, a wider layout, and an `/architecture`
+tab rendering the full system as one themed SVG (§15.6), and a `/graph`
+tab — the vault's typed graph force-laid-out on a canvas, no external
+scripts (owner-requested; ends the §15.5 v1 deferral). Data schema for
+all of it lives in the private vault's `config/console.yaml` (§15.4).
+The VM's managed identity has its Reader grant (owner-run 2026-08-28,
+`azure/azure-config.md` §7); the IMDS path verifies on the next deploy.
 
 **One human blocker remains, and it only gates P6: the Discord bot** ([§13](./13-setup.md) has the walkthrough) — **deferred by the owner** for now. Open questions accumulate in `QUESTIONS-FOR-OWNER.md` at the repo root (local-only, gitignored).
 

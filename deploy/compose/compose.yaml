@@ -70,6 +70,10 @@ services:
       CONSOLE_SESSION_SECRET: ${CONSOLE_SESSION_SECRET:?random >=16 chars}
       CONSOLE_ALLOWED_SUB: ${CONSOLE_ALLOWED_SUB:-}
       CONSOLE_GATEWAY_PRM_URL: http://gateway:8090/.well-known/oauth-protected-resource
+      # Optional: lets the dashboard's service probes check these keys live
+      # (§15.4). Absent keys just degrade the cards to config-only.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      VERCEL_API_TOKEN: ${VERCEL_API_TOKEN:-}
     volumes:
       - ${BRAIN_DATA_DIR:-/data}/vault:/data/vault
     security_opt:

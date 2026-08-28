@@ -98,20 +98,19 @@ inboxes, read a full message, archive via confirm; Drive create → rename
 
 ## Small tails (nothing blocking; pick off opportunistically)
 
-1. **Dashboard config** — `config/console.yaml` in the private vault
-   (schema in `packages/console/src/config.ts`): links (Azure portal,
-   Tailscale, Auth0, GitHub, GHCR, OpenAI usage) + expiry items: the
-   DNS-API token `VERCEL_API_TOKEN` (~2026-11-25 — renewals + DNS
-   automation die with it); the VM's Tailscale **node key** (~180d unless
-   "disable key expiry" is set per-machine); Azure sponsorship **credit
-   expiry** (owner reads portal → Cost Management → Credits). The edge
-   TLS cert (to 2026-11-26) self-renews monthly — list it, don't fear it.
+1. ~~**Dashboard config**~~ — done (W1.6, 2026-08-28): `config/console.yaml`
+   written in the private vault with links, the expiry radar, and the new
+   `services:` section (per-service accounts, consoles, token expiries,
+   live probes — §15.4). Two facts inside it need owner confirmation
+   (OpenAI login, real credit expiry — see `QUESTIONS-FOR-OWNER.md`).
 2. **Gateway principal pinning** — the console is pinned
    (`CONSOLE_ALLOWED_SUB` on the VM), the gateway is not. Careful design:
    the policy language has no negation, and `brain-hook`'s
    client-credentials subject (`<clientid>@clients`) must stay allowed.
-3. **Azure spend tile** — wants a Reader-scoped managed identity on
-   brain-vm (designed in §15.4, unbuilt).
+3. ~~**Azure spend tile**~~ — built (W1.6): ARM via the VM's managed
+   identity, az-CLI fallback in dev. Identity enabled AND Reader granted
+   (owner-run 2026-08-28, `azure/azure-config.md` §7). Goes live on the
+   VM with the next deploy; end-to-end IMDS check pending until then.
 4. **Laptop as second vault writer** — CLI notes still commit locally;
    rebase-pull before pushing. Long-term: laptop writes via the gateway.
 

@@ -33,7 +33,20 @@ beforeAll(async () => {
   - { title: "Example portal", url: "https://example.invalid/portal", group: "cloud" }
 expiries:
   - { name: "test-token", expires: "2099-01-01", note: "far future" }
+services:
+  - name: Example SaaS
+    account: owner@example.invalid
+    console: https://example.invalid/console
+    tokens:
+      - { name: "dated-key", expires: "2099-01-01" }
+      - { name: "undated-key", note: "lives forever" }
 `,
+  );
+  // A known MCP roster: the dashboard merges it with gateway health, which
+  // is unreachable in this test — rows must degrade to "unknown".
+  writeFileSync(
+    join(vault, "config", "servers.yaml"),
+    `servers:\n  - { name: alpha, command: bun, args: [nonexistent.ts] }\n`,
   );
 
   idp = await startMockIdp(IDP_PORT);
@@ -83,6 +96,15 @@ describe("auth (W1.2)", () => {
     const home = await fetch(`${console_.url}/`, { headers: { cookie } });
     expect(home.status).toBe(200);
     expect(await home.text()).toContain("the brain");
+  });
+
+  test("logout clears the session and lands locally — no IdP bounce", async () => {
+    const cookie = await login();
+    const res = await fetch(`${console_.url}/logout`, { headers: { cookie }, redirect: "manual" });
+    expect(res.status).toBe(200); // a page, not a redirect: the IdP's SSO cookie must not re-login
+    expect(res.headers.get("set-cookie")).toContain("console_session=;");
+    expect(res.headers.get("set-cookie")).toContain("Max-Age=0");
+    expect(await res.text()).toContain("signed out");
   });
 
   test("a tampered session cookie is just an anonymous visitor", async () => {
@@ -138,6 +160,56 @@ describe("dashboard (W1.4)", () => {
     expect(body).toContain("test-token");
     expect(body).toContain("unavailable"); // the unreachable gateway tile degraded, page did not
     expect(body).toContain("nodes");
+  });
+
+  test("service cards and the MCP section render from config, degraded", async () => {
+    const cookie = await login();
+    const res = await fetch(`${console_.url}/dashboard`, { headers: { cookie } });
+    const body = await res.text();
+    expect(body).toContain("Example SaaS");
+    expect(body).toContain("owner@example.invalid");
+    expect(body).toContain("no expiry"); // undated-key
+    expect(body).toContain("alpha"); // MCP roster from servers.yaml
+    expect(body).toContain("unknown"); // gateway health unreachable → status degrades
+    expect(body).toContain("open console ↗");
+  });
+
+  test("graph tab: page, data, and script all serve behind auth", async () => {
+    const cookie = await login();
+    expect((await fetch(`${console_.url}/graph`, { redirect: "manual" })).status).toBe(302);
+    const pageRes = await fetch(`${console_.url}/graph`, { headers: { cookie } });
+    expect(pageRes.status).toBe(200);
+    const body = await pageRes.text();
+    expect(body).toContain("<canvas");
+    expect(body).toContain(`data-type="concept"`); // legend chip for a type the example vault has
+    const dataRes = await fetch(`${console_.url}/graph.json`, { headers: { cookie } });
+    const graph = (await dataRes.json()) as {
+      nodes: Array<{ id: string; type: string; degree: number; active: boolean }>;
+      edges: Array<{ from: string; rel: string; to: string }>;
+    };
+    expect(graph.nodes.length).toBeGreaterThan(0);
+    expect(graph.edges.length).toBeGreaterThan(0);
+    for (const e of graph.edges) {
+      // every edge endpoint resolves — the client never draws dangling links
+      expect(graph.nodes.some((n) => n.id === e.from)).toBe(true);
+      expect(graph.nodes.some((n) => n.id === e.to)).toBe(true);
+    }
+    const js = await fetch(`${console_.url}/graph.js`, { headers: { cookie } });
+    expect(js.status).toBe(200);
+    expect(js.headers.get("content-type")).toContain("javascript");
+  });
+
+  test("architecture tab renders the diagram behind auth", async () => {
+    const cookie = await login();
+    const anon = await fetch(`${console_.url}/architecture`, { redirect: "manual" });
+    expect(anon.status).toBe(302);
+    const res = await fetch(`${console_.url}/architecture`, { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain("<svg");
+    expect(body).toContain("gateway :8090");
+    expect(body).toContain("single writer");
+    expect(body).toContain(`href="/logout"`); // the nav logout control
   });
 
   test("expiry tile grades urgency", () => {
