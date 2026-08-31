@@ -87,12 +87,14 @@ const REQ: CompletionRequest = {
 };
 
 describe("OpenAI Batch API transport", () => {
-  test("submit uploads request JSONL and creates the batch; poll follows the lifecycle", async () => {
+  test("upload and create are separate calls (§5.8 staging); poll follows the lifecycle", async () => {
     const client = new OpenAiModelClient("key", `http://127.0.0.1:${PORT}/v1`);
-    const batchId = await client.submitBatch([
+    const uploadId = await client.uploadBatch([
       { customId: "ep_one", request: REQ },
       { customId: "ep_two", request: REQ },
     ]);
+    expect(uploadId).toBe("file_in");
+    const batchId = await client.createBatch(uploadId);
     expect(batchId).toBe("batch_abc");
 
     const lines = uploadedJsonl
@@ -125,7 +127,7 @@ describe("OpenAI Batch API transport", () => {
 
   test("a terminal non-completed batch reports failed", async () => {
     const client = new OpenAiModelClient("key", `http://127.0.0.1:${PORT}/v1`);
-    await client.submitBatch([{ customId: "ep_one", request: REQ }]);
+    await client.createBatch(await client.uploadBatch([{ customId: "ep_one", request: REQ }]));
     batchStatus = "expired";
     const s = await client.pollBatch("batch_abc");
     expect(s.status).toBe("failed");

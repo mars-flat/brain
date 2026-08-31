@@ -8,7 +8,11 @@
  *
  * Batch (P5, §12 Q4): the same request shape rides /v1/batches — a JSONL
  * file of /v1/responses bodies, a poll, and a result file — for a flat
- * 50% discount on everything background.
+ * 50% discount on everything background. Upload and batch creation are
+ * separate methods: OpenAI's batch backend lags file propagation and
+ * fails whole batches whose input file the files API already serves as
+ * "processed" (ongoing platform bug, hit 2026-08-28) — the §5.8 cadence
+ * ages every upload one tick before creating its batch.
  */
 
 import type {
@@ -78,9 +82,6 @@ function parseResponsesBody(data: ResponsesBody, expectJson: boolean): Completio
 }
 
 export class OpenAiModelClient implements ModelClient, BatchModelClient {
-  /** customId → had responseSchema; batch results parse with the same expectation. */
-  private readonly batchExpectJson = new Map<string, Set<string>>();
-
   constructor(
     private readonly apiKey: string,
     private readonly baseUrl = "https://api.openai.com/v1",
@@ -103,7 +104,7 @@ export class OpenAiModelClient implements ModelClient, BatchModelClient {
     return parseResponsesBody((await res.json()) as ResponsesBody, Boolean(req.responseSchema));
   }
 
-  async submitBatch(items: BatchItem[]): Promise<string> {
+  async uploadBatch(items: BatchItem[]): Promise<string> {
     const jsonl = items
       .map((i) =>
         JSON.stringify({
@@ -128,12 +129,15 @@ export class OpenAiModelClient implements ModelClient, BatchModelClient {
         `OpenAI file upload ${fileRes.status}: ${(await fileRes.text()).slice(0, 400)}`,
       );
     const file = (await fileRes.json()) as { id: string };
+    return file.id;
+  }
 
+  async createBatch(uploadId: string): Promise<string> {
     const batchRes = await fetch(`${this.baseUrl}/batches`, {
       method: "POST",
       headers: this.headers({ "content-type": "application/json" }),
       body: JSON.stringify({
-        input_file_id: file.id,
+        input_file_id: uploadId,
         endpoint: "/v1/responses",
         completion_window: "24h",
       }),
@@ -143,10 +147,6 @@ export class OpenAiModelClient implements ModelClient, BatchModelClient {
         `OpenAI batch create ${batchRes.status}: ${(await batchRes.text()).slice(0, 400)}`,
       );
     const batch = (await batchRes.json()) as { id: string };
-    this.batchExpectJson.set(
-      batch.id,
-      new Set(items.filter((i) => i.request.responseSchema).map((i) => i.customId)),
-    );
     return batch.id;
   }
 
@@ -169,10 +169,10 @@ export class OpenAiModelClient implements ModelClient, BatchModelClient {
         error: `batch ${batch.status}: ${JSON.stringify(batch.errors ?? {}).slice(0, 400)}`,
       };
 
-    // A process restart between submit and poll loses the schema-expectation
-    // map; parse leniently in that case (extraction always sets a schema, so
-    // in practice the map is only empty after a restart).
-    const expectJson = this.batchExpectJson.get(batchId);
+    // Upload, create, and poll each run in a different cadence process, so
+    // no per-item schema expectation survives to here. Extraction always
+    // sets a schema, so every result is parsed as JSON; a non-JSON body
+    // fails that item, same as the strict sync path would have.
     const items: BatchItemResult[] = [];
     for (const fileId of [batch.output_file_id, batch.error_file_id]) {
       if (!fileId) continue;
@@ -204,10 +204,7 @@ export class OpenAiModelClient implements ModelClient, BatchModelClient {
           items.push({
             customId: row.custom_id,
             ok: true,
-            result: parseResponsesBody(
-              row.response.body ?? {},
-              expectJson ? expectJson.has(row.custom_id) : true,
-            ),
+            result: parseResponsesBody(row.response.body ?? {}, true),
           });
         } catch (err) {
           items.push({
@@ -218,7 +215,6 @@ export class OpenAiModelClient implements ModelClient, BatchModelClient {
         }
       }
     }
-    this.batchExpectJson.delete(batchId);
     return { status: "complete", items };
   }
 }

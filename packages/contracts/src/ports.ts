@@ -121,12 +121,19 @@ export type BatchStatus =
   | { status: "failed"; error: string };
 
 /**
- * Async batch transport (P5, §12 Q4). submit returns a provider batch id;
- * poll is cheap and non-blocking — the consolidation cadence calls it each
- * cycle until the batch lands (most within an hour, 24h ceiling).
+ * Async batch transport (P5, §12 Q4). Upload and batch creation are
+ * separate calls by design: the provider's batch backend can lag file
+ * propagation, failing whole batches whose input the files API already
+ * serves (OpenAI, seen 2026-08-28). The cadence uploads on one tick and
+ * creates the batch on the next, so the payload has aged before the batch
+ * backend resolves it. poll is cheap and non-blocking — called each cycle
+ * until the batch lands (most within an hour, 24h ceiling).
  */
 export interface BatchModelClient extends ModelClient {
-  submitBatch(items: BatchItem[]): Promise<string>;
+  /** Upload the request payload; returns a provider upload/file id. */
+  uploadBatch(items: BatchItem[]): Promise<string>;
+  /** Create the batch job for a previously uploaded payload; returns the batch id. */
+  createBatch(uploadId: string): Promise<string>;
   pollBatch(batchId: string): Promise<BatchStatus>;
 }
 
