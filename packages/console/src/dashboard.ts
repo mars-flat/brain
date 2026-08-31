@@ -82,13 +82,14 @@ function consolidationTile(db: Database): Tile {
   };
   const queued = q("SELECT COUNT(*) AS n FROM queue_items");
   const batches = q("SELECT COUNT(*) AS n FROM extraction_batches WHERE status = 'running'");
+  const staged = q("SELECT COUNT(*) AS n FROM extraction_batches WHERE status = 'staged'");
   const awaiting = q(
     "SELECT COUNT(*) AS n FROM extraction_requests WHERE candidates_json IS NULL AND error IS NULL",
   );
   const cls = queued > 10 ? "warn" : "ok";
   return {
     title: "consolidation (§5.8)",
-    html: `<span class="${cls}">${queued} queued</span> · ${batches} batch${batches === 1 ? "" : "es"} in flight · ${awaiting} awaiting extraction`,
+    html: `<span class="${cls}">${queued} queued</span> · ${batches} batch${batches === 1 ? "" : "es"} in flight · ${staged} staged · ${awaiting} awaiting extraction`,
     cls,
   };
 }

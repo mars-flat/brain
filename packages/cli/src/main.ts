@@ -269,7 +269,7 @@ async function cmdConsolidate(vault: string, extractorFlag: string | undefined):
   printRunReport(report);
 }
 
-/** One cadence tick of batched consolidation (§12 Q4): collect → drain → submit. */
+/** One cadence tick of batched consolidation (§12 Q4): collect → promote → drain → stage. */
 async function cmdConsolidateBatch(vault: string): Promise<void> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) {
@@ -285,9 +285,17 @@ async function cmdConsolidateBatch(vault: string): Promise<void> {
         ? `⇣ batch ${c.batchId} FAILED whole (episodes stay pending): ${c.error}`
         : `⇣ batch ${c.batchId} collected: ${c.ok} ok, ${c.failed} failed`,
     );
+  for (const p of cycle.promoted)
+    console.log(
+      p.error
+        ? `⇡ batch create for upload ${p.uploadId} failed (staged, retrying next tick): ${p.error}`
+        : `⇡ created batch ${p.batchId} from upload ${p.uploadId}`,
+    );
   printRunReport(cycle.run);
-  if (cycle.batchId)
-    console.log(`⇡ submitted batch ${cycle.batchId} (${cycle.submitted.length} episodes)`);
+  if (cycle.uploadId)
+    console.log(
+      `⇡ staged upload ${cycle.uploadId} (${cycle.staged.length} episodes) — batch next tick`,
+    );
 }
 
 async function cmdIngest(

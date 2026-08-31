@@ -4,11 +4,23 @@
  * instead of an inline call. One `runBatchCycle` per cadence tick:
  *
  *   collect  — poll open batches; store finished extractions
+ *   promote  — create the batch job for any staged upload at least one
+ *              tick old (see below)
  *   drain    — runConsolidator with a stored-result extractor: episodes
  *              with results complete the normal §5.7 pipeline; the rest
  *              raise ExtractionPending (re-queued, no attempt burned) and
  *              are noted for submission
- *   submit   — one new batch for every noted episode without an open request
+ *   stage    — upload one payload for every noted episode without an open
+ *              request; its batch is created next tick
+ *
+ * Upload and batch creation live one tick apart because the provider's
+ * batch backend lags file propagation: a batch created straight after its
+ * upload can fail whole with "Cannot find file …" while the files API
+ * serves that same file as processed (OpenAI platform bug, hit
+ * 2026-08-28: every immediate-create batch failed for two days straight).
+ * Aging the upload a full cadence tick sidesteps the race; a failed
+ * create keeps the staged upload and retries next tick — re-uploading
+ * would reset the very clock that is the mitigation.
  *
  * The single-writer pipeline is untouched: batching swaps WHERE candidates
  * come from, never how they are resolved, reserved, or written. A batch
@@ -41,6 +53,12 @@ import {
 } from "./extract.ts";
 import { type ConsolidatorOptions, type RunReport, runConsolidator } from "./run.ts";
 
+/*
+ * While status = 'staged', batch_id holds the provider UPLOAD id (the
+ * batch does not exist yet); promote rewrites it to the real batch id in
+ * both tables. Reusing the column keeps the schema stable — no migration,
+ * and a pre-staging deployment's rows read the same way.
+ */
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS extraction_batches (
   batch_id     TEXT PRIMARY KEY,
@@ -59,6 +77,13 @@ CREATE TABLE IF NOT EXISTS extraction_requests (
 
 /** Failed extractions per episode before the pending path gives up (§5.7). */
 const MAX_EXTRACTION_FAILS = 3;
+
+/**
+ * Minimum staged-upload age before its batch is created. Under the 15-min
+ * cadence one tick always satisfies this; the gate exists so back-to-back
+ * manual runs don't recreate the fresh-upload race the staging is for.
+ */
+const STAGE_MIN_AGE_MS = 10 * 60_000;
 
 export function ensureBatchTables(db: Database): void {
   db.exec(SCHEMA);
@@ -94,22 +119,32 @@ class StoredResultExtractor implements Extractor {
 export interface BatchCycleOptions extends Omit<ConsolidatorOptions, "extractor"> {
   model: BatchModelClient;
   modelName?: string;
+  /** Test seam for the staged-upload age gate; defaults to STAGE_MIN_AGE_MS. */
+  stageMinAgeMs?: number;
 }
 
 export interface BatchCycleReport {
   /** Batches that finished this cycle (results stored or requests cleared). */
   collected: Array<{ batchId: string; ok: number; failed: number; error?: string }>;
+  /** Staged uploads whose batch was created this cycle (or failed to be). */
+  promoted: Array<{ uploadId: string; batchId?: string; error?: string }>;
   /** The consolidation pass over stored results. */
   run: RunReport;
-  /** Episodes submitted in a new batch this cycle (empty → no batch created). */
-  submitted: string[];
-  batchId?: string;
+  /** Episodes whose payload was uploaded this cycle (batch created next tick). */
+  staged: string[];
+  uploadId?: string;
 }
 
 export async function runBatchCycle(opts: BatchCycleOptions): Promise<BatchCycleReport> {
   ensureBatchTables(opts.db);
   const clock = opts.clock ?? (() => new Date());
-  const report: BatchCycleReport = { collected: [], run: undefined as never, submitted: [] };
+  const stageMinAgeMs = opts.stageMinAgeMs ?? STAGE_MIN_AGE_MS;
+  const report: BatchCycleReport = {
+    collected: [],
+    promoted: [],
+    run: undefined as never,
+    staged: [],
+  };
 
   // ── collect ─────────────────────────────────────────────────────────────
   const open = opts.db
@@ -158,6 +193,31 @@ export async function runBatchCycle(opts: BatchCycleOptions): Promise<BatchCycle
     report.collected.push({ batchId: batch_id, ok, failed });
   }
 
+  // ── promote ─────────────────────────────────────────────────────────────
+  const staged = opts.db
+    .query("SELECT batch_id, submitted_at FROM extraction_batches WHERE status = 'staged'")
+    .all() as Array<{ batch_id: string; submitted_at: string }>;
+  for (const { batch_id: uploadId, submitted_at } of staged) {
+    if (clock().getTime() - Date.parse(submitted_at) < stageMinAgeMs) continue;
+    try {
+      const batchId = await opts.model.createBatch(uploadId);
+      opts.db
+        .query("UPDATE extraction_batches SET batch_id = ?, status = 'running' WHERE batch_id = ?")
+        .run(batchId, uploadId);
+      opts.db
+        .query("UPDATE extraction_requests SET batch_id = ? WHERE batch_id = ?")
+        .run(batchId, uploadId);
+      report.promoted.push({ uploadId, batchId });
+    } catch (err) {
+      // The upload exists and its age is the mitigation — keep the staged
+      // row and retry next tick rather than re-uploading (header).
+      report.promoted.push({
+        uploadId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   // ── drain ───────────────────────────────────────────────────────────────
   const extractor = new StoredResultExtractor(opts.db);
   report.run = await runConsolidator({ ...opts, extractor, batchSize: opts.batchSize ?? 100 });
@@ -165,25 +225,27 @@ export async function runBatchCycle(opts: BatchCycleOptions): Promise<BatchCycle
   for (const done of report.run.processed)
     opts.db.query("DELETE FROM extraction_requests WHERE episode_id = ?").run(done.episodeId);
 
-  // ── submit ──────────────────────────────────────────────────────────────
+  // ── stage ───────────────────────────────────────────────────────────────
   if (extractor.toSubmit.size > 0) {
     const items = [...extractor.toSubmit.entries()].map(([episodeId, { episode, ctx }]) => ({
       customId: episodeId,
       request: buildExtractionRequest(episode, ctx, opts.modelName),
     }));
-    const batchId = await opts.model.submitBatch(items);
+    const uploadId = await opts.model.uploadBatch(items);
     const nowIso = clock().toISOString();
     opts.db
-      .query("INSERT INTO extraction_batches (batch_id, submitted_at) VALUES (?, ?)")
-      .run(batchId, nowIso);
+      .query(
+        "INSERT INTO extraction_batches (batch_id, submitted_at, status) VALUES (?, ?, 'staged')",
+      )
+      .run(uploadId, nowIso);
     // Resubmission keeps the fail count — that's the runaway-spend bound.
     const insert = opts.db.query(
       `INSERT INTO extraction_requests (episode_id, batch_id, candidates_json) VALUES (?, ?, NULL)
        ON CONFLICT(episode_id) DO UPDATE SET batch_id = excluded.batch_id, candidates_json = NULL, error = NULL`,
     );
-    for (const episodeId of extractor.toSubmit.keys()) insert.run(episodeId, batchId);
-    report.submitted = [...extractor.toSubmit.keys()];
-    report.batchId = batchId;
+    for (const episodeId of extractor.toSubmit.keys()) insert.run(episodeId, uploadId);
+    report.staged = [...extractor.toSubmit.keys()];
+    report.uploadId = uploadId;
   }
 
   return report;
