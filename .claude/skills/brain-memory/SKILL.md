@@ -6,12 +6,14 @@ description: Use the brain (graph memory over the owner's vault, reached through
 # Brain memory protocol
 
 The brain is the owner's long-term memory: an Obsidian vault of typed,
-linked nodes reached through the `tool-gateway` MCP server. The gateway
-is not the brain — it fronts many upstream MCP servers, and the brain
-(`brain.*` URNs) is one of them. This skill is the protocol for using it
-well. Mechanics: find tools with `tools_search` (it matches capability
-text, not the word "brain"), inspect with `tools_describe`, invoke with
-`tools_call`.
+linked nodes reached through the tool gateway — the `tool-gateway` MCP
+server inside the `~/brain` repo (project scope, stdio), or
+`tool-gateway-remote` from any other directory (user scope, HTTPS to
+the deployed gateway). The gateway is not the brain — it fronts many
+upstream MCP servers, and the brain (`brain.*` URNs) is one of them.
+This skill is the protocol for using it well. Mechanics: find tools
+with `tools_search` (it matches capability text, not the word
+"brain"), inspect with `tools_describe`, invoke with `tools_call`.
 
 ## Recall — before acting, not after
 
