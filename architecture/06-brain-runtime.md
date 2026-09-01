@@ -42,7 +42,7 @@ score(n) = Σ over paths s→n [ bm25_norm(s) · Π_{e∈path} δ_rel(e) ]
            · salience(n)^0.3 · recency(n)^0.2
 ```
 
-`salience` is a usage counter with exponential decay, bumped whenever a node is rendered at full tier — nodes you actually use float up. It lives **only in SQLite**, never in the note (§5.2). `recency = exp(-age_days / 180)`. The exponents are deliberately gentle: relevance dominates, recency breaks ties. **All of these are starting values to tune against the eval set in §8.5.**
+`salience` is a usage counter with exponential decay, bumped when the model **`brain.expand`s a node** — explicit demand — never when a node merely renders. It lives **only in SQLite**, never in the note (§5.2). `recency = exp(-age_days / 180)`. The exponents are deliberately gentle: relevance dominates, recency breaks ties. **All of these are starting values to tune against the eval set in §8.5.** *(Changed 2026-08-31: the original bump-on-full-render was a rich-get-richer loop with no relevance signal in it — hub nodes rendered full because of salience earned by rendering full, which the paraphrase suite caught as hubs squatting the full tier on unrelated queries. Recall is now a pure read.)*
 
 Two seed-stage corrections from P1: **prefix queries were dropped** — porter stems the index, so a prefix star on a full word (`training*`) *misses* its own stem (`train`); plain OR-joined terms with porter on both sides is strictly better. And **θ_seed landed at 5.0** on raw `-bm25` of the best hit: below it, recall returns an empty pack rather than letting one rare word (say, "parameters" in a title) drag in an entire irrelevant neighborhood. Measured on the example vault: false-positive tops ≈4.0, legitimate tops ≥6.3.
 
