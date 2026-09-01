@@ -1,8 +1,13 @@
 /**
  * Seed → traverse → score (§5.5, steps 1–2).
  *
- *   score(n) = Σ over paths s→n [ bm25_norm(s) · Π δ_rel(e) ]
+ *   score(n) = Σ over paths s→n [ bm25_norm(s) · Π δ_rel(e) · Π damp(m) ]
  *              · salience(n)^0.3 · recency(n)^0.2
+ *
+ * where damp(m) = (1 + degree(m)/medianDegree)^-α is applied at every node
+ * a path arrives at. The Σ-over-paths funnel otherwise concentrates mass in
+ * high-degree hubs — measured as the same hub taking full tier on unrelated
+ * queries (§5.5, 2026-08-31). α = 0 recovers the undamped scoring exactly.
  *
  * Edges are traversed in BOTH directions with the relation's decay — one
  * direction on disk, both in the index (§5.3). All iteration is over
@@ -12,6 +17,7 @@
  */
 
 import type { EdgeRecord } from "@brain/contracts";
+import { type DegreeStats, degreeStats } from "./graph-stats.ts";
 import type { GraphSlice, TraversalParams } from "./types.ts";
 
 export interface ScoredNode {
@@ -60,9 +66,15 @@ export function traverse(
   seeds: Array<{ id: string; weight: number }>,
   now: Date,
   params: TraversalParams,
+  stats?: DegreeStats,
 ): Map<string, ScoredNode> {
   const nodeIds = new Set(graph.nodes.keys());
   const { neighbors } = buildAdjacency(graph.edges, nodeIds);
+  const { degree, medianDegree } = stats ?? degreeStats(graph);
+  const damp = (id: string): number =>
+    params.degreeDampAlpha === 0
+      ? 1
+      : (1 + (degree.get(id) ?? 0) / medianDegree) ** -params.degreeDampAlpha;
 
   const contribution = new Map<string, number>();
   const firstHop = new Map<string, number>();
@@ -84,7 +96,7 @@ export function traverse(
     for (const id of frontierIds) {
       const c = frontier.get(id) as number;
       for (const { other, rel } of neighbors.get(id) ?? []) {
-        const add = c * params.edgeDecay[rel];
+        const add = c * params.edgeDecay[rel] * damp(other);
         if (add < params.pruneThreshold) continue;
         next.set(other, (next.get(other) ?? 0) + add);
       }

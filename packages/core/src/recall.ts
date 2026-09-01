@@ -5,6 +5,7 @@
  */
 
 import type { BrainRecallInput, BrainRecallResult, NodeType } from "@brain/contracts";
+import { degreeStats } from "./graph-stats.ts";
 import { pack } from "./pack.ts";
 import { DEFAULT_RECALL_PARAMS } from "./params.ts";
 import { traverse } from "./traverse.ts";
@@ -103,8 +104,14 @@ export function recall(
   if (seeds.length === 0) return empty();
 
   // ── traverse (step 2) + pack (step 3) ─────────────────────────────────
-  const scored = traverse(graph, seeds, now, { ...params.traversal, hops });
-  const packed = pack(graph, scored, budget, params.pack, (ids) => store.getBodies(ids));
+  const stats = degreeStats(graph);
+  const scored = traverse(graph, seeds, now, { ...params.traversal, hops }, stats);
+  const packed = pack(graph, scored, budget, params.pack, (ids) => store.getBodies(ids), {
+    hops: new Map([...scored.values()].map((s) => [s.id, s.hops])),
+    hubs: stats.hubs,
+    fullEligibilityMaxHops: params.pack.fullEligibilityMaxHops,
+    hubFullCap: params.pack.hubFullCap,
+  });
 
   return {
     result: {
