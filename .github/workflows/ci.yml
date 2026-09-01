@@ -68,6 +68,8 @@ jobs:
         run: bun test
       - name: Retrieval eval — regression gate vs committed baseline (§8.5)
         run: bun packages/cli/src/main.ts eval --vault examples/vault-example --check
+      - name: Paraphrase eval — adversarial suite, regression gate (§8.5)
+        run: bun packages/cli/src/main.ts eval --paraphrase --vault examples/vault-example --check
       - name: Audit dependencies (§9.3)
         run: bun audit --audit-level=high
       - name: E2E — compose stack up, auth + recall through the container (§8.2)

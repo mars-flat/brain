@@ -32,6 +32,12 @@ import { SqliteQueue } from "@brain/queue-sqlite";
 import { FileSecretStore } from "@brain/secrets-file";
 import { backupVault } from "./backup.ts";
 import { formatReport, regressions, runEval, toBaseline } from "./eval.ts";
+import {
+  formatParaReport,
+  paraRegressions,
+  runParaphraseEval,
+  toParaBaseline,
+} from "./eval-paraphrase.ts";
 import { runLint } from "./lint-cmd.ts";
 
 const USAGE = `brain — graph memory over an Obsidian vault
@@ -40,7 +46,7 @@ Usage:
   brain init [--vault <path>]        scaffold a vault + its own git repo
   brain rebuild [--vault <path>]     markdown → _index/brain.db
   brain recall <query> [--budget N] [--hops N] [--as-of YYYY-MM-DD]
-  brain eval [--check] [--update]
+  brain eval [--check] [--update] [--paraphrase]   --paraphrase = adversarial suite (§8.5)
   brain doctor
   brain ingest <envelope.json> [--now]           validate, store, enqueue (§5.7)
   brain consolidate [--extractor marker|openai]  run the single writer once
@@ -135,6 +141,37 @@ function cmdEval(vault: string, check: boolean, update: boolean): void {
       process.exit(1);
     }
     console.log("baseline check: no regressions");
+  }
+}
+
+function cmdEvalParaphrase(vault: string, check: boolean, update: boolean): void {
+  const report = runParaphraseEval(vault);
+  console.log(formatParaReport(report));
+  const baselineFile = join(vault, "eval-paraphrase-baseline.json");
+
+  // A suite whose queries lexically reach their targets measures nothing —
+  // enforcement failures are always fatal, baseline or not.
+  if (report.violations.length) {
+    console.error(`FAIL: ${report.violations.length} zero-overlap enforcement violation(s)`);
+    process.exit(1);
+  }
+  if (update) {
+    writeFileSync(baselineFile, `${JSON.stringify(toParaBaseline(report), null, 2)}\n`);
+    console.log(`baseline written: ${baselineFile}`);
+  }
+  if (check) {
+    if (!existsSync(baselineFile)) {
+      console.error(`FAIL: no baseline at ${baselineFile} — run brain eval --paraphrase --update`);
+      process.exit(1);
+    }
+    const baseline = JSON.parse(readFileSync(baselineFile, "utf8"));
+    const regs = paraRegressions(baseline, report);
+    if (regs.length) {
+      console.error("FAIL: paraphrase-suite regression vs committed baseline:");
+      for (const r of regs) console.error(`  - ${r}`);
+      process.exit(1);
+    }
+    console.log("paraphrase baseline check: no regressions");
   }
 }
 
@@ -430,6 +467,7 @@ const { values, positionals } = parseArgs({
     hops: { type: "string" },
     "as-of": { type: "string" },
     check: { type: "boolean", default: false },
+    paraphrase: { type: "boolean", default: false },
     update: { type: "boolean", default: false },
     help: { type: "boolean", default: false },
     now: { type: "boolean", default: false },
@@ -467,7 +505,8 @@ switch (command) {
     break;
   }
   case "eval":
-    cmdEval(vaultPath(values.vault), values.check, values.update);
+    if (values.paraphrase) cmdEvalParaphrase(vaultPath(values.vault), values.check, values.update);
+    else cmdEval(vaultPath(values.vault), values.check, values.update);
     break;
   case "doctor":
     cmdDoctor(vaultPath(values.vault));

@@ -29,7 +29,14 @@ export {
   stricterEffect,
   trustMatrixEffect,
 } from "./policy.ts";
-export { type RecallOutcome, recall, sanitizeQueryTerms, toFtsQuery } from "./recall.ts";
+export {
+  contentTerms,
+  QUERY_STOPWORDS,
+  type RecallOutcome,
+  recall,
+  sanitizeQueryTerms,
+  toFtsQuery,
+} from "./recall.ts";
 export {
   DEFAULT_RESOLVE_PARAMS,
   type ExistingNodeRef,

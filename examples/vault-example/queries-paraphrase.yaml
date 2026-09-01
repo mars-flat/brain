@@ -1,0 +1,97 @@
+# Adversarial paraphrase suite (§8.5 layer 1 — local prototype).
+#
+# Each `paraphrase: true` expectation is mechanically enforced to share zero
+# content-word stems with that node's indexed text (title+aliases+tags+
+# summary, porter on both sides) — so it can never be a BM25 seed, and any
+# pack appearance is graph-traversal recovery. Non-flagged expectations are
+# allowed lexical neighbors: the query may seed them, and the bet under test
+# is that traversal walks from there to the flagged target.
+#
+# `expect: []` queries are calibrated-abstention probes: vocabulary that
+# lexically resembles the vault but is topically foreign. Correct behavior
+# is an empty pack, not a confident wrong one.
+
+defaults:
+  budget_tokens: 4000
+  hops: 3
+  now: "2026-09-01T00:00:00Z"
+
+queries:
+  # ── neighbor-seeded paraphrases (the design's happy path) ──────────────
+  - name: tls-via-renewal-neighbor
+    query: "how do my sites stay reachable over encrypted connections without any human attention"
+    expect:
+      - { id: caddy-reverse-proxy, min_tier: summary, paraphrase: true }
+      - { id: automatic-https-requirement, min_tier: stub }
+
+  - name: easy-runs-why-slow
+    query: "why do I keep my easy runs so slow"
+    expect:
+      - { id: heart-rate-zone-training, min_tier: summary, paraphrase: true }
+      - { id: zone-two-discipline, min_tier: stub }
+
+  - name: outside-access-no-holes
+    query: "how do I get to the machines at home from outside the house"
+    expect:
+      - { id: wireguard-mesh-access, min_tier: summary }
+      - { id: no-open-inbound-ports, min_tier: stub, paraphrase: true }
+
+  - name: winter-slow-rise
+    query: "why does my bread rise slower in winter"
+    expect:
+      - { id: fermentation-temperature-control, min_tier: summary, paraphrase: true }
+
+  - name: race-day-eating
+    query: "what should I be eating while out competing in the mountains"
+    expect:
+      - { id: race-nutrition-plan, min_tier: summary, paraphrase: true }
+      - { id: gel-every-thirty-minutes, min_tier: stub, paraphrase: true }
+
+  - name: first-ui-library
+    query: "what did the first version of the plant app screens use"
+    expect:
+      - { id: jquery-prototype-ui, min_tier: stub, paraphrase: true }
+      # §5.3 hard rule: terminal successor must ride along if the start is in
+      - { id: htmx-server-rendered-ui, min_tier: stub }
+
+  - name: one-file-datastore
+    query: "why does the tracker keep its records local instead of something heavier"
+    expect:
+      - { id: sqlite-single-file-db, min_tier: summary, paraphrase: true }
+
+  - name: who-tries-the-app
+    query: "who is trying out new builds for me"
+    expect:
+      - { id: alex-chen-beta-tester, min_tier: summary, paraphrase: true }
+
+  - name: lab-down-alerting
+    query: "how do I find out when something at home stops responding"
+    expect:
+      - { id: uptime-kuma-monitoring, min_tier: summary, paraphrase: true }
+
+  - name: disaster-file-survival
+    query: "what happens to my data after a burglary or a flood"
+    expect:
+      - { id: restic-offsite-backups, min_tier: summary, paraphrase: true }
+
+  # Not a paraphrase — "ankles" is in the target's own summary. Kept as a
+  # θ_seed starvation probe: a lexically reachable target whose BM25 top
+  # lands below the 5.0 threshold (short node text, common query words).
+  - name: knee-safe-downhill
+    query: "how much rough downhill can my ankles take before they complain"
+    expect:
+      - { id: joint-load-weekly-limit, min_tier: summary }
+      - { id: ankle-sprain-may-2026, min_tier: stub }
+
+  # ── calibrated abstention: vault-adjacent vocabulary, foreign topic ────
+  - name: abstain-kubernetes
+    query: "kubernetes cluster upgrade schedule"
+    expect: []
+
+  - name: abstain-car-oil
+    query: "car engine oil change interval"
+    expect: []
+
+  - name: abstain-espresso
+    query: "espresso machine water temperature and pressure"
+    expect: []

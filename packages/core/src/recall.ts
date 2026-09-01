@@ -20,6 +20,28 @@ export function sanitizeQueryTerms(query: string): string[] {
   return query.toLowerCase().match(/[a-z0-9]+/g) ?? [];
 }
 
+/**
+ * Function words carrying no topical signal. Used by the abstention features
+ * (§5.5) and the paraphrase eval's zero-overlap enforcement (§8.5) — never
+ * by the seed search itself, which sees the full query exactly as typed.
+ * Kept small and boring on purpose: anything content-bearing must count.
+ */
+export const QUERY_STOPWORDS: ReadonlySet<string> = new Set(
+  (
+    "a an the and or but if then else when while of in on at to from by for with without " +
+    "about into over under again further once here there all any both each few more most " +
+    "other some such no nor not only own same so than too very can will just should now " +
+    "do does did doing have has had having be is are was were been being it its this " +
+    "that these those i me my we our you your he she they them their what which who whom " +
+    "how why where whats dont am get got as before after out up down off"
+  ).split(/\s+/),
+);
+
+/** Content terms of a query: sanitized exactly as seed search does, minus stopwords. */
+export function contentTerms(query: string): string[] {
+  return sanitizeQueryTerms(query).filter((t) => !QUERY_STOPWORDS.has(t));
+}
+
 /** Terms OR-joined; porter stems both sides, so no prefix stars (§5.5 note). */
 export function toFtsQuery(query: string): string | null {
   const terms = sanitizeQueryTerms(query);
