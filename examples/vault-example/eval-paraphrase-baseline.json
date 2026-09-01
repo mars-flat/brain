@@ -1,0 +1,80 @@
+{
+  "seedRecall": 0.17647058823529413,
+  "packRecall": 0.6470588235294118,
+  "paraphraseRecall": 0.6363636363636364,
+  "recoveryRate": 0.5714285714285714,
+  "placement": 0.6470588235294118,
+  "abstention": 1,
+  "perQuery": {
+    "tls-via-renewal-neighbor": {
+      "packed": 2,
+      "placed": 2,
+      "abstentionOk": null
+    },
+    "easy-runs-why-slow": {
+      "packed": 2,
+      "placed": 2,
+      "abstentionOk": null
+    },
+    "outside-access-no-holes": {
+      "packed": 2,
+      "placed": 2,
+      "abstentionOk": null
+    },
+    "winter-slow-rise": {
+      "packed": 1,
+      "placed": 1,
+      "abstentionOk": null
+    },
+    "race-day-eating": {
+      "packed": 0,
+      "placed": 0,
+      "abstentionOk": null
+    },
+    "first-ui-library": {
+      "packed": 2,
+      "placed": 2,
+      "abstentionOk": null
+    },
+    "one-file-datastore": {
+      "packed": 1,
+      "placed": 1,
+      "abstentionOk": null
+    },
+    "who-tries-the-app": {
+      "packed": 0,
+      "placed": 0,
+      "abstentionOk": null
+    },
+    "lab-down-alerting": {
+      "packed": 0,
+      "placed": 0,
+      "abstentionOk": null
+    },
+    "disaster-file-survival": {
+      "packed": 1,
+      "placed": 1,
+      "abstentionOk": null
+    },
+    "knee-safe-downhill": {
+      "packed": 0,
+      "placed": 0,
+      "abstentionOk": null
+    },
+    "abstain-kubernetes": {
+      "packed": 0,
+      "placed": 0,
+      "abstentionOk": true
+    },
+    "abstain-car-oil": {
+      "packed": 0,
+      "placed": 0,
+      "abstentionOk": true
+    },
+    "abstain-espresso": {
+      "packed": 0,
+      "placed": 0,
+      "abstentionOk": true
+    }
+  }
+}

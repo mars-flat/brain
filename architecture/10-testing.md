@@ -60,6 +60,32 @@ Retrieval quality is a tuning problem, so it needs a measurement harness from da
 - CI runs it and **fails on regression** against a committed baseline.
 - This is also how you settle §1 empirically: if lexical recall plateaus below target, the `Embedder` port earns its keep. If not, you never pay for a model.
 
+**The adversarial paraphrase suite** (added 2026-08-31, after the main suite
+saturated at 1.0 — a ceiling-hit eval can't detect the lexical↔semantic gap).
+`brain eval --paraphrase` runs `queries-paraphrase.yaml`: questions phrased in
+deliberately different vocabulary than their target nodes. Expectations
+flagged `paraphrase: true` are **mechanically enforced** to share zero
+content-word stems with the target's indexed text — the FTS porter tokenizer
+itself is the authority (a single-term MATCH against the target row), because
+hand-authored "paraphrases" turn out to overlap invisibly more than half the
+time. A flagged target can therefore never be a BM25 seed, so any pack
+appearance is graph-traversal recovery. The suite scores the two stages
+separately:
+
+- **seed-recall** — expected nodes BM25 found lexically
+- **pack-recall / ¶-recall** — expected (and zero-overlap) nodes in the final pack
+- **recovery** — unseeded expected nodes rescued by traversal (the §1 bet, as a number)
+- **placement** — expected nodes at or above their required tier
+- **abstention** — `expect: []` probes with vault-adjacent vocabulary on
+  foreign topics answered with silence, not a confident wrong pack
+
+Enforcement violations always fail the run — a suite whose queries lexically
+reach their targets measures nothing. CI gates both suites against committed
+baselines; the paraphrase baseline records honest misses, and the gate is
+no-regression, not perfection. The main suite staying at 1.0 is a hard
+constraint on any retrieval tuning (§5.5 parameters); the paraphrase metrics
+are what tuning is allowed to move.
+
 ### 8.6 CI/CD
 
 ```mermaid
