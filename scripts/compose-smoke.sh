@@ -67,6 +67,17 @@ trap cleanup EXIT
 
 "${COMPOSE[@]}" up -d --build --wait
 
+# The scratch vault must be a real git repo with an identity, exactly as VM
+# provisioning does for /data/vault (deploy/vm/provision.sh) — the
+# consolidator refuses unversioned memory writes (2026-09-01 incident).
+# Init INSIDE the container so .git ownership matches the writing uid.
+"${COMPOSE[@]}" exec -T gateway sh -c '
+  git config --global --add safe.directory /data/vault
+  git -C /data/vault init -q
+  git -C /data/vault config user.name "brain-consolidator"
+  git -C /data/vault config user.email "consolidator@compose-smoke.invalid"
+'
+
 # Lives in the gateway package so the MCP SDK resolves as its production
 # dependency under bun's isolated install layout.
 "${COMPOSE[@]}" exec -T gateway bun /app/packages/gateway/scripts/compose-smoke-inner.ts
