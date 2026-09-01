@@ -141,7 +141,8 @@ describe("pack — explicit omission and tier mechanics", () => {
     // instead of freeing it, and the fit loop spiraled to an empty pack.
     const ids = Array.from(
       { length: 60 },
-      (_, i) => `very-long-descriptive-node-identifier-with-date-2026-09-01-number-${String(i).padStart(2, "0")}`,
+      (_, i) =>
+        `very-long-descriptive-node-identifier-with-date-2026-09-01-number-${String(i).padStart(2, "0")}`,
     );
     const g = slice(ids, []);
     const scored = traverse(
