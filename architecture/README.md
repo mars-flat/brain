@@ -18,11 +18,11 @@ Section numbers (§N) are stable across files and greppable, so a cross-referenc
 | [03-deployment](./03-deployment.md) | Ports & adapters, the Azure VM, **the budget collision (§3.2)** | 137 |
 | [04-gateway](./04-gateway.md) | MCP auth, progressive tool disclosure, policy engine | 229 |
 | [05-brain-model](./05-brain-model.md) | Node format, edge vocabulary, Obsidian layout, storage | 156 |
-| [06-brain-runtime](./06-brain-runtime.md) | Retrieval & traversal, consolidation, lint, MCP contract | 180 |
+| [06-brain-runtime](./06-brain-runtime.md) | Retrieval & traversal, consolidation, lint, MCP contract | 254 |
 | [07-cost](./07-cost.md) | Model routing, effort levels, what it actually costs | 75 |
 | [08-surfaces](./08-surfaces.md) | `agent-runtime`, Discord adapter, session router, trust tiers | 191 |
 | [09-security](./09-security.md) | Threat model | 28 |
-| [10-testing](./10-testing.md) | TDD approach, invariants, CI/CD pipeline | 92 |
+| [10-testing](./10-testing.md) | TDD approach, invariants, CI/CD pipeline | 129 |
 | [11-repo-safety](./11-repo-safety.md) | Vault/code split, secrets, supply chain, packaging | 144 |
 | [12-roadmap](./12-roadmap.md) | Repo layout, build phases, open questions | 116 |
 | [13-setup](./13-setup.md) | **Prerequisites and the Discord bot walkthrough** | 83 |
@@ -116,6 +116,24 @@ halves of no-send). Live from the laptop: all three account instances up
 through the real gateway with real reads. Remaining for the VM leg: the
 owner-run secrets copy (master key + client creds — §W2 handoff), a
 vault pull + gateway restart, then the done-when through the domain.
+
+**W3 is done (2026-08-31) — retrieval tuning instead of vector search.** The
+owner weighed adding an embedding model and decided decision #5 stands; the
+measured gaps were elsewhere and got fixed directly. The adversarial
+paraphrase suite (`brain eval --paraphrase`, §8.5) is the new measuring
+stick: zero-overlap enforcement via the FTS tokenizer itself, seed-vs-pack
+split metrics, abstention probes, CI-gated baseline. Against it, three
+mechanism changes (§5.5): salience now bumps on `brain.expand` (demand)
+instead of full-tier render (a rich-get-richer loop); traversal damps
+arriving path mass by node degree and full-tier slots are query-anchored
+(hubs stopped squatting the expensive tiers — real-vault placement 4×);
+and the scalar θ_seed became a four-feature abstention score standardized
+against a per-vault **noise floor** recomputed at every rebuild, banded
+into confident/hedged/abstain (`confidence` on the recall result, catalog
+fallback on abstain). Constants come from the `brain tune` grid sweep under
+a hard original-suite-holds-1.0 constraint — after tuning, the paraphrase
+suite scores 1.0 across ¶-recall, recovery, placement, and abstention. The
+`Embedder` port stays null; it earns its keep only if these numbers decay.
 
 **One human blocker remains, and it only gates P6: the Discord bot** ([§13](./13-setup.md) has the walkthrough) — **deferred by the owner** for now. Open questions accumulate in `QUESTIONS-FOR-OWNER.md` at the repo root (local-only, gitignored).
 
