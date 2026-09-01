@@ -79,12 +79,12 @@ function evaluate(vault: string, c: TuneCandidate): TuneResult {
   const params = withCandidate(c);
   const orig = runEval(vault, params);
   const para = runParaphraseEval(vault, undefined, params);
-  const feasible = orig.recall >= 1 - 1e-9 && orig.placement >= 1 - 1e-9 && orig.conflicts >= 1 - 1e-9;
+  const feasible =
+    orig.recall >= 1 - 1e-9 && orig.placement >= 1 - 1e-9 && orig.conflicts >= 1 - 1e-9;
   return {
     candidate: c,
     feasible,
-    objective:
-      para.paraphraseRecall + para.recoveryRate + para.placement + para.abstention,
+    objective: para.paraphraseRecall + para.recoveryRate + para.placement + para.abstention,
     paraphrase: {
       paraphraseRecall: para.paraphraseRecall,
       recoveryRate: para.recoveryRate,
@@ -97,7 +97,10 @@ function evaluate(vault: string, c: TuneCandidate): TuneResult {
 const keyOf = (c: TuneCandidate): string =>
   [c.wZ, c.wCoverage, c.wCohesion, c.wHubFrac, c.tauLow, c.tauHigh].join("|");
 
-export function runTune(vault: string, onProgress?: (done: number, total: number) => void): TuneReport {
+export function runTune(
+  vault: string,
+  onProgress?: (done: number, total: number) => void,
+): TuneReport {
   const candidates: TuneCandidate[] = [];
   for (const wZ of GRID.wZ)
     for (const wCoverage of GRID.wCoverage)
@@ -105,7 +108,14 @@ export function runTune(vault: string, onProgress?: (done: number, total: number
         for (const wHubFrac of GRID.wHubFrac)
           for (const tauLow of GRID.tauLow)
             for (const dHigh of GRID.tauHigh)
-              candidates.push({ wZ, wCoverage, wCohesion, wHubFrac, tauLow, tauHigh: tauLow + dHigh });
+              candidates.push({
+                wZ,
+                wCoverage,
+                wCohesion,
+                wHubFrac,
+                tauLow,
+                tauHigh: tauLow + dHigh,
+              });
 
   const d = DEFAULT_RECALL_PARAMS.abstention;
   const currentCandidate: TuneCandidate = { ...d };

@@ -32,7 +32,6 @@ import { SqliteQueue } from "@brain/queue-sqlite";
 import { FileSecretStore } from "@brain/secrets-file";
 import { backupVault } from "./backup.ts";
 import { formatReport, regressions, runEval, toBaseline } from "./eval.ts";
-import { formatTuneReport, runTune } from "./tune.ts";
 import {
   formatParaReport,
   paraRegressions,
@@ -40,6 +39,7 @@ import {
   toParaBaseline,
 } from "./eval-paraphrase.ts";
 import { runLint } from "./lint-cmd.ts";
+import { formatTuneReport, runTune } from "./tune.ts";
 
 const USAGE = `brain — graph memory over an Obsidian vault
 

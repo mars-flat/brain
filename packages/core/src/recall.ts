@@ -176,8 +176,7 @@ export function recall(
       ? topSeeds.filter((id) => stats.hubs.has(id)).length / topSeeds.length
       : 0;
     const w = params.abstention;
-    const a =
-      w.wZ * z + w.wCoverage * coverage + w.wCohesion * cohesion - w.wHubFrac * hubFrac;
+    const a = w.wZ * z + w.wCoverage * coverage + w.wCohesion * cohesion - w.wHubFrac * hubFrac;
     confidence = !inGraph.length || a < w.tauLow ? "none" : a < w.tauHigh ? "low" : "high";
   }
   if (confidence === "none") return abstain();
