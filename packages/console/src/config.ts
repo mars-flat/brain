@@ -57,7 +57,7 @@ export function loadConfig(env: Record<string, string | undefined>): ConsoleConf
   };
 }
 
-export interface ConsoleLink {
+interface ConsoleLink {
   title: string;
   url: string;
   group?: string;

@@ -40,7 +40,7 @@ export interface GatewayConfig {
 }
 
 /** Confirm-default, reads allowed — the §4.5 floor when no policy.yaml exists. */
-export const DEFAULT_POLICY: PolicyDocument = [
+const DEFAULT_POLICY: PolicyDocument = [
   { match: { kind: "read" }, effect: "allow" },
   { default: "confirm" },
 ];

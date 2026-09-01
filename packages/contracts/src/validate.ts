@@ -9,7 +9,7 @@ export type GuardResult<T> = { ok: true; value: T } | { ok: false; errors: strin
 
 export type Guard<T> = (value: unknown) => GuardResult<T>;
 
-export function ok<T>(value: T): GuardResult<T> {
+function ok<T>(value: T): GuardResult<T> {
   return { ok: true, value };
 }
 

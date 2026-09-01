@@ -66,7 +66,7 @@ Two planes that must never cross:
 
 - Advertise `client_id_metadata_document_supported: true` in AS metadata.
 - On a URL-formatted `client_id`: fetch it, validate `client_id` matches the URL exactly, validate `redirect_uris`, cache per HTTP headers.
-- **SSRF-harden that fetch** — HTTPS only, public-IP only (block RFC1918/link-local/metadata endpoints — `169.254.169.254` is a live credential-theft target on Azure VMs exactly as on EC2), size cap, timeout, redirect cap. This is the single highest-risk new code path in the whole system, and §8.4 makes it an explicit test target.
+- **SSRF-harden that fetch** — HTTPS only, public-IP only (block RFC1918/link-local/metadata endpoints — `169.254.169.254` is a live credential-theft target on Azure VMs exactly as on EC2), size cap, timeout, redirect cap. This is the single highest-risk new code path in the whole system, and §8.4 makes it an explicit test target. *(Status 2026-09-01: the guard — `packages/gateway/src/ssrf.ts` — is built and table-tested, but this whole client-metadata fetch path was made moot when P4/P5 went with pre-registered IdP clients. The guard stays exported and tested, arming when a dynamic-client surface (P6/Hermes) actually fetches attacker-influenced URLs.)*
 - Emit `iss` on all authorization responses and set `authorization_response_iss_parameter_supported: true`.
 - Publish `code_challenge_methods_supported: ["S256"]`.
 - Keep DCR behind a config flag, off by default, for older clients.

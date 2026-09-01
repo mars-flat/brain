@@ -44,13 +44,7 @@ export function requiredScope(urn: string, kind: ToolKind): string {
   return `tools:${kind}`;
 }
 
-export const SCOPES_SUPPORTED = [
-  "brain:read",
-  "brain:write",
-  "tools:read",
-  "tools:write",
-  "tools:admin",
-];
+const SCOPES_SUPPORTED = ["brain:read", "brain:write", "tools:read", "tools:write", "tools:admin"];
 
 /** RFC 9728 protected resource metadata. */
 export function prmDocument(cfg: AuthConfig): Record<string, unknown> {
@@ -62,7 +56,7 @@ export function prmDocument(cfg: AuthConfig): Record<string, unknown> {
   };
 }
 
-export function prmUrl(cfg: AuthConfig): string {
+function prmUrl(cfg: AuthConfig): string {
   return `${cfg.resource.replace(/\/mcp\/?$/, "")}/.well-known/oauth-protected-resource`;
 }
 

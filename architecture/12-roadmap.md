@@ -17,25 +17,27 @@ mars-flat/brain/                    # PUBLIC
 │   ├── brainstore/                 # vault read/write + SQLite FTS5 index
 │   ├── brain-mcp/                  # brain exposed as an MCP server
 │   ├── consolidator/               # episode → nodes, single writer
-│   ├── agent-runtime/              # server-side agent loop (OpenAI Agents SDK)
-│   ├── surface-host/               # loads SurfaceAdapters from manifest
-│   ├── surface-discord/            # ← plugin
-│   ├── surface-cli/                # ← plugin
-│   ├── surface-testkit/            # conformance suite every adapter must pass
+│   ├── agent-runtime/              # † server-side agent loop (OpenAI Agents SDK)
+│   ├── surface-host/               # † loads SurfaceAdapters from manifest
+│   ├── surface-discord/            # † ← plugin
+│   ├── surface-cli/                # † ← plugin
+│   ├── surface-testkit/            # † conformance suite every adapter must pass
+│   ├── mcp-google/                 # W2: per-account Google mail+Drive MCP
+│   ├── console/                    # W1: web console + dashboard (§15)
 │   ├── harness-claude-code/        # MCP config + SessionEnd hook + CLAUDE.md
 │   └── cli/                        # brain init | doctor | rebuild | lint | eval | backup
 ├── adapters/
-│   ├── secrets-file/  secrets-aws/
-│   ├── queue-sqlite/  queue-sqs/
-│   ├── object-fs/     object-s3/
-│   └── embedder-null/              # embedder-openai/ only if §8.5 demands it
+│   ├── secrets-file/  secrets-aws/†
+│   ├── queue-sqlite/  queue-sqs/†
+│   ├── model-openai/  object-fs/†  object-s3/†
+│   └── embedder-null/†             # embedder-openai/ only if §8.5 demands it
 ├── deploy/
-│   ├── compose/{compose.yaml,compose.dev.yaml,Caddyfile}
-│   └── bicep/azure/                # optional managed path
-├── examples/vault-example/         # synthetic vault + queries.yaml
-├── docs/{SETUP.md,SECURITY.md,MIGRATION.md,ADR/}
-├── .github/workflows/{ci.yml,deploy.yml,scan.yml,deps.yml}
-├── .githooks/pre-commit            # refuses any staged vault/ path
+│   ├── compose/{compose.yaml,compose.dev.yaml,Caddyfile}  keycloak/  vm/
+│   └── bicep/azure/†               # optional managed path
+├── examples/vault-example/         # synthetic vault + eval query suites (§8.5)
+├── docs/{SETUP.md,MIGRATION.md†,ADR/}   # SECURITY.md lives at the repo root
+├── .github/{workflows/{ci.yml,deploy.yml,scan.yml},dependabot.yml}
+├── .githooks/pre-commit†           # refuses any staged vault/ path (CI's repo-split-guard covers it today)
 ├── bunfig.toml  bun.lock  .env.example  .gitleaks.toml  .dependency-cruiser.js
 │
 └── vault/                          # ← SEPARATE GIT REPO. gitignored here.
@@ -48,6 +50,9 @@ mars-flat/brain/                    # PUBLIC
 ```
 
 `vault/` appears in this tree for orientation only — the parent repo never tracks it (§9.1).
+**† = not yet built** — deliberately kept in the tree: these arrive with P6
+and its neighbors (owner-confirmed 2026-09-01: "it'll come"). Everything
+unmarked exists today.
 
 **TypeScript on Bun throughout.** The MCP SDK is first-class in TypeScript, and one language keeps schema code shared between gateway and brain. Bun specifically buys four things this design was already asking for:
 

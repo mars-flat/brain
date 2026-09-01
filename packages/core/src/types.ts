@@ -106,7 +106,7 @@ export interface PackParams {
  * directions (measured 2026-08-31: starved real questions at 4.2–4.6 raw,
  * confidently answered a foreign probe at 5.5).
  */
-export interface AbstentionParams {
+interface AbstentionParams {
   wZ: number;
   wCoverage: number;
   wCohesion: number;

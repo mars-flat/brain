@@ -65,6 +65,11 @@ export function assertFetchAllowed(url: string, policy: SsrfPolicy): URL {
  * fetch with SSRF guard, size cap, timeout, and redirect refusal — the
  * hardened outbound primitive (§4.3 SSRF-harden requirements).
  */
+// Deliberately exported with no production consumer yet: this arms when the
+// dynamic client-metadata fetch arrives (P6/Hermes, §4). Today's outbound
+// fetches are operator-configured (issuer discovery) or legitimately target
+// private/metadata endpoints (the console's IMDS probe), so blanket-wiring
+// the guard would break them. The §8.4 table tests keep it ready.
 export async function guardedFetch(
   url: string,
   policy: SsrfPolicy,
