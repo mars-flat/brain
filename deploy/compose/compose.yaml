@@ -31,6 +31,10 @@ services:
       # queue = §5.8 batched cadence (`brain consolidate --batch` on a timer
       # does the extraction); ingest returns fast and never bills inline.
       BRAIN_INGEST_MODE: ${BRAIN_INGEST_MODE:-queue}
+      # sync = kill switch for the batch transport while OpenAI's batch
+      # backend is broken (issue #48): the cadence tick extracts inline at
+      # full price. Default batch; set in the VM's .env, delete to revert.
+      BRAIN_EXTRACTION_MODE: ${BRAIN_EXTRACTION_MODE:-batch}
       # W2 (mcp-google): the Desktop OAuth client creds — client identity,
       # not account secrets; per-account refresh tokens stay envelope-
       # encrypted in the vault's secret store as ${secret:google/*} refs.
