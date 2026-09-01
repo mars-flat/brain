@@ -96,9 +96,11 @@ export class BrainStore implements RecallStore {
 
   /** One line per node, for the abstention catalog fallback (§5.5). */
   catalogEntries(): Array<{ id: string; type: string; title: string }> {
-    return this.db
-      .query("SELECT id, type, title FROM nodes ORDER BY id")
-      .all() as Array<{ id: string; type: string; title: string }>;
+    return this.db.query("SELECT id, type, title FROM nodes ORDER BY id").all() as Array<{
+      id: string;
+      type: string;
+      title: string;
+    }>;
   }
 
   getBodies(ids: string[]): Map<string, string> {

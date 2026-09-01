@@ -52,7 +52,10 @@ export interface EvalReport {
 /** Pinned eval clock — recency must not drift with the wall calendar. */
 const DEFAULT_EVAL_NOW = "2026-09-01T00:00:00Z";
 
-export function runEval(vaultPath: string, params: RecallParams = DEFAULT_RECALL_PARAMS): EvalReport {
+export function runEval(
+  vaultPath: string,
+  params: RecallParams = DEFAULT_RECALL_PARAMS,
+): EvalReport {
   const file = Bun.YAML.parse(
     readFileSync(join(vaultPath, "queries.yaml"), "utf8"),
   ) as unknown as EvalFile;
