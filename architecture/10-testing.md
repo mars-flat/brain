@@ -33,14 +33,14 @@ These are the claims the system makes. Generate random graphs with `fast-check` 
 | **Contradicts** | If a node with a `contradicts` edge is included, its counterpart is included and flagged |
 | **Pins** | A pinned node renders at full tier whenever included, at any budget |
 | **No drop** | A node reachable within `hops` appears at *some* tier, or was explicitly pruned by threshold — never silently lost |
-| **Determinism** | Same graph + query + budget + clock → byte-identical pack |
+| **Determinism** | Same graph + query + budget + clock **+ calibration state** → byte-identical pack |
 | **Idempotent consolidation** | Ingesting the same episode twice produces zero new nodes |
 | **Reservation** | Concurrent consolidation of overlapping episodes never creates duplicate ids |
 | **Round-trip** | `parse(render(node)) == node` for every valid node |
 | **Rebuild** | `brain rebuild` from markdown reproduces a **semantically equivalent** index |
 | **Basename uniqueness** | No two notes in the vault share a basename (§5.2) |
 
-The rebuild invariant is what lets you trust that markdown is really the source of truth — but note the wording. **SQLite files are not byte-reproducible**: page ordering, freelist reuse, and rowid assignment all vary between runs, so a hash comparison would fail forever and for no useful reason. The assertion is instead: identical node set, identical edge set, identical FTS content, and identical pack output for every query in the eval set. That's the property you actually care about.
+The rebuild invariant is what lets you trust that markdown is really the source of truth — but note the wording. **SQLite files are not byte-reproducible**: page ordering, freelist reuse, and rowid assignment all vary between runs, so a hash comparison would fail forever and for no useful reason. The assertion is instead: identical node set, identical edge set, identical FTS content, **identical calibration state** (rebuild recomputes the §5.5 noise floor from a versioned deterministic probe battery, so same vault → same floor), and identical pack output for every query in the eval set. That's the property you actually care about.
 
 ### 8.4 Specific high-risk test targets
 
@@ -84,7 +84,16 @@ reach their targets measures nothing. CI gates both suites against committed
 baselines; the paraphrase baseline records honest misses, and the gate is
 no-regression, not perfection. The main suite staying at 1.0 is a hard
 constraint on any retrieval tuning (§5.5 parameters); the paraphrase metrics
-are what tuning is allowed to move.
+are what tuning is allowed to move. An abstention probe fails only when
+answered **confidently** — a hedged pack is the designed degradation.
+
+**`brain tune`** is how the §5.5 constants earn their values: a coarse-grid
+sweep (~1,600 candidates, no model, ~10 minutes) over the abstention
+weights/bands, feasible = original suite at 1.0, objective = the paraphrase
+aggregates. Deterministic and stable across reruns (ties break toward
+current values). The chosen constants are applied to `DEFAULT_RECALL_PARAMS`
+by hand with provenance in the comment, and the two baselines gate them
+forever after. Rerun it before touching any retrieval constant.
 
 ### 8.6 CI/CD
 

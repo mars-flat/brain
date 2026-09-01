@@ -6,6 +6,8 @@
 
 import type { Database } from "bun:sqlite";
 import { EDGE_RELATIONS, wikilinkTarget } from "@brain/contracts";
+import { computeCalibration, writeCalibration } from "./calibration.ts";
+import { BrainStore } from "./store.ts";
 import type { LoadedVault } from "./vault.ts";
 
 export interface RebuildReport {
@@ -158,6 +160,14 @@ export function rebuild(db: Database, vault: LoadedVault): RebuildReport {
     db.exec(`DELETE FROM salience WHERE node_id NOT IN (SELECT id FROM nodes);`);
   });
   tx();
+
+  // The noise floor is a property of the freshly built index (§5.5) —
+  // recomputed here so it can never describe a corpus that no longer exists.
+  const probe = new BrainStore(db);
+  writeCalibration(
+    db,
+    computeCalibration((q, k) => probe.seedSearch(q, k)),
+  );
 
   return report;
 }

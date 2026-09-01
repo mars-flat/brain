@@ -45,6 +45,14 @@ export interface RecallStore {
   loadGraph(): GraphSlice;
   /** Bodies only for the nodes that render at full tier. */
   getBodies(ids: string[]): Map<string, string>;
+  /**
+   * The stored noise floor (§5.5): distribution of top-1 BM25 scores for
+   * out-of-domain probe queries against THIS index, written at rebuild.
+   * Optional — absent (or null) falls back to the legacy θ_seed constant.
+   */
+  calibration?(): { mu: number; sigma: number; battery: number } | null;
+  /** One line per node for the abstention catalog fallback (§5.5). Optional. */
+  catalogEntries?(): Array<{ id: string; type: string; title: string }>;
 }
 
 export interface TraversalParams {
@@ -91,8 +99,26 @@ export interface PackParams {
   hubFullCap: number;
 }
 
+/**
+ * The abstention score (§5.5): A = wZ·z + wCoverage·coverage +
+ * wCohesion·cohesion − wHubFrac·hubFrac, banded by τ. Replaces the scalar
+ * θ_seed, whose real-query and garbage-query score bands overlapped in both
+ * directions (measured 2026-08-31: starved real questions at 4.2–4.6 raw,
+ * confidently answered a foreign probe at 5.5).
+ */
+export interface AbstentionParams {
+  wZ: number;
+  wCoverage: number;
+  wCohesion: number;
+  wHubFrac: number;
+  /** A below tauLow abstains (catalog); below tauHigh answers hedged (§5.5). */
+  tauLow: number;
+  tauHigh: number;
+}
+
 export interface RecallParams {
   traversal: TraversalParams;
   pack: PackParams;
+  abstention: AbstentionParams;
   defaultBudget: number;
 }

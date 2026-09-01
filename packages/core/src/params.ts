@@ -15,10 +15,9 @@ export const DEFAULT_RECALL_PARAMS: RecallParams = {
     recencyHalfLifeDays: 180,
     pruneThreshold: 0.02,
     frontierCap: 200,
-    // θ_seed on raw -bm25 of the BEST hit (§5.5): below it, no seeds — an
-    // empty pack instead of a one-rare-word neighborhood explosion. Tuned
-    // against the eval set (§8.5): false-positive tops measured ≈4.0,
-    // legitimate tops ≥6.3 on the example vault.
+    // Legacy θ_seed on raw -bm25 of the BEST hit — now only the FALLBACK for
+    // an index with no stored calibration (§5.5). The abstention score
+    // replaced it: real-query and garbage tops overlapped (4.2–4.6 vs 5.5).
     seedThreshold: 5.0,
     seedThresholdMinNodes: 50,
     seedK: 8,
@@ -34,6 +33,20 @@ export const DEFAULT_RECALL_PARAMS: RecallParams = {
     // neighborhood may hold full slots; long-path hubs share one.
     fullEligibilityMaxHops: 1,
     hubFullCap: 1,
+  },
+  // Chosen by `brain tune` (2026-08-31, 1620-candidate grid, 95 feasible):
+  // best feasible objective 3.67 — ¶-recall 1.0, recovery 1.0, placement
+  // 1.0, abstention 2/3 on the paraphrase suite, original suite held at
+  // 1.0 as the hard constraint. The one leaked probe is coverage-carried
+  // (its words genuinely appear in the vault) and lands hedged, not
+  // confident. Rerun `brain tune` before touching any of these.
+  abstention: {
+    wZ: 0.5,
+    wCoverage: 1.0,
+    wCohesion: 0.5,
+    wHubFrac: 0.5,
+    tauLow: 2.0,
+    tauHigh: 2.5,
   },
   defaultBudget: 4000,
 };

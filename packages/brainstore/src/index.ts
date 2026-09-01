@@ -1,3 +1,11 @@
+export {
+  buildNoiseProbes,
+  type CalibrationInfo,
+  computeCalibration,
+  PROBE_BATTERY_VERSION,
+  readCalibration,
+  writeCalibration,
+} from "./calibration.ts";
 export { openDb, SCHEMA_VERSION } from "./db.ts";
 export {
   type EpisodeFileMeta,

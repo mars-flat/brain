@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { BrainStore, loadVault, openDb, rebuild } from "@brain/brainstore";
 import type { RenderTier } from "@brain/contracts";
-import { recall } from "@brain/core";
+import { DEFAULT_RECALL_PARAMS, type RecallParams, recall } from "@brain/core";
 
 const TIER_RANK: Record<RenderTier, number> = { stub: 0, summary: 1, full: 2 };
 
@@ -52,7 +52,7 @@ export interface EvalReport {
 /** Pinned eval clock — recency must not drift with the wall calendar. */
 const DEFAULT_EVAL_NOW = "2026-09-01T00:00:00Z";
 
-export function runEval(vaultPath: string): EvalReport {
+export function runEval(vaultPath: string, params: RecallParams = DEFAULT_RECALL_PARAMS): EvalReport {
   const file = Bun.YAML.parse(
     readFileSync(join(vaultPath, "queries.yaml"), "utf8"),
   ) as unknown as EvalFile;
@@ -73,6 +73,7 @@ export function runEval(vaultPath: string): EvalReport {
         hops: q.hops ?? file.defaults.hops,
       },
       now,
+      params,
     );
     const tiers = new Map(out.result.nodes.map((n) => [n.id, n.tier]));
     const expected = q.expect ?? [];

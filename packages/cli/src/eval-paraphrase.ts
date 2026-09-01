@@ -25,7 +25,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { BrainStore, loadVault, openDb, rebuild } from "@brain/brainstore";
 import type { RenderTier } from "@brain/contracts";
-import { contentTerms, DEFAULT_RECALL_PARAMS, recall } from "@brain/core";
+import { contentTerms, DEFAULT_RECALL_PARAMS, type RecallParams, recall } from "@brain/core";
 
 const TIER_RANK: Record<RenderTier, number> = { stub: 0, summary: 1, full: 2 };
 
@@ -63,6 +63,8 @@ export interface ParaQueryResult {
   name: string;
   abstention: boolean;
   abstentionOk: boolean | null;
+  /** Recall's graded confidence for this query (null on legacy packs). */
+  confidence: "high" | "low" | "none" | null;
   /** Top raw -bm25 among in-graph seed hits, before thresholding. */
   bestSeedRaw: number;
   seedIds: string[];
@@ -85,7 +87,11 @@ export interface ParaReport {
 
 const DEFAULT_EVAL_NOW = "2026-09-01T00:00:00Z";
 
-export function runParaphraseEval(vaultPath: string, queriesFile?: string): ParaReport {
+export function runParaphraseEval(
+  vaultPath: string,
+  queriesFile?: string,
+  params: RecallParams = DEFAULT_RECALL_PARAMS,
+): ParaReport {
   const path = queriesFile ?? join(vaultPath, "queries-paraphrase.yaml");
   const file = Bun.YAML.parse(readFileSync(path, "utf8")) as unknown as EvalFile;
   const now = new Date(file.defaults.now ?? DEFAULT_EVAL_NOW);
@@ -93,7 +99,6 @@ export function runParaphraseEval(vaultPath: string, queriesFile?: string): Para
   const db = openDb(":memory:");
   rebuild(db, loadVault(vaultPath));
   const store = new BrainStore(db);
-  const params = DEFAULT_RECALL_PARAMS;
   const nodeCount = (db.query("SELECT COUNT(*) AS c FROM nodes").get() as { c: number }).c;
 
   const reaches = db.query("SELECT 1 AS hit FROM nodes_fts WHERE nodes_fts MATCH ? AND id = ?");
@@ -101,11 +106,11 @@ export function runParaphraseEval(vaultPath: string, queriesFile?: string): Para
 
   const queries: ParaQueryResult[] = [];
   for (const q of file.queries) {
+    // seed-recall measures lexical reachability@k — the raw top-k, before
+    // any gating, so the metric is stable across abstention-policy changes.
     const hits = store.seedSearch(q.query, params.traversal.seedK);
     const bestSeedRaw = hits[0]?.raw ?? 0;
-    const threshold =
-      nodeCount >= params.traversal.seedThresholdMinNodes ? params.traversal.seedThreshold : 0;
-    const seedIds = hits.length && bestSeedRaw > threshold ? hits.map((h) => h.id) : [];
+    const seedIds = hits.map((h) => h.id);
 
     const out = recall(
       store,
@@ -115,6 +120,7 @@ export function runParaphraseEval(vaultPath: string, queriesFile?: string): Para
         hops: q.hops ?? file.defaults.hops,
       },
       now,
+      params,
     );
     const tiers = new Map(out.result.nodes.map((n) => [n.id, n.tier]));
     const expected = q.expect ?? [];
@@ -134,10 +140,20 @@ export function runParaphraseEval(vaultPath: string, queriesFile?: string): Para
       };
     });
 
+    // A garbage probe fails only when answered CONFIDENTLY — a hedged pack
+    // (flattened, bannered) is the designed degradation, and an empty one
+    // is the ideal. The measured harm was fabricated authority (§5.5).
+    const abstentionOk =
+      expected.length === 0
+        ? out.result.confidence
+          ? out.result.confidence !== "high"
+          : out.result.nodes.length === 0
+        : null;
     queries.push({
       name: q.name,
       abstention: expected.length === 0,
-      abstentionOk: expected.length === 0 ? out.result.nodes.length === 0 : null,
+      abstentionOk,
+      confidence: out.result.confidence ?? null,
       bestSeedRaw,
       seedIds,
       packIds: out.result.nodes.map((n) => n.id),
@@ -173,7 +189,11 @@ export function formatParaReport(r: ParaReport): string {
   const lines: string[] = [];
   for (const q of r.queries) {
     if (q.abstention) {
-      const mark = q.abstentionOk ? "✓ abstained" : "✗ ANSWERED";
+      const mark = q.abstentionOk
+        ? q.confidence === "low"
+          ? "✓ hedged"
+          : "✓ abstained"
+        : "✗ CONFIDENT";
       const spill = q.abstentionOk
         ? ""
         : ` → pack: ${q.packIds.slice(0, 4).join(", ")}${q.packIds.length > 4 ? " …" : ""}`;
