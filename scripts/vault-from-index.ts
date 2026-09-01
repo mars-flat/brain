@@ -14,9 +14,9 @@
  * rebuild` and commit in the vault repo yourself.
  */
 
+import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { Database } from "bun:sqlite";
 import { loadVault, renderNote } from "@brain/brainstore";
 import {
   EDGE_RELATIONS,
