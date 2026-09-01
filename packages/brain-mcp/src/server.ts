@@ -228,7 +228,9 @@ export function buildBrainServer(opts: BrainMcpOptions): Server {
           },
           clock(),
         );
-        store.bumpSalience(out.fullTier, clock().toISOString());
+        // No salience bump here: rendering is exposure, not demand. Bumping
+        // on render was a rich-get-richer loop — hubs rendered full because
+        // of salience earned by rendering full (§5.5, changed 2026-08-31).
         return text(out.result, out.result.pack || "(no matching memory)");
       }
       case "expand": {
@@ -254,6 +256,12 @@ export function buildBrainServer(opts: BrainMcpOptions): Server {
                 : `${head}\n${n.summary}\n\n${bodies.get(id) ?? ""}`.trimEnd();
           renders.push({ id, tier, content });
         }
+        // Expand IS the demand signal — the model explicitly asked for these
+        // nodes, so this is where salience accrues (§5.5).
+        store.bumpSalience(
+          renders.map((r) => r.id),
+          clock().toISOString(),
+        );
         return text({ renders, missing });
       }
       case "neighbors": {

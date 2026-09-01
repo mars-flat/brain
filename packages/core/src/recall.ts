@@ -1,7 +1,7 @@
 /**
  * brain.recall (§5.5, §5.10): seed → traverse → pack, orchestrated purely —
- * storage behind RecallStore, time as a value. Salience bumping is the
- * caller's job (it's a write); `fullTier` in the result says what to bump.
+ * storage behind RecallStore, time as a value. Recall never writes: salience
+ * accrues on brain.expand (demand), not on rendering (exposure) — §5.5.
  */
 
 import type { BrainRecallInput, BrainRecallResult, NodeType } from "@brain/contracts";
@@ -12,7 +12,7 @@ import type { GraphSlice, RecallParams, RecallStore } from "./types.ts";
 
 export interface RecallOutcome {
   result: BrainRecallResult;
-  /** Ids rendered at full tier — bump their salience (§5.5). */
+  /** Ids rendered at full tier. Informational — salience bumps on expand, not render (§5.5). */
   fullTier: string[];
 }
 

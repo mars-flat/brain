@@ -100,12 +100,15 @@ describe("recall on the example vault", () => {
     }
   });
 
-  test("full-tier renders bump salience via the store (§5.5)", () => {
+  test("salience bumps on expand (demand), never as a side effect of recall (§5.5)", () => {
     const out = recall(store, { query: "what frontend does the garden tracker use" }, NOW);
     expect(out.fullTier.length).toBeGreaterThan(0);
     const target = out.fullTier[0] as string;
+    // recall itself is a pure read — rendering full is exposure, not demand.
     const before = store.loadGraph().salience.get(target) ?? 1;
-    store.bumpSalience(out.fullTier, NOW.toISOString());
+    expect(store.loadGraph().salience.get(target) ?? 1).toBe(before);
+    // the expand write path is what accrues salience.
+    store.bumpSalience([target], NOW.toISOString());
     const after = store.loadGraph().salience.get(target) ?? 1;
     expect(after).toBe(before + 1);
   });

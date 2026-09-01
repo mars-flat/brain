@@ -46,6 +46,7 @@ Usage:
   brain init [--vault <path>]        scaffold a vault + its own git repo
   brain rebuild [--vault <path>]     markdown → _index/brain.db
   brain recall <query> [--budget N] [--hops N] [--as-of YYYY-MM-DD]
+  brain expand <id…> [--tier full|summary|stub]  promote nodes; bumps salience (§5.5)
   brain eval [--check] [--update] [--paraphrase]   --paraphrase = adversarial suite (§8.5)
   brain doctor
   brain ingest <envelope.json> [--now]           validate, store, enqueue (§5.7)
@@ -107,12 +108,34 @@ function cmdRecall(
     },
     new Date(),
   );
-  store.bumpSalience(out.fullTier, new Date().toISOString());
   if (out.result.cold_start) {
     console.log("(cold start — the graph is empty or thin; capture aggressively instead, §5.6)");
     return;
   }
   console.log(out.result.pack === "" ? "(no matching memory)" : out.result.pack);
+}
+
+function cmdExpand(vault: string, ids: string[], tier: "full" | "summary" | "stub"): void {
+  const file = dbPath(vault);
+  if (!existsSync(file)) cmdRebuild(vault);
+  const store = new BrainStore(openDb(file));
+  const graph = store.loadGraph();
+  const bodies = tier === "full" ? store.getBodies(ids) : new Map<string, string>();
+  const found: string[] = [];
+  for (const id of ids) {
+    const n = graph.nodes.get(id);
+    if (!n) {
+      console.log(`(unknown node: ${id})`);
+      continue;
+    }
+    found.push(id);
+    const head = `${n.type}/${n.id} — ${n.title}`;
+    if (tier === "stub") console.log(head);
+    else if (tier === "summary") console.log(`${head}\n${n.summary}`);
+    else console.log(`${head}\n${n.summary}\n\n${bodies.get(id) ?? ""}`.trimEnd());
+  }
+  // Expand is the demand signal — salience accrues here, not on recall (§5.5).
+  store.bumpSalience(found, new Date().toISOString());
 }
 
 function cmdEval(vault: string, check: boolean, update: boolean): void {
@@ -476,6 +499,7 @@ const { values, positionals } = parseArgs({
     extractor: { type: "string" },
     out: { type: "string" },
     type: { type: "string" },
+    tier: { type: "string" },
     correction: { type: "string" },
     reason: { type: "string" },
   },
@@ -502,6 +526,15 @@ switch (command) {
       process.exit(2);
     }
     cmdRecall(vaultPath(values.vault), query, values);
+    break;
+  }
+  case "expand": {
+    if (!rest.length) {
+      console.error("error: brain expand <id…>");
+      process.exit(2);
+    }
+    const tier = (values.tier ?? "full") as "full" | "summary" | "stub";
+    cmdExpand(vaultPath(values.vault), rest, tier);
     break;
   }
   case "eval":
