@@ -57,11 +57,38 @@ describe("recall on the example vault", () => {
     expect(out.result.cold_start).toBe(true);
   });
 
-  test("unanswerable query on a rich graph → empty pack, NOT cold_start", () => {
+  test("unanswerable query on a rich graph → abstains with the catalog, NOT cold_start (§5.5)", () => {
     const out = recall(store, { query: "quantum chromodynamics lattice simulation" }, NOW);
     expect(out.result.cold_start).toBe(false);
-    expect(out.result.pack).toBe("");
+    expect(out.result.confidence).toBe("none");
     expect(out.result.nodes).toEqual([]);
+    // Never a fabricated neighborhood — the pack is the explicit catalog.
+    expect(out.result.pack).toContain("NO CONFIDENT MATCH");
+    expect(Math.ceil(out.result.pack.length / 4)).toBeLessThanOrEqual(4000);
+  });
+
+  test("rebuild writes the noise-floor calibration; recall reads it (§5.5)", () => {
+    const cal = store.calibration();
+    expect(cal).not.toBeNull();
+    expect(cal?.battery).toBe(1);
+    expect(cal?.mu).toBeGreaterThanOrEqual(0);
+    expect(cal?.sigma).toBeGreaterThanOrEqual(0);
+  });
+
+  test("confident answers carry confidence: high and full tiers", () => {
+    const out = recall(store, { query: "what frontend does the garden tracker use" }, NOW);
+    expect(out.result.confidence).toBe("high");
+    expect(out.fullTier.length).toBeGreaterThan(0);
+  });
+
+  test("explicit seeds bypass the abstention gate (§5.5)", () => {
+    const out = recall(
+      store,
+      { query: "quantum chromodynamics lattice simulation", seeds: ["caddy-reverse-proxy"] },
+      NOW,
+    );
+    expect(out.result.confidence).toBe("high");
+    expect(out.result.nodes.map((n) => n.id)).toContain("caddy-reverse-proxy");
   });
 
   test("alias-only hit: 'boris' finds the rye starter", () => {

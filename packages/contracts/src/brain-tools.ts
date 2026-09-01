@@ -52,6 +52,14 @@ export interface BrainRecallResult {
   expand_handles: string[];
   /** True on an empty/thin graph — an explicit signal, never fabricated context (§5.6). */
   cold_start: boolean;
+  /**
+   * Graded retrieval confidence (§5.5): "high" = normal tiered pack; "low" =
+   * weak lexical match, pack flattened to summaries/stubs with a banner —
+   * treat ranking as a hint, re-query or expand; "none" = abstained, pack
+   * carries the vault catalog instead of a fabricated neighborhood. Absent
+   * only from packs produced before the field existed.
+   */
+  confidence?: "high" | "low" | "none";
 }
 
 export interface BrainExpandInput {

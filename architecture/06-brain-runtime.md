@@ -12,7 +12,7 @@ flowchart TB
         F1["match title + aliases + tags + summary"]
         F2["porter stemmer, terms OR-joined"]
         F3["top-k entry nodes, k≈8"]
-        F4["if best score &lt; θ_seed:<br/>fall back to index.md catalog"]
+        F4["abstention score A(q):<br/>confident · hedged · abstain-to-catalog"]
     end
 
     subgraph Trav["2 — TRAVERSE"]
@@ -68,7 +68,43 @@ multi-path corroboration along with the funnel.
 
 `salience` is a usage counter with exponential decay, bumped when the model **`brain.expand`s a node** — explicit demand — never when a node merely renders. It lives **only in SQLite**, never in the note (§5.2). `recency = exp(-age_days / 180)`. The exponents are deliberately gentle: relevance dominates, recency breaks ties. **All of these are starting values to tune against the eval set in §8.5.** *(Changed 2026-08-31: the original bump-on-full-render was a rich-get-richer loop with no relevance signal in it — hub nodes rendered full because of salience earned by rendering full, which the paraphrase suite caught as hubs squatting the full tier on unrelated queries. Recall is now a pure read.)*
 
-Two seed-stage corrections from P1: **prefix queries were dropped** — porter stems the index, so a prefix star on a full word (`training*`) *misses* its own stem (`train`); plain OR-joined terms with porter on both sides is strictly better. And **θ_seed landed at 5.0** on raw `-bm25` of the best hit: below it, recall returns an empty pack rather than letting one rare word (say, "parameters" in a title) drag in an entire irrelevant neighborhood. Measured on the example vault: false-positive tops ≈4.0, legitimate tops ≥6.3.
+One seed-stage correction from P1 stands: **prefix queries were dropped** — porter stems the index, so a prefix star on a full word (`training*`) *misses* its own stem (`train`); plain OR-joined terms with porter on both sides is strictly better.
+
+**The abstention gate** (2026-08-31; supersedes the P1 scalar θ_seed). The
+adversarial suite (§8.5) showed θ_seed's bands overlap in both directions —
+obscurely-phrased real questions topped out at 4.2–4.6 raw (starved) while a
+topically-foreign probe hit 5.5 (confidently answered). BM25 encodes term
+rarity, not topical relevance; no constant separates the two. The gate is now
+a four-feature score, pure arithmetic over the index and graph:
+
+```
+A(q) = 0.5·z + 1.0·coverage + 0.5·cohesion − 0.5·hub_frac
+```
+
+- **z** — best seed standardized against the **noise floor**: at every
+  rebuild, a versioned battery of 48 seeded-PRNG probe queries from an
+  out-of-domain wordlist runs against the fresh index, and the distribution
+  (μ, σ) of their top-1 scores lands in the `meta` table. "How far above
+  *this vault's* coincidence level," not an absolute number that rots as the
+  corpus grows.
+- **coverage** — fraction of the query's content terms matching anything
+  (garbage rides one rare word; real queries land several).
+- **cohesion** — fraction of seed pairs within 2 hops of each other (a real
+  topic seeds one linked neighborhood). Weak in dense small vaults, as
+  predicted; the tune left it at half weight.
+- **hub_frac** — seeds that are hubs (degree ≥ max(4, p95)) match
+  everything a little, and count against.
+
+Three bands instead of answer-or-empty: **A ≥ 2.5 confident** (normal tiered
+pack, `confidence: "high"`); **2.0 ≤ A < 2.5 hedged** — the pack flattens to
+summaries/stubs behind a `LOW CONFIDENCE` banner, because a weak lexical
+match must not be dressed up as a ranked answer; **A < 2.0 abstain** — the
+pack is the **vault catalog** as one-line stubs (budget-capped, §5.6-style
+explicit), never a fabricated neighborhood. Explicit caller `seeds` bypass
+the gate; young graphs (<50 nodes) and pre-calibration indexes fall back to
+the legacy θ. Weights come from `brain tune` (§8.5), which holds the
+original suite at 1.0 as a hard constraint — after tuning, the paraphrase
+suite scores 1.0 on ¶-recall, recovery, placement, and abstention.
 
 **Ties break by node id, always.** FTS5 returns equal-scoring rows in rowid order, and rowids change when the index is rebuilt — so an unstable sort would make identical queries return different packs before and after `brain rebuild`. Every ranking step sorts by `(score DESC, id ASC)`. This is what makes the determinism invariant in §8.3 actually hold.
 
@@ -191,7 +227,8 @@ P2 shipped the mechanical checks (broken links, orphans, near-duplicates/stale w
 
 ```
 brain.recall(query, budget_tokens=4000, hops=3, types?, seeds?, as_of?)
-  -> { pack, nodes:[{id,tier,score}], conflicts, expand_handles, cold_start }
+  -> { pack, nodes:[{id,tier,score}], conflicts, expand_handles, cold_start,
+       confidence: "high" | "low" | "none" }   # graded gate, §5.5 (2026-08-31)
 brain.expand(ids[], tier)            -> upgraded renders
 brain.neighbors(id, rels?, depth=1)  -> subgraph edge list
 brain.note(text, links?, type?)      -> { pending_id }   # enqueues, never writes directly

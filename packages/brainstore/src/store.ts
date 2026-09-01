@@ -8,6 +8,7 @@ import type { Database } from "bun:sqlite";
 import type { Confidence, EdgeRecord, EpisodeRef, NodeType, Provenance } from "@brain/contracts";
 import type { GraphNode, GraphSlice, PinInfo, RecallStore } from "@brain/core";
 import { toFtsQuery } from "@brain/core";
+import { type CalibrationInfo, readCalibration } from "./calibration.ts";
 
 interface NodeRow {
   id: string;
@@ -86,6 +87,18 @@ export class BrainStore implements RecallStore {
       }>
     ).map((p) => ({ pinId: p.pin_id, nodeId: p.node_id, correction: p.correction }));
     return { nodes, edges, salience, pins };
+  }
+
+  /** The stored noise floor (§5.5), written by rebuild. Null on a pre-calibration index. */
+  calibration(): CalibrationInfo | null {
+    return readCalibration(this.db);
+  }
+
+  /** One line per node, for the abstention catalog fallback (§5.5). */
+  catalogEntries(): Array<{ id: string; type: string; title: string }> {
+    return this.db
+      .query("SELECT id, type, title FROM nodes ORDER BY id")
+      .all() as Array<{ id: string; type: string; title: string }>;
   }
 
   getBodies(ids: string[]): Map<string, string> {

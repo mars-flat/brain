@@ -32,6 +32,7 @@ import { SqliteQueue } from "@brain/queue-sqlite";
 import { FileSecretStore } from "@brain/secrets-file";
 import { backupVault } from "./backup.ts";
 import { formatReport, regressions, runEval, toBaseline } from "./eval.ts";
+import { formatTuneReport, runTune } from "./tune.ts";
 import {
   formatParaReport,
   paraRegressions,
@@ -48,6 +49,7 @@ Usage:
   brain recall <query> [--budget N] [--hops N] [--as-of YYYY-MM-DD]
   brain expand <id…> [--tier full|summary|stub]  promote nodes; bumps salience (§5.5)
   brain eval [--check] [--update] [--paraphrase]   --paraphrase = adversarial suite (§8.5)
+  brain tune [--out report.json]     sweep abstention params against both suites (§8.5)
   brain doctor
   brain ingest <envelope.json> [--now]           validate, store, enqueue (§5.7)
   brain consolidate [--extractor marker|openai]  run the single writer once
@@ -541,6 +543,23 @@ switch (command) {
     if (values.paraphrase) cmdEvalParaphrase(vaultPath(values.vault), values.check, values.update);
     else cmdEval(vaultPath(values.vault), values.check, values.update);
     break;
+  case "tune": {
+    const vault = vaultPath(values.vault);
+    let lastPct = -1;
+    const report = runTune(vault, (done, total) => {
+      const pct = Math.floor((done / total) * 10) * 10;
+      if (pct > lastPct) {
+        lastPct = pct;
+        process.stderr.write(`  sweep ${pct}% (${done}/${total})\n`);
+      }
+    });
+    console.log(formatTuneReport(report));
+    if (values.out) {
+      writeFileSync(values.out, `${JSON.stringify(report, null, 2)}\n`);
+      console.log(`report written: ${values.out}`);
+    }
+    break;
+  }
   case "doctor":
     cmdDoctor(vaultPath(values.vault));
     break;
