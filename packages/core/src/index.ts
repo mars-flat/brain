@@ -17,7 +17,8 @@ export {
   formatProposalFile,
   type LintFinding,
 } from "./lint.ts";
-export { type PackedEntry, type PackResult, pack, type Tier } from "./pack.ts";
+export { type DegreeStats, degreeStats } from "./graph-stats.ts";
+export { type PackContext, type PackedEntry, type PackResult, pack, type Tier } from "./pack.ts";
 export { DEFAULT_RECALL_PARAMS } from "./params.ts";
 export {
   type ComposedDecision,

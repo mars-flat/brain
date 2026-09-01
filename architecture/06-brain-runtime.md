@@ -17,7 +17,7 @@ flowchart TB
 
     subgraph Trav["2 — TRAVERSE"]
         B1["weighted BFS, max 3 hops"]
-        B2["score(n) = Σ_paths seed(s)·Π δ_rel<br/>× salience^0.3 × recency^0.2"]
+        B2["score(n) = Σ_paths seed(s)·Π δ_rel·Π damp<br/>× salience^0.3 × recency^0.2"]
         B3["hard rules: supersedes to terminal,<br/>pull contradicts, attach pins"]
         B4["prune: marginal &lt; θ_prune, frontier &gt; 200"]
     end
@@ -31,16 +31,40 @@ flowchart TB
     Q --> F1 --> F2 --> F3 --> F4 --> B1 --> B2 --> B3 --> B4 --> K1 --> K2 --> K3 --> OUT["Context pack ≤ B"]
 ```
 
-**Tiering is the whole trick.** A node is never dropped for scoring low — it is **downgraded**. Ranks 1–3 render full, 4–12 as summaries, 13–60 as one-line stubs. Every stub carries its id, so the model can call `brain.expand(["decision/x"])` mid-conversation and promote exactly what it needs.
+**Tiering is the whole trick.** A node is never dropped for scoring low — it is **downgraded**. The top-3 **eligible** nodes render full, ranks 4–12 as summaries, 13–60 as one-line stubs. Every stub carries its id, so the model can call `brain.expand(["decision/x"])` mid-conversation and promote exactly what it needs.
+
+**Full slots are query-anchored** (added 2026-08-31, from the paraphrase
+suite's findings): a node may hold a full slot only if it was a seed, within
+1 hop of one, or pinned — hubs that qualify purely via long-path
+accumulation share a single full slot. Ranking decides who is *in* the pack;
+eligibility decides who gets the expensive tiers. Once every eligible node
+is full and budget still remains, the restriction lifts (scarcity is the
+thing being protected), so a five-node graph with a 4k budget still renders
+everything full.
 
 Three details pinned at P1 (the implementation is in `packages/core`): the rank bands are **minimums** — leftover budget upgrades nodes in rank order, so a five-node graph with a 4k budget renders everything full; when even all-stubs exceeds the budget, the tail is omitted **explicitly** (listed in the pack footer), never silently; and token costs are `ceil(chars/4)` — deterministic and dependency-free, which is what the budget invariant actually needs, since §5.5's tier sizes were always approximations.
 
 The agent always knows the *shape* of what it knows at ~15 tokens per fact, and pays full price only for what it reads. This is the same progressive-disclosure pattern as `tools.search → tools.describe`, applied to memory instead of capability.
 
 ```
-score(n) = Σ over paths s→n [ bm25_norm(s) · Π_{e∈path} δ_rel(e) ]
+score(n) = Σ over paths s→n [ bm25_norm(s) · Π_{e∈path} δ_rel(e) · Π_{m∈path} damp(m) ]
            · salience(n)^0.3 · recency(n)^0.2
+
+damp(m) = (1 + degree(m) / medianDegree)^-α        α = 0.5
 ```
+
+**The damp term** (added 2026-08-31): Σ-over-paths is a funnel — every path
+in a dense graph flows through the high-degree nodes, so the same hubs
+outscored query-relevant nodes on *every* query (measured: one hub took a
+full slot on 2 of 3 unrelated real-vault queries). Each node a path arrives
+at damps the mass by its connectivity relative to the vault's own median
+degree — the PageRank intuition applied to the funnel. Degree stats are
+computed per-recall from the graph slice (pure, cheap, nothing stored);
+"hub" means degree ≥ max(4, p95) *of this vault*, so nothing rots as the
+graph grows. α = 0 recovers undamped scoring exactly. The draft's companion
+idea — capping Σ at one path per seed — is **not built**: damping alone
+moved the eval numbers, and the cap would have killed legitimate
+multi-path corroboration along with the funnel.
 
 `salience` is a usage counter with exponential decay, bumped when the model **`brain.expand`s a node** — explicit demand — never when a node merely renders. It lives **only in SQLite**, never in the note (§5.2). `recency = exp(-age_days / 180)`. The exponents are deliberately gentle: relevance dominates, recency breaks ties. **All of these are starting values to tune against the eval set in §8.5.** *(Changed 2026-08-31: the original bump-on-full-render was a rich-get-richer loop with no relevance signal in it — hub nodes rendered full because of salience earned by rendering full, which the paraphrase suite caught as hubs squatting the full tier on unrelated queries. Recall is now a pure read.)*
 

@@ -22,11 +22,18 @@ export const DEFAULT_RECALL_PARAMS: RecallParams = {
     seedThreshold: 5.0,
     seedThresholdMinNodes: 50,
     seedK: 8,
+    // Hub damp α (§5.5): validated by `brain tune` against both eval suites
+    // (original held at 1.0; paraphrase placement is what it buys).
+    degreeDampAlpha: 0.5,
   },
   pack: {
     fullRanks: 3,
     summaryRanks: 12,
     coldStartMinNodes: 5,
+    // Query-anchored full-band eligibility (§5.5): seeds and their 1-hop
+    // neighborhood may hold full slots; long-path hubs share one.
+    fullEligibilityMaxHops: 1,
+    hubFullCap: 1,
   },
   defaultBudget: 4000,
 };

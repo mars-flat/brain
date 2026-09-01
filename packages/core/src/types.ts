@@ -53,6 +53,13 @@ export interface TraversalParams {
   saliencePow: number;
   recencyPow: number;
   recencyHalfLifeDays: number;
+  /**
+   * α in the hub damp (1 + degree/medianDegree)^-α, applied when path mass
+   * arrives at a node (§5.5). 0 disables — recovers pre-damping behavior
+   * exactly. Counters the Σ-over-paths funnel that let high-degree nodes
+   * outscore query-relevant ones on every query.
+   */
+  degreeDampAlpha: number;
   /** θ_prune — a path contribution below this is not propagated further. */
   pruneThreshold: number;
   /** Frontier cap per hop (§5.5). */
@@ -73,6 +80,15 @@ export interface PackParams {
   summaryRanks: number;
   /** Graphs smaller than this signal cold_start (§5.6). */
   coldStartMinNodes: number;
+  /**
+   * Full-band eligibility (§5.5): a node may take a scarce full slot only if
+   * it was reached within this many hops of a seed (or is pinned). Hubs that
+   * qualify only via long-path accumulation share `hubFullCap` slots. Once
+   * every eligible node is full and budget remains, the restriction lifts —
+   * scarcity is the thing being protected.
+   */
+  fullEligibilityMaxHops: number;
+  hubFullCap: number;
 }
 
 export interface RecallParams {
