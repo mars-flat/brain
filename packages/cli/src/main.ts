@@ -338,6 +338,16 @@ async function cmdConsolidateBatch(vault: string): Promise<void> {
     console.error("error: brain consolidate --batch needs OPENAI_API_KEY");
     process.exit(2);
   }
+  // Kill switch while OpenAI's batch backend can't see its own input files
+  // (issue #48): same cadence, same episodes, sync transport at full price.
+  // Unset BRAIN_EXTRACTION_MODE (or set it to "batch") to restore batching.
+  if (process.env.BRAIN_EXTRACTION_MODE === "sync") {
+    console.log(
+      "batch transport disabled (BRAIN_EXTRACTION_MODE=sync, issue #48) — extracting inline",
+    );
+    await cmdConsolidate(vault, "openai");
+    return;
+  }
   const db = openDb(dbPath(vault));
   ensureConsolidatorTables(db);
   const cycle = await runBatchCycle({ vaultPath: vault, db, model: new OpenAiModelClient(key) });
