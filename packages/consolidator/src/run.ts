@@ -355,6 +355,15 @@ function deadLetter(
 
 export function gitCommitVault(vaultPath: string, message: string): void {
   const status = Bun.spawnSync(["git", "status", "--porcelain"], { cwd: vaultPath });
+  // A failed `git status` (e.g. the vault is not a git repo) has EMPTY
+  // stdout — indistinguishable from "clean" without the exit code. Reading
+  // it as clean is how the 2026-09-01 shadow vault accepted writes for days
+  // with no version control and no error. Fail loudly instead (§5.7
+  // property 4: git commit per run is a correctness guarantee).
+  if (status.exitCode !== 0)
+    throw new Error(
+      `vault at ${vaultPath} is not a usable git repo (git status failed: ${status.stderr.toString().trim()}) — memory writes must be version-controlled (§9.1)`,
+    );
   if (status.stdout.toString().trim() === "") return;
   Bun.spawnSync(["git", "add", "-A"], { cwd: vaultPath });
   const commit = Bun.spawnSync(["git", "commit", "-q", "-m", message], { cwd: vaultPath });

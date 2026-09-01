@@ -439,4 +439,14 @@ describe("pins integrate with recall", () => {
     const out = recall(new BrainStore(db), { query: "zanzibar protocol" }, CLOCK());
     expect(out.result.pack).toContain("📌 PIN: The correction text.");
   });
+
+  test("gitCommitVault throws loudly on a non-git vault — never silent (2026-09-01 incident)", async () => {
+    // `git status` in a non-repo fails with EMPTY stdout — reading that as
+    // "clean" let a tmpdir shadow vault accept memory writes for days with
+    // no version control. The exit code is the only honest signal.
+    const { gitCommitVault } = await import("../src/index.ts");
+    const notARepo = mkdtempSync(join(tmpdir(), "brain-nogit-"));
+    writeFileSync(join(notARepo, "stray.md"), "content\n");
+    expect(() => gitCommitVault(notARepo, "test")).toThrow(/not a usable git repo/);
+  });
 });
