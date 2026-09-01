@@ -15,7 +15,7 @@ export function esc(s: string): string {
 }
 
 /** `[[id]]` / `[[id|label]]` → markdown links into the viewer. */
-export function resolveWikilinks(md: string): string {
+function resolveWikilinks(md: string): string {
   return md.replace(/\[\[([a-z0-9-]+)(?:\|([^\]]+))?\]\]/g, (_, id: string, label?: string) => {
     return `[${label ?? id}](/node/${id})`;
   });

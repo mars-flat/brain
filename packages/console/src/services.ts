@@ -20,7 +20,7 @@ import { esc } from "./html.ts";
 
 export type Grade = "ok" | "warn" | "bad";
 
-export function gradeDays(days: number): Grade {
+function gradeDays(days: number): Grade {
   return days < 7 ? "bad" : days < 21 ? "warn" : "ok";
 }
 
@@ -123,7 +123,7 @@ interface ArmVm {
   properties?: { hardwareProfile?: { vmSize?: string } };
 }
 
-export async function azureProbe(subscription: string): Promise<{ html: string; cls: Grade }> {
+async function azureProbe(subscription: string): Promise<{ html: string; cls: Grade }> {
   const auth = await armToken();
   if (!auth)
     return {

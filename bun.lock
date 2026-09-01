@@ -7,11 +7,7 @@
       "devDependencies": {
         "@biomejs/biome": "2.5.10",
         "@brain/brainstore": "workspace:*",
-        "@brain/cli": "workspace:*",
-        "@brain/consolidator": "workspace:*",
         "@brain/contracts": "workspace:*",
-        "@brain/core": "workspace:*",
-        "@brain/queue-sqlite": "workspace:*",
         "@modelcontextprotocol/sdk": "1.30.0",
         "@types/bun": "1.4.0",
         "dependency-cruiser": "18.2.0",
@@ -90,7 +86,6 @@
       },
       "dependencies": {
         "@brain/brainstore": "workspace:*",
-        "@brain/contracts": "workspace:*",
         "jose": "6.2.10",
         "marked": "16.4.1",
       },

@@ -55,7 +55,7 @@ export function toFtsQuery(query: string): string | null {
  * (a real topic) or scatter across unrelated clusters (word coincidence)?
  * Fraction of seed pairs within 2 hops; a single seed is neutral evidence.
  */
-export function seedCohesion(graph: GraphSlice, ids: string[]): number {
+function seedCohesion(graph: GraphSlice, ids: string[]): number {
   if (ids.length < 2) return 0.5;
   const { neighbors } = buildAdjacency(graph.edges, new Set(graph.nodes.keys()));
   const hood = new Map<string, Set<string>>();

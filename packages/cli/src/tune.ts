@@ -22,7 +22,7 @@ import { DEFAULT_RECALL_PARAMS, type RecallParams } from "@brain/core";
 import { runEval } from "./eval.ts";
 import { runParaphraseEval } from "./eval-paraphrase.ts";
 
-export interface TuneCandidate {
+interface TuneCandidate {
   wZ: number;
   wCoverage: number;
   wCohesion: number;
@@ -31,7 +31,7 @@ export interface TuneCandidate {
   tauHigh: number;
 }
 
-export interface TuneResult {
+interface TuneResult {
   candidate: TuneCandidate;
   feasible: boolean;
   objective: number;

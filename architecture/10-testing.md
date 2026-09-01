@@ -44,7 +44,7 @@ The rebuild invariant is what lets you trust that markdown is really the source 
 
 ### 8.4 Specific high-risk test targets
 
-- **SSRF guard** — table-driven: `http://`, `169.254.169.254`, `127.0.0.1`, `10.0.0.1`, `[::1]`, DNS rebinding, redirect-to-private, oversized body, slow-loris. Each must be refused.
+- **SSRF guard** — table-driven: `http://`, `169.254.169.254`, `127.0.0.1`, `10.0.0.1`, `[::1]`, DNS rebinding, redirect-to-private, oversized body, slow-loris. Each must be refused. *(Status 2026-09-01: the guard is built and these tests pass, but no production fetch is wired through it yet — its intended consumer, the dynamic client-metadata fetch (§4), arrives at P6. Today's outbound fetches are operator-configured or legitimately private-endpoint (the console's IMDS probe), so blanket-wiring would break them.)*
 - **`iss` validation** — the full RFC 9207 truth table from the spec, all four rows.
 - **PKCE** — refuse to proceed when `code_challenge_methods_supported` is absent.
 - **Token passthrough** — assert that no inbound token value ever appears in an outbound upstream request. Implemented as a proxy-level assertion in integration tests, so it cannot regress silently.

@@ -53,7 +53,7 @@ function decodeB64Url(data: string): string {
  * Walk the MIME tree for the best text rendering: prefer text/plain,
  * fall back to text/html (returned as-is — thin server, no HTML strip).
  */
-export function extractBody(payload: WirePart | undefined): { mime_type: string; text: string } {
+function extractBody(payload: WirePart | undefined): { mime_type: string; text: string } {
   const found: Record<string, string[]> = { "text/plain": [], "text/html": [] };
   const walk = (p: WirePart | undefined) => {
     if (!p) return;

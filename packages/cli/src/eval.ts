@@ -12,7 +12,7 @@ import { BrainStore, loadVault, openDb, rebuild } from "@brain/brainstore";
 import type { RenderTier } from "@brain/contracts";
 import { DEFAULT_RECALL_PARAMS, type RecallParams, recall } from "@brain/core";
 
-const TIER_RANK: Record<RenderTier, number> = { stub: 0, summary: 1, full: 2 };
+export const TIER_RANK: Record<RenderTier, number> = { stub: 0, summary: 1, full: 2 };
 
 interface QuerySpec {
   name: string;
@@ -50,7 +50,7 @@ export interface EvalReport {
 }
 
 /** Pinned eval clock — recency must not drift with the wall calendar. */
-const DEFAULT_EVAL_NOW = "2026-09-01T00:00:00Z";
+export const DEFAULT_EVAL_NOW = "2026-09-01T00:00:00Z";
 
 export function runEval(
   vaultPath: string,

@@ -27,7 +27,7 @@ import { BrainStore, loadVault, openDb, rebuild } from "@brain/brainstore";
 import type { RenderTier } from "@brain/contracts";
 import { contentTerms, DEFAULT_RECALL_PARAMS, type RecallParams, recall } from "@brain/core";
 
-const TIER_RANK: Record<RenderTier, number> = { stub: 0, summary: 1, full: 2 };
+import { DEFAULT_EVAL_NOW, TIER_RANK } from "./eval.ts";
 
 interface ExpectSpec {
   id: string;
@@ -48,7 +48,7 @@ interface EvalFile {
   queries: QuerySpec[];
 }
 
-export interface ParaExpectResult {
+interface ParaExpectResult {
   id: string;
   paraphrase: boolean;
   seeded: boolean;
@@ -59,7 +59,7 @@ export interface ParaExpectResult {
   overlapViolations: string[];
 }
 
-export interface ParaQueryResult {
+interface ParaQueryResult {
   name: string;
   abstention: boolean;
   abstentionOk: boolean | null;
@@ -84,8 +84,6 @@ export interface ParaReport {
   now: string;
   nodeCount: number;
 }
-
-const DEFAULT_EVAL_NOW = "2026-09-01T00:00:00Z";
 
 export function runParaphraseEval(
   vaultPath: string,
