@@ -18,6 +18,10 @@ if (!vault) {
   console.error("tool-gateway: BRAIN_VAULT_PATH is required (§9.1)");
   process.exit(2);
 }
+// Absolutize before ${VAR} expansion into neutral-cwd children (§4.2) —
+// see main.ts and the 2026-09-01 shadow-vault incident.
+process.env.BRAIN_VAULT_PATH = resolve(vault);
+console.error(`tool-gateway: vault = ${process.env.BRAIN_VAULT_PATH}`);
 
 const port = Number(process.env.GATEWAY_PORT ?? 8090);
 const running = await startHttpGateway({

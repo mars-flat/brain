@@ -42,7 +42,7 @@ is full and budget still remains, the restriction lifts (scarcity is the
 thing being protected), so a five-node graph with a 4k budget still renders
 everything full.
 
-Three details pinned at P1 (the implementation is in `packages/core`): the rank bands are **minimums** — leftover budget upgrades nodes in rank order, so a five-node graph with a 4k budget renders everything full; when even all-stubs exceeds the budget, the tail is omitted **explicitly** (listed in the pack footer), never silently; and token costs are `ceil(chars/4)` — deterministic and dependency-free, which is what the budget invariant actually needs, since §5.5's tier sizes were always approximations.
+Three details pinned at P1 (the implementation is in `packages/core`): the rank bands are **minimums** — leftover budget upgrades nodes in rank order, so a five-node graph with a 4k budget renders everything full; when even all-stubs exceeds the budget, the tail is omitted **explicitly** (counted in the pack footer with the first few ids; the full list rides in `result.omitted`), never silently — the footer listing is capped because an unbounded one made omission move a node's cost into the footer instead of freeing it, emptying packs on long-id vaults at small budgets (fixed 2026-09-01); and token costs are `ceil(chars/4)` — deterministic and dependency-free, which is what the budget invariant actually needs, since §5.5's tier sizes were always approximations.
 
 The agent always knows the *shape* of what it knows at ~15 tokens per fact, and pays full price only for what it reads. This is the same progressive-disclosure pattern as `tools.search → tools.describe`, applied to memory instead of capability.
 

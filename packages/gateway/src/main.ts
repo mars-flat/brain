@@ -13,6 +13,12 @@ if (!vault) {
   console.error("tool-gateway: BRAIN_VAULT_PATH is required (§9.1)");
   process.exit(2);
 }
+// Absolutize BEFORE ${VAR} expansion into upstream children: they run in a
+// neutral cwd (tmpdir, §4.2), so a relative path would silently resolve to
+// a shadow vault there — the 2026-09-01 incident. Children must inherit the
+// absolute form.
+process.env.BRAIN_VAULT_PATH = resolve(vault);
+console.error(`tool-gateway: vault = ${process.env.BRAIN_VAULT_PATH}`);
 
 const gateway = await buildGateway({ vaultPath: resolve(vault), cwd: process.cwd() });
 await gateway.server.connect(new StdioServerTransport());

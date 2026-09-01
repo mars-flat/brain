@@ -116,7 +116,7 @@ describe("traverse", () => {
 });
 
 describe("pack — explicit omission and tier mechanics", () => {
-  test("tight budget downgrades everything to stubs, then omits explicitly — never silently", () => {
+  test("tight budget omits explicitly — never silently", () => {
     const ids = Array.from({ length: 15 }, (_, i) => `node-${String(i).padStart(2, "0")}`);
     const g = slice(ids, []);
     const scored = traverse(
@@ -130,7 +130,30 @@ describe("pack — explicit omission and tier mechanics", () => {
     expect(tiny.omitted.length).toBeGreaterThan(0);
     expect(tiny.entries.length + tiny.omitted.length).toBe(15);
     expect(tiny.pack).toContain("omitted by budget");
-    for (const e of tiny.entries) expect(e.tier).toBe("stub");
+    // (Since the capped omission footer, leftover budget may legitimately
+    // upgrade the top-ranked survivor above stub — that's headroom spend,
+    // not a downgrade bug.)
+  });
+
+  test("long node ids at tight budgets still yield a pack — omission footer is capped", () => {
+    // Regression (2026-09-01): the footer listed every omitted id, so with
+    // ~45-char real-vault ids each omission moved cost into the footer
+    // instead of freeing it, and the fit loop spiraled to an empty pack.
+    const ids = Array.from(
+      { length: 60 },
+      (_, i) => `very-long-descriptive-node-identifier-with-date-2026-09-01-number-${String(i).padStart(2, "0")}`,
+    );
+    const g = slice(ids, []);
+    const scored = traverse(
+      g,
+      ids.map((id) => ({ id, weight: 1 })),
+      NOW,
+      T,
+    );
+    const tight = pack(g, scored, 300, DEFAULT_RECALL_PARAMS.pack, () => new Map());
+    expect(tight.tokens).toBeLessThanOrEqual(300);
+    expect(tight.entries.length).toBeGreaterThan(0); // never empty when stubs could fit
+    expect(tight.omitted.length).toBeGreaterThan(0); // still explicit in the result
   });
 
   test("headroom upgrades in rank order up to full", () => {

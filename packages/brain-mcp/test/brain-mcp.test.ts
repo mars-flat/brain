@@ -15,9 +15,18 @@ import { buildBrainServer } from "../src/server.ts";
 const EXAMPLE = join(import.meta.dir, "..", "..", "..", "examples", "vault-example");
 let client: Client;
 
+/** Scratch vaults must be git repos — the consolidator refuses to write
+ *  unversioned memory (2026-09-01 incident). Local identity for CI. */
+function gitInit(vault: string): void {
+  Bun.spawnSync(["git", "init", "-q"], { cwd: vault });
+  Bun.spawnSync(["git", "config", "user.email", "test@example.invalid"], { cwd: vault });
+  Bun.spawnSync(["git", "config", "user.name", "test"], { cwd: vault });
+}
+
 beforeAll(async () => {
   const vault = mkdtempSync(join(tmpdir(), "brain-mcp-"));
   cpSync(EXAMPLE, vault, { recursive: true });
+  gitInit(vault);
   const server = buildBrainServer({
     vaultPath: vault,
     clock: () => new Date("2026-08-26T02:00:00Z"),
@@ -197,6 +206,7 @@ describe("ingest in queue mode (§5.8 batched cadence)", () => {
   test("stores + enqueues without consolidating inline", async () => {
     const vault = mkdtempSync(join(tmpdir(), "brain-mcp-q-"));
     cpSync(EXAMPLE, vault, { recursive: true });
+    gitInit(vault);
     const server = buildBrainServer({
       vaultPath: vault,
       clock: () => new Date("2026-08-27T02:00:00Z"),
