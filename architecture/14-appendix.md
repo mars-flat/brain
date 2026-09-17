@@ -14,6 +14,7 @@
 - **Your own agent loop from scratch.** Use the OpenAI Agents SDK in `agent-runtime` (§6.0). Write the four things specific to this system; inherit the rest.
 - **A public IP, TLS, or Caddy — until WhatsApp.** Discord is outbound-only and Tailscale covers laptop access (§3.1). Every one of those is a cost line and an attack surface you don't need yet.
 - **Hermes, WhatsApp, or any second surface before P6 ships.** The ports exist so you *can* — which is exactly why you don't need to yet.
+- **A second gateway, or a second writable copy of the vault, on the laptop.** One deployed gateway from every directory; the laptop's clone is read-only (§3.1). Two writers met only through the remote and drifted within days — twice (2026-09-17).
 
 ---
 

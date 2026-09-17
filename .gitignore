@@ -32,7 +32,14 @@ coverage/
 # Owner Q&A scratch — session-local, not part of the public repo
 /QUESTIONS-FOR-OWNER.md
 
+# Session handoff briefs — carry real hostnames/deployment specifics (§9.4)
+/*-HANDOFF.md
+
 # Obsidian UI state dropped when someone opens the example vault locally —
 # only app.json (the link-format pin, §5.2) is meant to be tracked
 examples/vault-example/.obsidian/*
 !examples/vault-example/.obsidian/app.json
+
+# SessionEnd delivery target — a tailnet-only gateway URL (§9.2), hand-placed
+# per machine (or written by install()); credentials stay in .env.
+/.claude/brain-harness.json

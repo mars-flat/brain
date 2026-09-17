@@ -126,9 +126,13 @@ audit events to feed it. Two deliberate scope lines: **7 days is the view
 window, not retention** — the owner asked for 7-day logs; deleting audit
 lines would break the hash chain's nothing-was-ever-removed proof, so the
 file stays append-only (~KBs/year at real volume) and the window lives in
-the renderer. And the panel sees only gateway MCP traffic — direct CLI
-runs and the consolidator never transit it; their trail stays the ledger
-and vault git history. Charts are server-rendered inline SVG themed by the
+the renderer. And the panel sees only *this* gateway's MCP traffic —
+direct CLI runs and the consolidator never transit it; their trail stays
+the ledger and vault git history. (Until 2026-09-17 laptop sessions inside
+`~/brain` didn't transit it either — their project-scope stdio gateway kept
+a per-machine audit chain in a gitignored `_index/`, never synced, which the
+owner confirmed on 2026-09-01; that gateway is gone since the one-writer
+change, so every session's calls now land here.) Charts are server-rendered inline SVG themed by the
 page's CSS variables (the CSP admits no chart library); the outcome trio
 is CVD-validated against both surfaces, with legend labels, per-bucket
 titles, and the table as non-color carriers.
