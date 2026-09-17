@@ -1,8 +1,8 @@
 # Personal LLM System — Architecture
 
 **Status:** Revision 5 built through P5 — Azure host, OpenAI `gpt-5.6-luna`, Bun runtime. **P0–P5 complete (2026-08-27): the brain serves remotely** from `brain-vm` over the tailnet with Auth0 auth. **P6 (Discord) deferred by the owner.** See Current status below.
-**Code repo:** `mars-flat/brain` — **public** · **Vault:** `brain/vault/`, its own local git repo, never tracked here ([§9.1](./11-repo-safety.md))
-**MCP revision targeted:** `2026-07-28` · **Last updated:** 2026-08-28
+**Code repo:** `mars-flat/brain` — **public** · **Vault:** private repo `mars-flat/brain-vault` — the VM's clone is the only writer; `brain/vault/` on the laptop is a read-only clone, never tracked here ([§9.1](./11-repo-safety.md))
+**MCP revision targeted:** `2026-07-28` · **Last updated:** 2026-09-17
 
 ---
 
@@ -63,7 +63,7 @@ Section numbers (§N) are stable across files and greppable, so a cross-referenc
 
 **Owner Q&A round-trip complete** (2026-08-25): OPENAI_API_KEY landed in `.env` (LLM extraction verified live — the first free-text notes consolidated with correct types, edges into the existing graph, and clean summaries), P4 IdP = local Keycloak (§12 Q6), backup risk accepted (§12 Q1), property-links spike closed (§5.2). The repo also moved to **branch → PR → auto-merge on green** with all four checks Required on `main` (§8.6).
 
-**P3 is done** (2026-08-25): `packages/brain-mcp` (the seven §5.10 tools over MCP) and `packages/gateway` — four meta-tools (measured base context **298 tokens**), FTS5 tool index, pure policy evaluator composed with the §6.5 trust matrix (strictest wins, property-tested), stdio pool with per-server health, single-use confirm tokens, hash-chained audit with arg digests only, 120/min rate cap. Live smoke (`bun scripts/gateway-smoke.ts`): three upstreams up (brain + everything + filesystem, 34 tools), `tools_search` ranks `brain.recall` first, and a recall through the gateway serves a real pack from the owner's vault. `.mcp.json` registers the gateway for Claude Code (one-time trust prompt on next session). The `brain init` seed interview (§5.6) remains open.
+**P3 is done** (2026-08-25): `packages/brain-mcp` (the seven §5.10 tools over MCP) and `packages/gateway` — four meta-tools (measured base context **298 tokens**), FTS5 tool index, pure policy evaluator composed with the §6.5 trust matrix (strictest wins, property-tested), stdio pool with per-server health, single-use confirm tokens, hash-chained audit with arg digests only, 120/min rate cap. Live smoke (`bun scripts/gateway-smoke.ts`): three upstreams up (brain + everything + filesystem, 34 tools), `tools_search` ranks `brain.recall` first, and a recall through the gateway serves a real pack from the owner's vault. `.mcp.json` registers the gateway for Claude Code (one-time trust prompt on next session) — *that project-scope stdio gateway was retired 2026-09-17; one gateway, see below.* The `brain init` seed interview (§5.6) remains open.
 
 **P4 is done** (2026-08-26): the gateway is an OAuth 2.1 **resource server** (jose JWKS validation, RFC 9728 PRM, 401/403 challenges) against a local **Keycloak** container (`deploy/keycloak/`, realm auto-imported). Scope tiers enforced above policy so **step-up** is a real boundary; **token passthrough** structurally prevented and asserted (§8.4) — plus a real env-leak gap found and closed (bun auto-loads `.env` into upstream children; they now get a scrubbed env in a neutral cwd). Both credential planes: north-bound Keycloak clients (`brain-cli` PKCE, `agent-runtime` client_credentials), south-bound envelope-encrypted `${secret:...}` refs via `adapters/secrets-file` + `brain secret`. SSRF guard as defense-in-depth (§8.4). **Proven end to end** against live Keycloak (`bun scripts/auth-smoke.ts`: unauth 401 → PRM → authed recall → step-up 403) and deterministically in CI via a mock AS. 168 tests.
 
@@ -134,6 +134,23 @@ fallback on abstain). Constants come from the `brain tune` grid sweep under
 a hard original-suite-holds-1.0 constraint — after tuning, the paraphrase
 suite scores 1.0 across ¶-recall, recovery, placement, and abstention. The
 `Embedder` port stays null; it earns its keep only if these numbers decay.
+
+**One vault, one writer (2026-09-17).** The laptop had been running a second
+gateway of its own — `.mcp.json`, stdio, against the local clone — alongside
+the deployed one, so captures inside `~/brain` landed in the laptop clone and
+captures anywhere else landed on the VM: two copies of the vault that met only
+through the private remote, with nothing pulling on either side. It bit twice.
+The 2026-09-01 shadow-vault incident (§4.2) came through the local gateway,
+and the VM's nightly push had been rejected non-fast-forward since a
+2026-09-02 laptop-side merge, leaving two weeks of VM memories unbacked-up
+with only `journalctl` noticing. Resolved by removing the project-scope
+gateway (every session, `~/brain` included, uses user-scope
+`tool-gateway-remote`), pointing the SessionEnd hook at the VM through a
+gitignored `.claude/brain-harness.json` (§6.4), merging the two histories once
+more (colliding same-day episode basenames split as on 2026-09-02), and
+declaring the laptop clone read-only — the VM is the only writer (§3.1). The
+hook's local-ingest fallback is the one path that can still write the laptop
+clone, and only when the VM is unreachable.
 
 **One human blocker remains, and it only gates P6: the Discord bot** ([§13](./13-setup.md) has the walkthrough) — **deferred by the owner** for now. Open questions accumulate in `QUESTIONS-FOR-OWNER.md` at the repo root (local-only, gitignored).
 

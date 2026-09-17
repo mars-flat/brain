@@ -65,6 +65,7 @@ flowchart TB
 - The **entrypoint rebuilds `_index/brain.db` only when missing** — derived state (§5.11) is absent on a fresh volume or restored backup, but a redundant rebuild is never run (salience lives in SQLite, §5.2).
 - The image (`oven/bun` pinned by digest, non-root, `--production` install) carries no `.env` and no vault — `.dockerignore` enforces the §9.1/§9.2 boundary at build time.
 - `compose.dev.yaml` overlays the P4 Keycloak container as IdP; `scripts/compose-smoke.sh` runs the full stack and drives unauth 401 → PRM → authed recall → step-up 403 from inside the network. CI runs it as the §8.2 e2e tier on every PR.
+- **The VM's clone is the only writer (2026-09-17).** Vault sync is one-directional: the consolidator on the VM commits, the nightly `brain-vault-push` timer pushes to the private remote, and the laptop's `vault/` is a read-only clone the owner `git pull`s to browse in Obsidian. Nothing on the laptop consolidates into it — the project-scope stdio gateway is gone (§6.4) and the SessionEnd hook delivers to the VM. Before this, the two clones met only through the remote with nothing pulling on either side; a laptop-side merge on 2026-09-02 left the VM's push rejected non-fast-forward for two weeks, failing silently every night. `deploy/vm/vault-pull.sh` stays as the recovery path for the rare laptop-side commit (the hook's local fallback when the VM is unreachable), and a rejected push is an incident, not a retry — `journalctl -u brain-vault-push` on the VM is where it shows.
 
 ```mermaid
 flowchart LR
