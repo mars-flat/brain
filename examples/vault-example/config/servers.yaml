@@ -16,3 +16,14 @@ servers:
     kinds:
       - pattern: "edit_*"
         kind: write
+
+  # Recurring tasks (§16) — a separate tool with its own store, beside the
+  # vault. The path MUST be absolute (the upstream refuses otherwise, §16.3);
+  # compose sets both values. Reads are annotated read-only, writes fall to
+  # the policy's confirm default.
+  - name: tasks
+    command: bun
+    args: [packages/tasks/src/main.ts]
+    env:
+      TASKS_DB_PATH: ${TASKS_DB_PATH}
+      TASKS_TZ: ${TASKS_TZ}

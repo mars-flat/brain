@@ -2,7 +2,7 @@
 
 **Status:** Revision 5 built through P5 — Azure host, OpenAI `gpt-5.6-luna`, Bun runtime. **P0–P5 complete (2026-08-27): the brain serves remotely** from `brain-vm` over the tailnet with Auth0 auth. **P6 (Discord) deferred by the owner.** See Current status below.
 **Code repo:** `mars-flat/brain` — **public** · **Vault:** private repo `mars-flat/brain-vault` — the VM's clone is the only writer; `brain/vault/` on the laptop is a read-only clone, never tracked here ([§9.1](./11-repo-safety.md))
-**MCP revision targeted:** `2026-07-28` · **Last updated:** 2026-09-17
+**MCP revision targeted:** `2026-07-28` · **Last updated:** 2026-09-18
 
 ---
 
@@ -27,7 +27,8 @@ Section numbers (§N) are stable across files and greppable, so a cross-referenc
 | [12-roadmap](./12-roadmap.md) | Repo layout, build phases, open questions | 116 |
 | [13-setup](./13-setup.md) | **Prerequisites and the Discord bot walkthrough** | 83 |
 | [14-appendix](./14-appendix.md) | What not to build, glossary, revision-3 audit | 46 |
-| [15-console](./15-console.md) | The web console: authenticated vault viewer + ops dashboard | 121 |
+| [15-console](./15-console.md) | The web console: authenticated vault viewer + ops dashboard | 180 |
+| [16-tasks](./16-tasks.md) | Recurring tasks: own SQLite store, the console's one write path, `tasks.*` upstream, Mac reminder | 210 |
 
 *Same idea as the brain's own `index.md` ([§5.1](./05-brain-model.md)): a cheap catalog you always read, pointing at expensive detail you load on demand.*
 
@@ -151,6 +152,26 @@ more (colliding same-day episode basenames split as on 2026-09-02), and
 declaring the laptop clone read-only — the VM is the only writer (§3.1). The
 hook's local-ingest fallback is the one path that can still write the laptop
 clone, and only when the VM is unreachable.
+
+**T1 — the tasks surface (2026-09-18, §16).** Recurring tasks as a
+**separate tool with its own SQLite store** (owner's ruling: scheduling
+state is deterministic and relational, memory is not — the brain does not
+know tasks exist). `packages/tasks`: a pure, property-tested recurrence
+core (one open occurrence ever; completion-anchored by default, due-anchored
+on request; late = one roll, never a pile-up; recurring until opt-out; the
+append-only event log replays to the row), a WAL store beside the vault
+shared by two writers, and a ten-tool `tasks.*` MCP upstream so every Claude
+surface reaches the same store. The console grew a `/tasks` tab — **its
+first write path**: POST-and-redirect forms with a session-bound CSRF token,
+same-origin enforcement, and `form-action 'self'`; §15.3's rule is now "never
+writes the *vault*". The owner's completion prompt shipped verbatim
+("schedule again? yes / pick a date / no", yes default). `packages/tasks-reminder`
+is the Mac launchd agent: `max(9am, first open)` as a guard, one System
+Events dialog a day, read-only via its own `tools:read`-only Auth0 client.
+`brain backup` snapshots the store (`VACUUM INTO`) beside the vault; the
+compose smoke drives create → due → complete through the real gateway.
+Owner-run after merge (§13): the `tasks` roster entry on the VM, one
+`auth0-setup` re-run, the reminder installer.
 
 **One human blocker remains, and it only gates P6: the Discord bot** ([§13](./13-setup.md) has the walkthrough) — **deferred by the owner** for now. Open questions accumulate in `QUESTIONS-FOR-OWNER.md` at the repo root (local-only, gitignored).
 

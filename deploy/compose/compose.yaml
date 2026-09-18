@@ -40,8 +40,13 @@ services:
       # encrypted in the vault's secret store as ${secret:google/*} refs.
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
       GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      # §16: the tasks upstream (spawned from servers.yaml) opens the store
+      # beside the vault; the path is absolute by construction (§16.3).
+      TASKS_DB_PATH: /data/tasks/tasks.db
+      TASKS_TZ: ${TASKS_TZ:-UTC}
     volumes:
       - ${BRAIN_DATA_DIR:-/data}/vault:/data/vault
+      - ${BRAIN_DATA_DIR:-/data}/tasks:/data/tasks
     security_opt:
       - no-new-privileges:true
     mem_limit: 1536m
@@ -60,7 +65,8 @@ services:
       start_period: 30s
 
   # The web console (§15): same image, different entrypoint. Read-only over
-  # the vault by code discipline; identity via OIDC (§15.2). Loopback publish —
+  # the vault by code discipline (its one write path is the tasks store, §16);
+  # identity via OIDC (§15.2). Loopback publish —
   # the TLS front (Caddy) is the only thing that reaches it from outside.
   console:
     image: ghcr.io/mars-flat/tool-gateway:${TAG:-local}
@@ -86,8 +92,13 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_ADMIN_KEY: ${OPENAI_ADMIN_KEY:-}
       VERCEL_API_TOKEN: ${VERCEL_API_TOKEN:-}
+      # §16: the console's one write path is the tasks store (same file the
+      # gateway's tasks upstream opens — WAL, two writers by design).
+      TASKS_DB_PATH: /data/tasks/tasks.db
+      TASKS_TZ: ${TASKS_TZ:-UTC}
     volumes:
       - ${BRAIN_DATA_DIR:-/data}/vault:/data/vault
+      - ${BRAIN_DATA_DIR:-/data}/tasks:/data/tasks
     security_opt:
       - no-new-privileges:true
     mem_limit: 512m

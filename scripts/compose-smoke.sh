@@ -39,6 +39,10 @@ cat >> "${SCRATCH}/vault/config/servers.yaml" <<'YAML'
     args: [packages/gateway/test/fake-upstream.ts]
 YAML
 
+# §16: the tasks store mount, beside the vault — must pre-exist writable or
+# Docker creates it root-owned and the console cannot open its store.
+mkdir -p "${SCRATCH}/tasks"
+
 chmod -R a+rwX "${SCRATCH}"
 
 export BRAIN_DATA_DIR="${SCRATCH}"
@@ -59,7 +63,7 @@ cleanup() {
   # (CI: uid 1001) cannot delete inside those dirs — empty the vault from
   # inside while the stack is still up. Every step is best-effort: cleanup
   # must never turn a passing smoke into a failing job.
-  "${COMPOSE[@]}" exec -T gateway sh -c 'find /data/vault -mindepth 1 -delete' >/dev/null 2>&1 || true
+  "${COMPOSE[@]}" exec -T gateway sh -c 'find /data/vault /data/tasks -mindepth 1 -delete' >/dev/null 2>&1 || true
   "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
   rm -rf "${SCRATCH}" || true
 }

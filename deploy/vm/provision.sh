@@ -52,6 +52,8 @@ if [ ! -d /data/vault/.git ]; then
 fi
 # Container user is uid 1000; root keeps operating the repo for push/backup.
 chown -R 1000:1000 /data/vault
+# The tasks store (§16.3) lives beside the vault, same uid as the containers.
+install -d -o 1000 -g 1000 /data/tasks
 git config --global --add safe.directory /data/vault
 
 # ── compose environment (0600, never committed — §9.2) ───────────────────

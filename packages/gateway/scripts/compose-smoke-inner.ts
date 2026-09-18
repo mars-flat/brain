@@ -231,6 +231,32 @@ if (!denied.isError || !JSON.stringify(denied.content).includes("denied by polic
   );
 console.log("10. no-send: structurally absent + policy-denied when advertised ✓");
 
+// 11 — §16: the tasks upstream over the shared /data/tasks mount — create
+// (confirm-gated write) → due lists it by local day → complete rolls it.
+const madeTask = (await gcall("tasks.create", {
+  title: "compose smoke task",
+  interval: "1w",
+  due_at: new Date(Date.now() - 3_600_000).toISOString(), // an hour ago → today
+})) as { task?: { id: string; status: string } };
+if (!madeTask.task?.id || madeTask.task.status !== "open")
+  fail(`tasks.create → ${JSON.stringify(madeTask).slice(0, 200)}`);
+const dueNow = (await gcall("tasks.due", { horizon_days: 3 })) as {
+  today?: Array<{ id: string }>;
+  overdue?: Array<{ id: string }>;
+};
+if (![...(dueNow.today ?? []), ...(dueNow.overdue ?? [])].some((t) => t.id === madeTask.task?.id))
+  fail(`tasks.due does not list the due task: ${JSON.stringify(dueNow).slice(0, 200)}`);
+const completed = (await gcall("tasks.complete", { id: madeTask.task.id })) as {
+  task?: { closes: number; due: string | null; status: string };
+};
+if (
+  completed.task?.closes !== 1 ||
+  completed.task.status !== "open" ||
+  completed.task.due !== "in 7 days"
+)
+  fail(`tasks.complete → ${JSON.stringify(completed.task)}`);
+console.log("11. tasks: create → due lists it → complete rolls a week out ✓");
+
 await g.close();
 fakeGoogle.stop();
 

@@ -37,7 +37,11 @@ deploy_tag() {
   # script (and any ad-hoc op) runs as root, and one root-context
   # consolidate/pull strands root-owned files the consolidator then
   # EACCESes on (2026-08-28: 97 stranded files broke a supersede write).
+  # The tasks store dir (§16.3) must exist with the container uid BEFORE
+  # compose mounts it — Docker would create it root-owned and the console
+  # would crash-loop on its first open. Idempotent.
   set_tag "$1" &&
+    install -d -o 1000 -g 1000 /data/tasks &&
     { docker compose pull -q || docker compose build -q; } &&
     docker compose up -d --no-build --wait &&
     find /data/vault -not -user 1000 -exec chown 1000:1000 {} + &&

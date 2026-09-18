@@ -70,6 +70,23 @@ blockquote { border-left:3px solid var(--line); margin:0; padding:.1rem 1rem; co
 code { background:var(--card); border:1px solid var(--line); border-radius:4px; padding:0 .3rem; }
 pre { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:.8rem; overflow-x:auto; }
 table { border-collapse:collapse; } td,th { border:1px solid var(--line); padding:.3rem .6rem; }
+a.btn { display:inline-block; text-decoration:none; font-size:.85rem; color:var(--fg); background:var(--card); border:1px solid var(--line); border-radius:6px; padding:.3rem .8rem; }
+a.btn:hover { border-color:var(--accent); color:var(--accent); }
+button.btn.primary { border-color:var(--accent); color:var(--accent); font-weight:600; }
+ul.tasks { list-style:none; padding:0; margin:0 0 .8rem; }
+ul.tasks li { display:flex; gap:.6rem; align-items:baseline; flex-wrap:wrap; padding:.45rem 0; border-bottom:1px solid var(--line); }
+ul.tasks li:last-child { border-bottom:none; }
+ul.tasks .title { font-weight:600; flex:1 1 14rem; color:var(--fg); text-decoration:none; }
+ul.tasks .title:hover { color:var(--accent); }
+ul.tasks .acts a { font-size:.85rem; margin-left:.6rem; }
+.chip.bad { color:#b3402e; border-color:#b3402e; } .chip.warn { color:#b57316; border-color:#b57316; }
+form.stack label { display:block; margin:.6rem 0 .2rem; font-weight:600; font-size:.9rem; }
+form.stack input[type=text], form.stack input[type=datetime-local], form.stack select, form.stack textarea { font:inherit; max-width:32rem; background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:.4rem .6rem; }
+form.stack input[type=text], form.stack textarea { width:100%; }
+form.stack textarea { min-height:5rem; }
+form.inline { display:inline; }
+.choice { display:block; margin:.4rem 0; font-weight:400; }
+details.card summary { cursor:pointer; font-weight:600; }
 `;
 
 export function page(
@@ -81,6 +98,7 @@ export function page(
     ? `<nav class="top">
         <a href="/">graph</a>
         <a href="/vault">vault</a>
+        <a href="/tasks">tasks</a>
         <a href="/dashboard">dashboard</a>
         <a href="/architecture">architecture</a>
         <form action="/search" method="get"><input type="search" name="q" placeholder="search memory…"></form>
@@ -91,7 +109,7 @@ export function page(
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; form-action 'self'">
 <meta name="robots" content="noindex">
 <title>${esc(title)}</title>
 <style>${STYLE}</style>

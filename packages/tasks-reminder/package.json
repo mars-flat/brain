@@ -1,0 +1,18 @@
+{
+  "name": "@brain/tasks-reminder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The daily Mac reminder for the tasks tool (§16.6): a launchd agent that asks the gateway what is due and shows one read-only dialog a day. Laptop-only; never deployed.",
+  "bin": {
+    "tasks-reminder": "./src/reminder.ts",
+    "tasks-reminder-install": "./src/install.ts"
+  },
+  "exports": {
+    ".": "./src/reminder.ts"
+  },
+  "dependencies": {
+    "@brain/harness-claude-code": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.30.0"
+  }
+}
