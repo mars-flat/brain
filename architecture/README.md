@@ -170,8 +170,10 @@ is the Mac launchd agent: `max(9am, first open)` as a guard, one System
 Events dialog a day, read-only via its own `tools:read`-only Auth0 client.
 `brain backup` snapshots the store (`VACUUM INTO`) beside the vault; the
 compose smoke drives create → due → complete through the real gateway.
-Owner-run after merge (§13): the `tasks` roster entry on the VM, one
-`auth0-setup` re-run, the reminder installer.
+Same day, the owner made tasks the console's **front door**: `/` redirects
+to `/tasks`, tasks leads the top bar, and the graph is back at `/graph`
+(§15.3). Owner-run after merge (§13): the `tasks` roster entry on the VM,
+one `auth0-setup` re-run, the reminder installer.
 
 **One human blocker remains, and it only gates P6: the Discord bot** ([§13](./13-setup.md) has the walkthrough) — **deferred by the owner** for now. Open questions accumulate in `QUESTIONS-FOR-OWNER.md` at the repo root (local-only, gitignored).
 

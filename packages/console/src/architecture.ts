@@ -61,7 +61,7 @@ ${box(600, 240, 280, 90, "Caddy :443 (profile: edge)", ["Let's Encrypt cert via 
 ${box(910, 240, 230, 90, "routes", ["/mcp* + PRM → gateway", "everything else → console"])}
 
 ${grp(20, 390, 1140, 340, "AZURE brain-vm — Standard_B2pls_v2 ARM · canadacentral · NO PUBLIC IP · DOCKER COMPOSE (§3.1)")}
-${box(40, 430, 260, 100, "console :8091", ["OIDC session — HMAC cookie, 7d", "vault viewer (RO) · tasks tab (writes §16)", "pinned to the owner sub, else 403"])}
+${box(40, 430, 260, 100, "console :8091", ["OIDC session — HMAC cookie, 7d", "tasks — front door, writes §16 · vault RO", "pinned to the owner sub, else 403"])}
 ${box(330, 430, 260, 100, "gateway :8090", ["OAuth resource server (§4.3)", "4 meta-tools · policy · audit chain", "scope step-up · confirm · rate cap"])}
 ${box(620, 430, 220, 100, "stdio pool", ["one MCP client per upstream", "scrubbed env, neutral cwd", "down server ≠ down gateway"])}
 ${box(620, 570, 220, 70, "brain-mcp", ["recall · expand · note · pin", "ingest · search · timeline"])}

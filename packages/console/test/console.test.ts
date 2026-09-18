@@ -170,11 +170,14 @@ describe("auth (W1.2)", () => {
     expect((await fetch(`${console_.url}/healthz`)).status).toBe(200);
   });
 
-  test("the full code+PKCE round-trip issues a working session", async () => {
+  test("the full code+PKCE round-trip issues a working session; the root lands on tasks", async () => {
     const cookie = await login();
-    const home = await fetch(`${console_.url}/`, { headers: { cookie } });
-    expect(home.status).toBe(200);
-    expect(await home.text()).toContain("<canvas"); // the graph is the front door
+    const home = await fetch(`${console_.url}/`, { headers: { cookie }, redirect: "manual" });
+    expect(home.status).toBe(302);
+    expect(home.headers.get("location")).toBe("/tasks"); // tasks is the front door (2026-09-18)
+    const tasks = await fetch(`${console_.url}/tasks`, { headers: { cookie } });
+    expect(tasks.status).toBe(200);
+    expect(await tasks.text()).toContain("<h1>tasks</h1>");
   });
 
   test("logout clears the session and lands locally — no IdP bounce", async () => {
@@ -250,12 +253,9 @@ describe("viewer (W1.3)", () => {
     });
     expect(oldEps.status).toBe(302);
     expect(oldEps.headers.get("location")).toBe("/vault?view=episodes");
-    const oldGraph = await fetch(`${console_.url}/graph`, {
-      headers: { cookie },
-      redirect: "manual",
-    });
-    expect(oldGraph.status).toBe(302);
-    expect(oldGraph.headers.get("location")).toBe("/");
+    const graph = await fetch(`${console_.url}/graph`, { headers: { cookie } });
+    expect(graph.status).toBe(200); // /graph is a real route again (2026-09-18)
+    expect(await graph.text()).toContain("<canvas");
   });
 
   test("missing node 404s; hostile id 400s", async () => {
@@ -311,10 +311,10 @@ describe("dashboard (W1.4)", () => {
     expect(body).not.toContain("this line is torn"); // malformed input vanishes
   });
 
-  test("graph front door: page, data, and script all serve behind auth", async () => {
+  test("graph tab: page, data, and script all serve behind auth", async () => {
     const cookie = await login();
-    expect((await fetch(`${console_.url}/`, { redirect: "manual" })).status).toBe(302);
-    const pageRes = await fetch(`${console_.url}/`, { headers: { cookie } });
+    expect((await fetch(`${console_.url}/graph`, { redirect: "manual" })).status).toBe(302);
+    const pageRes = await fetch(`${console_.url}/graph`, { headers: { cookie } });
     expect(pageRes.status).toBe(200);
     const body = await pageRes.text();
     expect(body).toContain("<canvas");
