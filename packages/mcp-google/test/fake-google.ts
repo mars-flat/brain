@@ -28,6 +28,12 @@ interface FakeFile {
   content: string;
 }
 
+export interface FakeFilter {
+  id: string;
+  criteria: Record<string, unknown>;
+  action: { addLabelIds?: string[]; removeLabelIds?: string[]; forward?: string };
+}
+
 export interface FakeGoogle {
   url: string;
   state: {
@@ -37,6 +43,7 @@ export interface FakeGoogle {
     messages: Map<string, FakeMessage>;
     labels: Map<string, { id: string; name: string; type: string }>;
     files: Map<string, FakeFile>;
+    filters: Map<string, FakeFilter>;
   };
   stop(): void;
 }
@@ -192,6 +199,7 @@ export function startFakeGoogle(port: number): FakeGoogle {
   const messages = seedMessages();
   const labels = seedLabels();
   const files = seedFiles();
+  const filters = new Map<string, FakeFilter>();
   let nextId = 1;
 
   const server = Bun.serve({
@@ -264,6 +272,30 @@ export function startFakeGoogle(port: number): FakeGoogle {
         ];
         return Response.json({ id: msg.id, threadId: msg.threadId, labelIds: msg.labelIds });
       }
+      if (path === "/gmail/v1/users/me/messages/batchModify" && req.method === "POST") {
+        const body = (await req.json()) as {
+          ids: string[];
+          addLabelIds?: string[];
+          removeLabelIds?: string[];
+        };
+        for (const l of body.addLabelIds ?? [])
+          if (!labels.has(l))
+            return Response.json(
+              { error: { code: 400, message: `unknown label ${l}` } },
+              { status: 400 },
+            );
+        for (const id of body.ids) {
+          const msg = messages.get(id);
+          if (!msg) continue; // the real API silently skips unknown ids
+          msg.labelIds = [
+            ...new Set([
+              ...msg.labelIds.filter((l) => !(body.removeLabelIds ?? []).includes(l)),
+              ...(body.addLabelIds ?? []),
+            ]),
+          ];
+        }
+        return new Response(null, { status: 204 });
+      }
       const threadGet = path.match(/^\/gmail\/v1\/users\/me\/threads\/([^/]+)$/);
       if (threadGet && req.method === "GET") {
         const inThread = [...messages.values()].filter((x) => x.threadId === threadGet[1]);
@@ -281,6 +313,36 @@ export function startFakeGoogle(port: number): FakeGoogle {
         const id = `Label_${nextId++}`;
         labels.set(id, { id, name: body.name, type: "user" });
         return Response.json({ id, name: body.name, type: "user" });
+      }
+
+      // ── Gmail settings: filters (the real API validates label ids and
+      //    rejects an empty action; the fake does the same, loudly) ──
+      if (path === "/gmail/v1/users/me/settings/filters" && req.method === "GET")
+        return Response.json({ filter: [...filters.values()] });
+      if (path === "/gmail/v1/users/me/settings/filters" && req.method === "POST") {
+        const body = (await req.json()) as Omit<FakeFilter, "id">;
+        const action = body.action ?? {};
+        for (const l of [...(action.addLabelIds ?? []), ...(action.removeLabelIds ?? [])])
+          if (!labels.has(l))
+            return Response.json(
+              { error: { code: 400, message: `unknown label ${l}` } },
+              { status: 400 },
+            );
+        if (!Object.keys(body.criteria ?? {}).length || !Object.keys(action).length)
+          return Response.json(
+            { error: { code: 400, message: "filter needs criteria and an action" } },
+            { status: 400 },
+          );
+        const id = `ANe1Bmi${nextId++}`;
+        const f: FakeFilter = { id, criteria: body.criteria, action };
+        filters.set(id, f);
+        return Response.json(f);
+      }
+      const filterDel = path.match(/^\/gmail\/v1\/users\/me\/settings\/filters\/([^/]+)$/);
+      if (filterDel && req.method === "DELETE") {
+        if (!filters.delete(decodeURIComponent(filterDel[1] as string)))
+          return Response.json({ error: { code: 404, message: "not found" } }, { status: 404 });
+        return new Response(null, { status: 204 });
       }
 
       // ── Drive (metadata + content) ──
@@ -406,6 +468,7 @@ export function startFakeGoogle(port: number): FakeGoogle {
       messages,
       labels,
       files,
+      filters,
     },
     stop: () => server.stop(true),
   };

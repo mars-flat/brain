@@ -66,6 +66,7 @@ DISCORD_GUILD_ID=...       # optional, if using a channel rather than DMs
 
 ### Things only you can ever do, at any phase
 
+- **Re-consent each Google account once for filter control** (2026-09-18): `bun scripts/google-auth.ts <short-name> <email>` again — the scope set grew by `gmail.settings.basic`. Until then that account's `mail_*_filter` tools 403; everything else keeps working on the old token. The new token lands in the laptop vault's secret store; the VM picks it up on its next vault pull.
 - **Click "Allow" on OAuth consent screens.** The gateway generates the URL and handles everything after the redirect — but the consent itself is a human act. This is by design, not a limitation.
 - **Accept terms of service** for any provider.
 - **Enter payment details** anywhere.

@@ -1,0 +1,33 @@
+# Gmail filter spec for one account (packages/mcp-google/src/filter-spec.ts),
+# applied by `bun scripts/gmail-filters.ts apply g-example <this file>`.
+# Synthetic: the real spec lives in the private vault's config/gmail-filters/.
+#
+# Each rule is a deterministic Gmail search plus a label and/or archive.
+# Every matching filter applies, so a broad "label only" rule and a narrow
+# "label + archive" rule stack: the message gets both labels and leaves the
+# inbox. `query` sees the body, which is how mail auto-forwarded from another
+# mailbox (arriving *from* that mailbox, original sender quoted in the text)
+# is still sortable by its real origin.
+account: g-example
+rules:
+  - name: school catch-all
+    query: 'from:(school.invalid OR school-forwarder.invalid)'
+    label: school
+
+  - name: school/forum digests
+    query: 'from:(school.invalid OR school-forwarder.invalid) "digest@forum.invalid" subject:"Daily Digest"'
+    label: school/forum
+    archive: true
+
+  - name: school/lms announcements
+    query: 'from:(school.invalid OR school-forwarder.invalid) "announce@lms.invalid"'
+    label: school/lms
+
+  - name: newsletters
+    query: 'from:(newsletter.invalid OR digest.invalid)'
+    label: news
+    archive: true
+
+  - name: promotions
+    query: 'from:(deals.invalid OR promo.invalid)'
+    archive: true

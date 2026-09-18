@@ -118,6 +118,14 @@ through the real gateway with real reads. Remaining for the VM leg: the
 owner-run secrets copy (master key + client creds — §W2 handoff), a
 vault pull + gateway restart, then the done-when through the domain.
 
+*2026-09-18 — filter control.* Three tools (`mail_list_filters`,
+`mail_create_filter`, `mail_delete_filter`) plus a declarative per-account
+filter spec in the private vault, reconciled by `scripts/gmail-filters.ts`
+(labels, filters, optional backfill; nothing deleted). Same no-send rule:
+a filter's `forward` action is refused structurally. **Consent scope grew**
+to `gmail.settings.basic` — each account needs a one-time re-consent before
+its filter tools work (§13). Per-server detail stays in the package README.
+
 **W3 is done (2026-08-31) — retrieval tuning instead of vector search.** The
 owner weighed adding an embedding model and decided decision #5 stands; the
 measured gaps were elsewhere and got fixed directly. The adversarial
