@@ -182,10 +182,19 @@ list (rename inline, delete, create) and lists the derived tags read-only
 with counts. A task's page puts *done* (green), *skip this one* (orange),
 and *retire* (red) on one line, folds the history into a `<details>`
 toggle, and edits in a native `<dialog>` with save/cancel — opened by
-`tasks-client.js`, served as `/tasks.js`: the console's second script
-after the graph's, same-origin as the CSP requires. Retired tasks gain
-**delete forever**, which lands on its own confirmation page before the
-POST; open tasks must be retired first.
+`console-client.js`, served as `/console.js` on every authed page: the
+console's second script after the graph's, same-origin as the CSP
+requires. Retired tasks gain **delete forever**, which lands on its own
+confirmation page before the POST; open tasks must be retired first.
+
+**Notices are toasts** (owner, 2026-09-18): the result of any POST — done,
+skipped, retired, deleted forever, tag changes, and every rule violation —
+arrives as a fixed bottom-right toast rather than a line in the page.
+Good news auto-dismisses after a few seconds by CSS animation; a warning
+stays until its dismiss button is clicked, so a form error is never missed.
+The shared script also scrubs `?ok=`/`?err=` from the address bar, so a
+refresh never replays a notice. The dashboard's refresh/throttle notices
+use the same toast.
 
 ### 16.5 The `tasks.*` upstream
 

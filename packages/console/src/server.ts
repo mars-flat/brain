@@ -13,7 +13,7 @@ import { architecturePage } from "./architecture.ts";
 import { type ConsoleConfig, loadVaultConsoleConfig } from "./config.ts";
 import { clearTileCache, dashboardPage } from "./dashboard.ts";
 import { graphJson, graphPage } from "./graph.ts";
-import { esc, page } from "./html.ts";
+import { esc, page, toast } from "./html.ts";
 import { buildAuthRequest, discover, exchangeCode, type OidcClient } from "./oidc.ts";
 import { clearProbeCache } from "./services.ts";
 import { cookieHeader, openSession, readCookie, type Session, sealSession } from "./session.ts";
@@ -164,8 +164,8 @@ export function startConsole(cfg: ConsoleConfig): RunningConsole {
         const rendered = nodePage(store, id);
         return rendered ? html(rendered) : html(errorPage(`no node “${esc(id)}”`), 404);
       }
-      if (path === "/tasks.js")
-        return new Response(Bun.file(join(import.meta.dir, "tasks-client.js")), {
+      if (path === "/console.js")
+        return new Response(Bun.file(join(import.meta.dir, "console-client.js")), {
           headers: { "content-type": "text/javascript; charset=utf-8" },
         });
       const tasksRes = await handleTasks(req, url, session, cfg, tasks);
@@ -190,9 +190,9 @@ export function startConsole(cfg: ConsoleConfig): RunningConsole {
         const throttled = Number(url.searchParams.get("throttled"));
         const notice =
           url.searchParams.get("refreshed") === "1"
-            ? `<p class="ok">refreshed — every card refetched live</p>`
+            ? toast("ok", "refreshed — every card refetched live")
             : Number.isFinite(throttled) && throttled > 0
-              ? `<p class="warn">throttled — next refresh in ${Math.min(Math.ceil(throttled), 60)}s</p>`
+              ? toast("warn", `throttled — next refresh in ${Math.min(Math.ceil(throttled), 60)}s`)
               : "";
         return html(await dashboardPage(cfg, vaultCfg, store, db, session.sub, notice));
       }

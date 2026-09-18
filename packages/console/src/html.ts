@@ -109,7 +109,22 @@ form.stack input[type=text], form.stack textarea { width:100%; }
 form.stack textarea { min-height:5rem; }
 form.inline { display:inline; }
 .choice { display:block; margin:.4rem 0; font-weight:400; }
+.toast { position:fixed; right:1.2rem; bottom:1.2rem; z-index:50; max-width:min(26rem, calc(100vw - 2.4rem)); background:var(--card); color:var(--fg); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:10px; padding:.7rem 2.2rem .7rem 1rem; box-shadow:0 8px 24px rgba(0,0,0,.18); font-size:.92rem; animation:toast-in .25s ease-out; }
+.toast.ok { border-left-color:#3c7d4e; } .toast.warn { border-left-color:#b57316; }
+.toast.auto { animation:toast-in .25s ease-out, toast-out .6s ease-in 4s forwards; }
+.toast .x { position:absolute; top:.3rem; right:.5rem; border:0; background:none; color:var(--muted); font:inherit; font-size:1.15rem; line-height:1; cursor:pointer; }
+.toast .x:hover { color:var(--fg); }
+@keyframes toast-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+@keyframes toast-out { to { opacity:0; visibility:hidden; } }
 `;
+
+/**
+ * A toast (§16.4): fixed bottom-right, auto-dismissing for good news, sticky
+ * with a dismiss button for warnings. `message` must already be safe HTML.
+ */
+export function toast(kind: "ok" | "warn", message: string): string {
+  return `<div class="toast ${kind}${kind === "ok" ? " auto" : ""}" role="status" data-toast>${message}<button class="x" type="button" aria-label="dismiss">×</button></div>`;
+}
 
 export function page(
   title: string,
@@ -135,5 +150,5 @@ export function page(
 <meta name="robots" content="noindex">
 <title>${esc(title)}</title>
 <style>${STYLE}</style>
-</head><body>${nav}<main${opts.wide ? ` class="wide"` : ""}>${body}</main></body></html>`;
+</head><body>${nav}<main${opts.wide ? ` class="wide"` : ""}>${body}</main>${opts.authed ? `<script type="module" src="/console.js"></script>` : ""}</body></html>`;
 }
