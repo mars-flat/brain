@@ -125,9 +125,7 @@ describe("the installer", () => {
     expect(res.filesWritten).toEqual([reminderPaths(home).config, plistPath(home)]);
     const plist = readFileSync(plistPath(home), "utf8");
     expect(plist).toContain(`<string>${LABEL}</string>`);
-    expect(plist).toContain(
-      "<string>/srv/brain/packages/tasks-reminder/src/reminder.ts</string>",
-    );
+    expect(plist).toContain("<string>/srv/brain/packages/tasks-reminder/src/reminder.ts</string>");
     expect(plist).toContain("<key>WorkingDirectory</key><string>/srv/brain</string>");
     expect(plist).toContain("<key>Hour</key><integer>9</integer>");
     expect(plist).toContain("<key>StartInterval</key><integer>1800</integer>");
