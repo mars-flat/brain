@@ -96,9 +96,9 @@ export function page(
 ): string {
   const nav = opts.authed
     ? `<nav class="top">
-        <a href="/">graph</a>
-        <a href="/vault">vault</a>
         <a href="/tasks">tasks</a>
+        <a href="/graph">graph</a>
+        <a href="/vault">vault</a>
         <a href="/dashboard">dashboard</a>
         <a href="/architecture">architecture</a>
         <form action="/search" method="get"><input type="search" name="q" placeholder="search memory…"></form>

@@ -5,8 +5,9 @@
 ## 15. `packages/console` — the authenticated vault viewer + ops dashboard
 
 Added post-P5 (W1, 2026-08-27). Behind one login on one real domain: the
-root is the **graph** — the owner promoted it to the front door
-(2026-08-28); `/vault` is the **live vault**, rendered read-only, with the
+root redirects to **`/tasks`** — the owner made tasks the front door on
+2026-09-18 (§16.4), the graph having held it since 2026-08-28; `/graph` is
+the **typed graph**; `/vault` is the **live vault**, rendered read-only, with the
 node index and the episode timeline behind one nodes/episodes toggle;
 `/dashboard` is the **ops hub** for everything running behind the brain. The concrete
 hostname, tenant, and tailnet names are deployment config and never appear
@@ -59,9 +60,10 @@ edges both directions, pins, and provenance; plus index-by-type, the
 episode timeline, and FTS5 search. The index and timeline share the one
 `/vault` tab behind a segmented nodes/episodes toggle — episodes stopped
 being a standalone section (owner's call, 2026-08-28; the old `/episodes`
-and `/graph` routes 302 to where the content went). The graph tab
-(owner-requested, 2026-08-28 — ends the §15.5 deferral; promoted to the
-root route the same day) renders the typed graph itself: a hand-rolled force
+route 302s to the vault tab). The graph tab at `/graph` (owner-requested,
+2026-08-28 — ends the §15.5 deferral; it was the root route from that day
+until 2026-09-18, when the owner made tasks the front door and the root
+became a redirect to `/tasks`, §16.4) renders the typed graph itself: a hand-rolled force
 layout on a canvas, no library — the CSP admits only same-origin scripts,
 and at vault scale O(n²) repulsion is nothing. Data ships as `/graph.json`
 from `loadGraph()`; nodes are sized by degree, colored by a fixed

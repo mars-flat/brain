@@ -109,7 +109,9 @@ never captured mid-write. `scripts/restore-drill.sh` restores both.
 ### 16.4 The console tab: the first write path
 
 `/tasks` is a tab on the existing console, not a subdomain (§12 Q10): the
-dashboard, one login, one cert. Server-rendered, forms that **POST and
+dashboard, one login, one cert. Since 2026-09-18 it is also the **front
+door** — the root URL redirects here and tasks leads the top bar (owner's
+call; the graph moved back to its own `/graph` route, §15.3). Server-rendered, forms that **POST and
 303-redirect** so a refresh never repeats a write — the same pattern the
 dashboard's refresh button already used. No JavaScript was added.
 

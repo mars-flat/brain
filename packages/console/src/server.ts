@@ -139,15 +139,16 @@ export function startConsole(cfg: ConsoleConfig): RunningConsole {
       if (cfg.allowedSubs.length > 0 && !cfg.allowedSubs.includes(session.sub))
         return html(errorPage("session identity is not the pinned owner"), 403);
 
-      // The graph is the front door; the vault (with its episodes view)
-      // is the second tab. Old bookmarks land where the content went.
-      if (path === "/") return html(graphPage(store));
+      // Tasks is the front door (owner, 2026-09-18 — §16.4); the graph held
+      // it from 2026-08-28 and lives at /graph again. Old bookmarks land
+      // where the content went.
+      if (path === "/") return redirect("/tasks");
       if (path === "/vault")
         return html(
           vaultPage(store, url.searchParams.get("view") === "episodes" ? "episodes" : "nodes"),
         );
       if (path === "/episodes") return redirect("/vault?view=episodes");
-      if (path === "/graph") return redirect("/");
+      if (path === "/graph") return html(graphPage(store));
       if (path === "/graph.json")
         return new Response(graphJson(store), {
           headers: { "content-type": "application/json" },
