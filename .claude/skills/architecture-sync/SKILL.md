@@ -30,6 +30,8 @@ Then read **only** the chapter covering what you're touching. The docs were spli
 | Node parsing, edges, Obsidian format, storage | `05-brain-model` |
 | Traversal, packing, scoring, consolidation, lint | `06-brain-runtime` |
 | `packages/gateway/` — MCP, auth, policy, tool index | `04-gateway` |
+| `packages/console/` — the web console, dashboard, edge | `15-console` |
+| `packages/tasks/`, `packages/tasks-reminder/`, the console's `/tasks` tab | `16-tasks` |
 | `packages/agent-runtime/`, `surface-*`, session router | `08-surfaces` |
 | `adapters/`, Docker, Compose, anything Azure | `03-deployment` (+ `azure/azure-config.md`) |
 | Tests, invariants, CI workflows | `10-testing` |

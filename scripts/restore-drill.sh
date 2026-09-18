@@ -33,6 +33,10 @@ tar -xzf "${SCRATCH}/backup.tar.gz" -C "${SCRATCH}"
   mv "${SCRATCH}/$(basename "$(cd "$VAULT" && pwd)")" "${SCRATCH}/vault"
 }
 chmod -R a+rwX "${SCRATCH}/vault"
+# §16.3: the tasks store restores beside the vault when the backup had one;
+# the mount must exist writable either way (a fresh host starts empty).
+if [ -f "${SCRATCH}/tasks/tasks.db" ]; then echo "   tasks store restored"; else echo "   (backup carried no tasks store)"; fi
+mkdir -p "${SCRATCH}/tasks" && chmod -R a+rwX "${SCRATCH}/tasks"
 
 echo "3. stack up on restored data"
 export BRAIN_DATA_DIR="${SCRATCH}"

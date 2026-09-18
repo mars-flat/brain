@@ -1,0 +1,19 @@
+{
+  "name": "@brain/tasks",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Recurring tasks (§16): a pure completion-anchored recurrence core, its own SQLite store, and the tasks.* MCP upstream. A separate tool from the brain — never vault nodes.",
+  "bin": {
+    "mcp-tasks": "./src/main.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0"
+  },
+  "devDependencies": {
+    "fast-check": "4.9.0"
+  }
+}

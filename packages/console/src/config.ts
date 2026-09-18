@@ -6,7 +6,8 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { resolveTz } from "@brain/tasks";
 
 export interface ConsoleConfig {
   vaultPath: string;
@@ -26,6 +27,10 @@ export interface ConsoleConfig {
   /** Gateway upstream-status endpoint (internal; Caddy never routes it). */
   gatewayHealthUrl: string;
   sessionTtlMs: number;
+  /** The tasks store (§16.3) — its own SQLite file, beside the vault, never inside it. */
+  tasksDbPath: string;
+  /** IANA zone for the tasks tab's day boundaries (§16.3); UTC when unset. */
+  tasksTz: string;
 }
 
 export function loadConfig(env: Record<string, string | undefined>): ConsoleConfig {
@@ -54,6 +59,8 @@ export function loadConfig(env: Record<string, string | undefined>): ConsoleConf
       env.CONSOLE_GATEWAY_HEALTH_URL ??
       `${new URL(env.CONSOLE_GATEWAY_PRM_URL ?? "http://127.0.0.1:8090/").origin}/healthz/upstreams`,
     sessionTtlMs: 7 * 24 * 3600_000,
+    tasksDbPath: env.TASKS_DB_PATH ?? join(dirname(resolve(vaultPath)), "tasks", "tasks.db"),
+    tasksTz: resolveTz(env.TASKS_TZ),
   };
 }
 

@@ -6,6 +6,7 @@
  *   - `brain-cli`      native + PKCE (loopback callbacks, port-agnostic)
  *   - `brain-hook`     M2M, granted brain:write only  (SessionEnd delivery)
  *   - `agent-runtime`  M2M, granted read+write scopes (P6)
+ *   - `tasks-reminder` M2M, granted tools:read only  (daily Mac reminder, §16.6)
  *
  * Needs a Management API credential in the environment (owner creates one
  * M2M app authorized for the Management API — see QUESTIONS P5-1):
@@ -142,6 +143,13 @@ const runtime = await ensureClient("agent-runtime", {
   grant_types: ["client_credentials"],
 });
 
+// The daily reminder (§16.6) only ever reads `tasks.due` — least privilege
+// is a client that can never hold a write scope.
+const reminder = await ensureClient("tasks-reminder", {
+  app_type: "non_interactive",
+  grant_types: ["client_credentials"],
+});
+
 // ── client grants (M2M → the API, least privilege each) ───────────────────
 interface Grant {
   id: string;
@@ -159,6 +167,7 @@ async function ensureGrant(client: Client, scope: string[]): Promise<void> {
 }
 await ensureGrant(hook, ["brain:write"]);
 await ensureGrant(runtime, ["brain:read", "brain:write", "tools:read", "tools:write"]);
+await ensureGrant(reminder, ["tools:read"]);
 
 // ── what goes where ────────────────────────────────────────────────────────
 console.log(`
@@ -166,6 +175,8 @@ Done. Copy into the LAPTOP .env (SessionEnd delivery, §6.4):
   BRAIN_HOOK_CLIENT_ID=${hook.client_id}
   BRAIN_HOOK_CLIENT_SECRET=<Applications → brain-hook → Settings → Client Secret>
   BRAIN_HOOK_AUDIENCE=${AUDIENCE}
+  TASKS_REMINDER_CLIENT_ID=${reminder.client_id}
+  TASKS_REMINDER_CLIENT_SECRET=<Applications → tasks-reminder → Settings → Client Secret>
 
 And into the VM's deploy/compose/.env:
   GATEWAY_ISSUER=https://${DOMAIN}/

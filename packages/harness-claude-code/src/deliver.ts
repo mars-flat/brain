@@ -25,6 +25,8 @@ export interface DeliveryTarget {
   /** Pre-acquired bearer — skips the whole token flow (tests, smoke). */
   token?: string;
   tokenCachePath?: string;
+  /** Scope to request. Default brain:write (the hook); the tasks reminder asks for tools:read (§16.6). */
+  scope?: string;
 }
 
 export interface DeliveryResult {
@@ -106,8 +108,9 @@ export async function clientCredentialsToken(
   if (!target.clientId || !target.clientSecret)
     throw new Error("no credentials: set BRAIN_HOOK_CLIENT_ID and BRAIN_HOOK_CLIENT_SECRET");
 
+  const scope = target.scope ?? "brain:write";
   const cachePath = target.tokenCachePath ?? defaultTokenCachePath();
-  const cacheKey = `${target.gatewayUrl} ${target.clientId}`;
+  const cacheKey = `${target.gatewayUrl} ${target.clientId} ${scope}`;
   try {
     const cached = JSON.parse(readFileSync(cachePath, "utf8")) as CachedToken;
     if (cached.key === cacheKey && cached.expires_at - EXPIRY_SKEW_S > now() / 1000)
@@ -122,7 +125,7 @@ export async function clientCredentialsToken(
     grant_type: "client_credentials",
     client_id: target.clientId,
     client_secret: target.clientSecret,
-    scope: "brain:write",
+    scope,
   });
   if (target.audience) body.set("audience", target.audience);
   const res = await fetchFn(endpoint, {

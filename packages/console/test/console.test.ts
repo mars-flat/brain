@@ -135,6 +135,8 @@ services:
       CONSOLE_ISSUER: idp.issuer,
       CONSOLE_CLIENT_ID: "brain-console",
       CONSOLE_GATEWAY_PRM_URL: "http://127.0.0.1:1/nope", // degraded tile on purpose
+      TASKS_DB_PATH: join(vault, "tasks", "tasks.db"), // scratch, never the tmpdir-wide default
+      TASKS_TZ: "America/Toronto",
     }),
   );
 });
@@ -394,6 +396,152 @@ describe("dashboard (W1.4)", () => {
     expect(tile.cls).toBe("bad");
     expect(tile.html).toContain("soon");
     expect(tile.html).toMatch(/3d/);
+  });
+});
+
+describe("tasks (§16) — the console's one write path", () => {
+  const post = (
+    cookie: string,
+    path: string,
+    fields: Record<string, string>,
+    headers: Record<string, string> = {},
+  ) =>
+    fetch(`${console_.url}${path}`, {
+      method: "POST",
+      redirect: "manual",
+      headers: { cookie, origin: console_.url, ...headers },
+      body: new URLSearchParams(fields),
+    });
+  async function csrfFor(cookie: string): Promise<string> {
+    const body = await (await fetch(`${console_.url}/tasks/new`, { headers: { cookie } })).text();
+    return /name="csrf" value="([^"]+)"/.exec(body)?.[1] ?? "";
+  }
+
+  test("the tab renders behind auth, empty at first, with the nav entry and form-action CSP", async () => {
+    expect((await fetch(`${console_.url}/tasks`, { redirect: "manual" })).status).toBe(302);
+    const cookie = await login();
+    const res = await fetch(`${console_.url}/tasks`, { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain("nothing open");
+    expect(body).toContain(`href="/tasks"`);
+    expect(body).toContain("form-action 'self'");
+    expect(body).toContain("America/Toronto");
+  });
+
+  test("a POST without the token, from another origin, or anonymous writes nothing", async () => {
+    const cookie = await login();
+    const csrf = await csrfFor(cookie);
+    expect(csrf.length).toBeGreaterThan(20);
+    expect((await post(cookie, "/tasks", { title: "x", interval: "1w" })).status).toBe(403);
+    expect(
+      (
+        await post(
+          cookie,
+          "/tasks",
+          { title: "x", interval: "1w", csrf },
+          { origin: "https://evil.example" },
+        )
+      ).status,
+    ).toBe(403);
+    expect(
+      (await post(cookie, "/tasks", { title: "x", interval: "1w", csrf: `${csrf.slice(0, -2)}zz` }))
+        .status,
+    ).toBe(403);
+    const anon = await fetch(`${console_.url}/tasks`, {
+      method: "POST",
+      redirect: "manual",
+      headers: { origin: console_.url },
+      body: new URLSearchParams({ title: "x", interval: "1w", csrf }),
+    });
+    expect(anon.status).toBe(302); // login bounce, nothing written
+    expect(
+      await (await fetch(`${console_.url}/tasks`, { headers: { cookie } })).text(),
+    ).not.toContain(">x<");
+  });
+
+  test("create → list → done prompt (yes default) → rolled a week out → retire → reopen", async () => {
+    const cookie = await login();
+    const csrf = await csrfFor(cookie);
+    const created = await post(cookie, "/tasks", {
+      csrf,
+      title: "water plants",
+      notes: "the fern",
+      interval: "1w",
+      anchor: "completion",
+      due: "",
+    });
+    expect(created.status).toBe(303);
+    const loc = created.headers.get("location") ?? "";
+    expect(loc).toMatch(/^\/tasks\/[A-Za-z0-9_-]+\?ok=created$/);
+    const id = loc.slice("/tasks/".length).split("?")[0] as string;
+    const list = await (await fetch(`${console_.url}/tasks`, { headers: { cookie } })).text();
+    expect(list).toContain("water plants");
+    expect(list).toContain("every 1 week");
+    expect(list).toContain(`href="/tasks/${id}/close?kind=completed"`);
+    const prompt = await (
+      await fetch(`${console_.url}/tasks/${id}/close?kind=completed`, { headers: { cookie } })
+    ).text();
+    expect(prompt).toContain("schedule again?");
+    expect(prompt).toContain(`value="yes" checked`); // the owner's default
+    const done = await post(cookie, `/tasks/${id}/close`, {
+      csrf,
+      kind: "completed",
+      repeat: "yes",
+    });
+    expect(done.status).toBe(303);
+    expect(done.headers.get("location")).toBe("/tasks?ok=done-rolled");
+    const detail = await (
+      await fetch(`${console_.url}/tasks/${id}`, { headers: { cookie } })
+    ).text();
+    expect(detail).toContain("done · on time");
+    expect(detail).toContain("next due");
+    expect(detail).toContain("in 7 days");
+    expect(detail).toContain("1 closed");
+    const retired = await post(cookie, `/tasks/${id}/retire`, { csrf });
+    expect(retired.headers.get("location")).toBe(`/tasks/${id}?ok=retired`);
+    expect(
+      await (await fetch(`${console_.url}/tasks?view=retired`, { headers: { cookie } })).text(),
+    ).toContain("water plants");
+    // closing a retired task bounces back with a notice instead of a prompt
+    expect(
+      (
+        await fetch(`${console_.url}/tasks/${id}/close?kind=completed`, {
+          headers: { cookie },
+          redirect: "manual",
+        })
+      ).status,
+    ).toBe(303);
+    const reopened = await post(cookie, `/tasks/${id}/reopen`, { csrf, due: "2026-12-01T09:00" });
+    expect(reopened.status).toBe(303);
+    const again = await (
+      await fetch(`${console_.url}/tasks/${id}`, { headers: { cookie } })
+    ).text();
+    expect(again).toContain("Dec 1, 2026"); // rendered in TASKS_TZ
+    expect(again).toContain("reopened");
+  });
+
+  test("rule violations come back as a notice on the form, never a 500; bad ids 404", async () => {
+    const cookie = await login();
+    const csrf = await csrfFor(cookie);
+    const bad = await post(cookie, "/tasks", { csrf, title: "   ", interval: "1w" });
+    expect(bad.status).toBe(303);
+    expect(bad.headers.get("location")).toMatch(/^\/tasks\/new\?err=/);
+    const form = await (
+      await fetch(`${console_.url}${bad.headers.get("location")}`, { headers: { cookie } })
+    ).text();
+    expect(form).toContain("title is required");
+    const badInterval = await post(cookie, "/tasks", {
+      csrf,
+      title: "x",
+      interval: "custom",
+      interval_custom: "soonish",
+    });
+    expect(badInterval.headers.get("location")).toMatch(/unreadable/);
+    expect((await fetch(`${console_.url}/tasks/nope`, { headers: { cookie } })).status).toBe(404);
+    expect((await fetch(`${console_.url}/tasks/..%2Fetc`, { headers: { cookie } })).status).toBe(
+      404,
+    );
   });
 });
 

@@ -6,6 +6,10 @@
 # Azure account config — real subscription identifiers, local only
 /azure/
 
+# The tasks store on a dev laptop (§16.3) — source of truth, but the owner's
+# private schedule; the VM keeps it at /data/tasks, never in any git repo.
+/tasks/
+
 # Secrets & env — only .env.example is committed (§9.2)
 .env*
 !.env.example

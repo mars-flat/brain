@@ -23,7 +23,9 @@ mars-flat/brain/                    # PUBLIC
 │   ├── surface-cli/                # † ← plugin
 │   ├── surface-testkit/            # † conformance suite every adapter must pass
 │   ├── mcp-google/                 # W2: per-account Google mail+Drive MCP
-│   ├── console/                    # W1: web console + dashboard (§15)
+│   ├── tasks/                      # T1: recurrence core + own SQLite store + tasks.* MCP (§16)
+│   ├── tasks-reminder/             # T1: the Mac launchd reminder — laptop-only, never deployed
+│   ├── console/                    # W1: web console + dashboard (§15) — /tasks tab writes §16's store
 │   ├── harness-claude-code/        # MCP config + SessionEnd hook + CLAUDE.md
 │   └── cli/                        # brain init | doctor | rebuild | lint | eval | backup
 ├── adapters/
@@ -39,6 +41,8 @@ mars-flat/brain/                    # PUBLIC
 ├── .github/{workflows/{ci.yml,deploy.yml,scan.yml},dependabot.yml}
 ├── .githooks/pre-commit†           # refuses any staged vault/ path (CI's repo-split-guard covers it today)
 ├── bunfig.toml  bun.lock  .env.example  .gitleaks.toml  .dependency-cruiser.js
+│
+├── tasks/                          # ← the tasks store on a dev laptop (VM: /data/tasks). gitignored (§16.3)
 │
 └── vault/                          # ← SEPARATE GIT REPO. gitignored here.
     ├── .git/                       #   own history; private remote since P5 (§12 Q1)
@@ -115,6 +119,11 @@ Estimates are working days and they're guesses. **P2 is most likely to double** 
 | 6 | ~~Self-hosted authorization server, or hosted IdP?~~ **Done (2026-08-27): Auth0 is live.** Tenant configured as code (`scripts/auth0-setup.ts`: the gateway API + §4.3 scopes — audience since migrated to the canonical resource URL, display name `tool-gateway` — plus `brain-cli` native+PKCE, `brain-hook` M2M `brain:write`-only, `agent-runtime` M2M); the VM swap really was one issuer URL. Verified from the laptop over the tailnet: token minted, scope step-up enforced (write-only credential 403s on read), headless delivery → queued → consolidated → pushed. Claude Code uses the pre-registered `brain-cli` client id via the mcp `oauth` block (local scope — the tailnet URL stays out of the public repo, §9.2). *Hardening owner-side: disable public signups + social on the tenant (§13)* | ~~Hosted IdP~~ — resolved as decided |
 | 7 | Does `agent-runtime` use the OpenAI Agents SDK, or a hand-rolled loop? (§6.0) | **Agents SDK**, pending an MCP-transport check at P6. The loop and tool plumbing are not where your differentiation is |
 | 8 | ~~**Raise the Azure budgets before P5?** (§3.2)~~ **Done (2026-08-27):** re-spaced at *double* the suggested values — `monthly-tripwire` → 110 CAD, `auto-shutdown-cap` → 180 CAD, `total-credit-cap` → 2000 CAD — owner's call, the credit pool grew substantially. Action-group wiring preserved and re-verified (§3.2). The OpenAI dashboard limit is also set (owner, same day) — **both P5 gates are clear** | ~~Yes — 55/90~~ superseded by the doubled values |
+| 10 | **Tasks (§16): a tab on the console, or a subdomain?** | **`/tasks` on the console** — a second subdomain is a cert + timer, a Caddy block, an Auth0 client + callback, a session secret, and a compose service, to deliver a tab. Take it only if tasks must outlive a brain outage or be reachable off the tailnet |
+| 11 | **Tasks: interval required at creation?** The spec says every task carries one; genuine one-offs then need a fake interval | **Required, with an explicit "one-off" option.** The alternative — ask at completion, when you actually know — stays open |
+| 12 | **Tasks: a due-anchored task late by more than one interval** | **Advance to the first future slot, keeping the cadence phase** — otherwise "next" lands in the past |
+| 13 | **Tasks: which zone is "today"?** | **`TASKS_TZ` on the VM, UTC when unset** — instants are stored; only the day boundary and the rendering need a zone |
+| 14 | **Tasks: the completion prompt — the spec's blocking yes/no page, or an inline reversible line?** | **The spec's page, yes as the default button.** The inline "done · repeats Sep 24 · change · don't repeat" line is the same semantics with no interruption and a one-file swap if the prompt wears thin |
 | 9 | **If the W3 retrieval numbers (§8.5) decay as the vault grows, what comes before the Embedder A/B?** Miss-mining, designed at W3 but deliberately unbuilt: episodes already record every real `brain.recall` with its args, so a hedged/abstained recall followed in the same episode by a reworded recall that succeeded is a labeled pair — *phrasing that failed → node that was wanted*. The nightly cheap-model pass mines these and proposes **aliases** on the target nodes through the lint proposal file (owner-approved, single-writer, both eval suites must hold). The synonym table grows exactly where reality demonstrated a vocabulary hole — still zero models at recall time | Build miss-mining first; run the §8.5 Embedder A/B only if the numbers stay low afterward |
 
 ---

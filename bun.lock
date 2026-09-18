@@ -86,6 +86,7 @@
       },
       "dependencies": {
         "@brain/brainstore": "workspace:*",
+        "@brain/tasks": "workspace:*",
         "jose": "6.2.10",
         "marked": "16.4.1",
       },
@@ -149,6 +150,31 @@
         "@modelcontextprotocol/sdk": "1.30.0",
       },
     },
+    "packages/tasks": {
+      "name": "@brain/tasks",
+      "version": "0.1.0",
+      "bin": {
+        "mcp-tasks": "./src/main.ts",
+      },
+      "dependencies": {
+        "@modelcontextprotocol/sdk": "1.30.0",
+      },
+      "devDependencies": {
+        "fast-check": "4.9.0",
+      },
+    },
+    "packages/tasks-reminder": {
+      "name": "@brain/tasks-reminder",
+      "version": "0.1.0",
+      "bin": {
+        "tasks-reminder": "./src/reminder.ts",
+        "tasks-reminder-install": "./src/install.ts",
+      },
+      "dependencies": {
+        "@brain/harness-claude-code": "workspace:*",
+        "@modelcontextprotocol/sdk": "1.30.0",
+      },
+    },
   },
   "packages": {
     "@biomejs/biome": ["@biomejs/biome@2.5.10", "", { "optionalDependencies": { "@biomejs/cli-darwin-arm64": "2.5.10", "@biomejs/cli-darwin-x64": "2.5.10", "@biomejs/cli-linux-arm64": "2.5.10", "@biomejs/cli-linux-arm64-musl": "2.5.10", "@biomejs/cli-linux-x64": "2.5.10", "@biomejs/cli-linux-x64-musl": "2.5.10", "@biomejs/cli-win32-arm64": "2.5.10", "@biomejs/cli-win32-x64": "2.5.10" }, "bin": { "biome": "bin/biome" } }, "sha512-WRKXARA3kTuiV5sxqTpobJ/I0MVd4vk3pOL6wnp5az4LntFIhWTj1RWZq3DI9PCEN3lXcqy7p5aqUHzvq8AXyQ=="],
@@ -194,6 +220,10 @@
     "@brain/queue-sqlite": ["@brain/queue-sqlite@workspace:adapters/queue-sqlite"],
 
     "@brain/secrets-file": ["@brain/secrets-file@workspace:adapters/secrets-file"],
+
+    "@brain/tasks": ["@brain/tasks@workspace:packages/tasks"],
+
+    "@brain/tasks-reminder": ["@brain/tasks-reminder@workspace:packages/tasks-reminder"],
 
     "@hono/node-server": ["@hono/node-server@2.1.1", "", { "peerDependencies": { "hono": "^4" } }, "sha512-ELuehkj5VCBdgEw9zs+ivkKwyzzUCSQuE96YmiPvn1ECBoZCczbFXJLeEGMTYjphP6gydh4pHMqEYPVMYUVgQg=="],
 

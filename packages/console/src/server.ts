@@ -8,6 +8,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { BrainStore, openDb } from "@brain/brainstore";
+import { openTasksDb, TaskStore } from "@brain/tasks";
 import { architecturePage } from "./architecture.ts";
 import { type ConsoleConfig, loadVaultConsoleConfig } from "./config.ts";
 import { clearTileCache, dashboardPage } from "./dashboard.ts";
@@ -16,6 +17,7 @@ import { esc, page } from "./html.ts";
 import { buildAuthRequest, discover, exchangeCode, type OidcClient } from "./oidc.ts";
 import { clearProbeCache } from "./services.ts";
 import { cookieHeader, openSession, readCookie, type Session, sealSession } from "./session.ts";
+import { handleTasks } from "./tasks-routes.ts";
 import { nodePage, searchPage, vaultPage } from "./vault-view.ts";
 
 const SESSION_COOKIE = "console_session";
@@ -32,6 +34,9 @@ export function startConsole(cfg: ConsoleConfig): RunningConsole {
     throw new Error(`console: no index at ${dbPath} — run \`brain rebuild\` first (§5.11)`);
   const db = openDb(dbPath);
   const store = new BrainStore(db);
+  // The tasks store (§16.3): the console's one write path. Its own file,
+  // created on first open — the vault stays read-only here (§15.3).
+  const tasks = new TaskStore(openTasksDb(cfg.tasksDbPath));
   const secure = cfg.baseUrl.startsWith("https://");
   const client: OidcClient = {
     issuer: cfg.issuer,
@@ -158,6 +163,8 @@ export function startConsole(cfg: ConsoleConfig): RunningConsole {
         const rendered = nodePage(store, id);
         return rendered ? html(rendered) : html(errorPage(`no node “${esc(id)}”`), 404);
       }
+      const tasksRes = await handleTasks(req, url, session, cfg, tasks, cfg.tasksTz);
+      if (tasksRes) return tasksRes;
       if (path === "/dashboard/refresh" && req.method === "POST") {
         const wait = 60_000 - (Date.now() - lastForcedRefresh);
         if (wait > 0)

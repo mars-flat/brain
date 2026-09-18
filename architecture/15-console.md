@@ -75,9 +75,13 @@ dim serves only the search filter, and base edge opacity sits higher
 instead. Click opens the node page. An
 Obsidian-style settings panel (localStorage-persisted) drives display
 (arrows, node size, link width, label density, animate) and forces
-(repel, link distance, center pull), plus a node search filter. **The console never writes** — the single-writer
-consolidator remains the only writer (§5.7); read-only is a code-level
-discipline (SQLite WAL needs fs write access even for readers).
+(repel, link distance, center pull), plus a node search filter. **The console never writes the vault** — the single-writer
+consolidator remains the vault's only writer (§5.7); read-only there is a
+code-level discipline (SQLite WAL needs fs write access even for readers).
+*Amended 2026-09-18:* the console does write one thing — the **tasks
+store** (§16), its own SQLite file beside the vault, through POST forms
+that carry a session-bound CSRF token and must be same-origin (§16.4). The
+vault rule is unchanged.
 
 ### 15.4 The dashboard: links + live truth + expiry radar
 

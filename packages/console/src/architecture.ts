@@ -61,14 +61,15 @@ ${box(600, 240, 280, 90, "Caddy :443 (profile: edge)", ["Let's Encrypt cert via 
 ${box(910, 240, 230, 90, "routes", ["/mcp* + PRM → gateway", "everything else → console"])}
 
 ${grp(20, 390, 1140, 340, "AZURE brain-vm — Standard_B2pls_v2 ARM · canadacentral · NO PUBLIC IP · DOCKER COMPOSE (§3.1)")}
-${box(40, 430, 260, 100, "console :8091", ["OIDC session — HMAC cookie, 7d", "read-only vault viewer + ops hub", "pinned to the owner sub, else 403"])}
+${box(40, 430, 260, 100, "console :8091", ["OIDC session — HMAC cookie, 7d", "vault viewer (RO) · tasks tab (writes §16)", "pinned to the owner sub, else 403"])}
 ${box(330, 430, 260, 100, "gateway :8090", ["OAuth resource server (§4.3)", "4 meta-tools · policy · audit chain", "scope step-up · confirm · rate cap"])}
 ${box(620, 430, 220, 100, "stdio pool", ["one MCP client per upstream", "scrubbed env, neutral cwd", "down server ≠ down gateway"])}
 ${box(620, 570, 220, 70, "brain-mcp", ["recall · expand · note · pin", "ingest · search · timeline"])}
-${box(870, 570, 240, 70, "other MCP servers", ["roster: private servers.yaml", "pattern, not a fixed list (§4.2)"])}
+${box(870, 570, 240, 70, "other MCP servers", ["roster: private servers.yaml", "tasks-mcp · mcp-google · … (§4.2)"])}
 ${box(330, 570, 260, 70, "core runtime", ["traverse · pack · recall (§5)", "BM25 via FTS5 — no embeddings"])}
 ${box(330, 660, 260, 60, "consolidator — single writer", ["episodes → nodes · quarantine · trust"])}
-${box(40, 570, 260, 150, "vault — /data/vault", ["nested git repo — never in the", "public code repo (§9.1)", "nodes/ typed edges · episodes/", "_index/brain.db — SQLite FTS5", "secrets/ — envelope-encrypted refs"])}
+${box(40, 570, 260, 106, "vault — /data/vault", ["nested git repo — never in the", "public code repo (§9.1)", "nodes/ typed edges · episodes/", "_index/brain.db — SQLite FTS5", "secrets/ — envelope-encrypted refs"])}
+${box(40, 684, 260, 44, "tasks — /data/tasks/tasks.db", ["own SQLite (§16) · console + tasks-mcp write it"])}
 ${box(870, 652, 240, 74, "systemd timers", ["batch consolidate", "nightly vault push · cert renew"])}
 
 ${grp(20, 770, 440, 140, "GITHUB")}

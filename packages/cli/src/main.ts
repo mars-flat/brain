@@ -612,7 +612,9 @@ switch (command) {
         : res.pushed
           ? "pushed to origin"
           : "PUSH FAILED — tarball still written";
-    console.log(`backup: ${res.outPath} (${(res.bytes / 1024).toFixed(0)} KiB) — ${pushMsg}`);
+    console.log(
+      `backup: ${res.outPath} (${(res.bytes / 1024).toFixed(0)} KiB) — ${pushMsg}; tasks store ${res.tasks} (§16.3)`,
+    );
     if (res.pushed === false) process.exit(1);
     break;
   }
