@@ -74,6 +74,12 @@ export function wallString(ms: number, tz: string): string {
   return `${localDate(ms, tz)}T${pad(w.hour)}:${pad(w.minute)}`;
 }
 
+/** The date and time halves separately — what date + time inputs want. */
+export function wallParts(ms: number, tz: string): { date: string; time: string } {
+  const w = wallOf(ms, tz);
+  return { date: localDate(ms, tz), time: `${pad(w.hour)}:${pad(w.minute)}` };
+}
+
 function offsetAt(ms: number, tz: string): number {
   const w = wallOf(ms, tz);
   const asUtc = Date.UTC(w.year, w.month - 1, w.day, w.hour, w.minute, w.second);
@@ -86,13 +92,22 @@ function offsetAt(ms: number, tz: string): number {
  */
 export function instantOf(wall: string, tz: string): number {
   const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(wall.trim());
-  if (!m) throw new Error(`unreadable date/time "${wall}" (want YYYY-MM-DDTHH:mm)`);
+  if (!m) throw new Error(`unreadable date/time "${wall}" (want YYYY-MM-DD or YYYY-MM-DDTHH:mm)`);
   const [y, mo, d, h = "0", mi = "0", s = "0"] = m.slice(1) as string[];
   const asUtc = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s));
   if (!Number.isFinite(asUtc)) throw new Error(`unreadable date/time "${wall}"`);
   let guess = asUtc - offsetAt(asUtc, tz);
   guess = asUtc - offsetAt(guess, tz);
   return guess;
+}
+
+/**
+ * Noon on the local date of `ms` — where a date-only task is pinned
+ * (§16.2). Noon, not midnight: a DST shift of ±1h can never move it onto
+ * a different local day, so "every 8 weeks" stays on the same weekday.
+ */
+export function noonOf(ms: number, tz: string): number {
+  return instantOf(`${localDate(ms, tz)}T12:00`, tz);
 }
 
 /** ISO with an explicit offset → Date.parse; a bare wall time → the zone. */
@@ -104,6 +119,17 @@ export function parseWhen(text: string, tz: string): number {
     return ms;
   }
   return instantOf(s, tz);
+}
+
+/**
+ * A due value as humans and models write it: a bare date (2026-09-24) is a
+ * date-only occurrence pinned to local noon; anything with a clock time —
+ * bare wall time or ISO with offset — keeps its time.
+ */
+export function parseDue(text: string, tz: string): { at: number; hasTime: boolean } {
+  const s = text.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return { at: instantOf(`${s}T12:00`, tz), hasTime: false };
+  return { at: parseWhen(s, tz), hasTime: true };
 }
 
 /** Whole local days from `now` to `at` — negative is the past. */
@@ -123,15 +149,14 @@ export function describeDue(at: number, now: number, tz: string): string {
   return `${-d} days overdue`;
 }
 
-/** "Thu, Sep 24, 2026, 9:00 AM" in the zone. */
-export function formatWhen(ms: number, tz: string): string {
+/** "Thu, Sep 24, 2026, 9:00 AM" in the zone — or just the date for a date-only task. */
+export function formatWhen(ms: number, tz: string, withTime = true): string {
   return new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
     weekday: "short",
     month: "short",
     day: "numeric",
     year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
+    ...(withTime ? { hour: "numeric", minute: "2-digit" } : {}),
   }).format(new Date(ms));
 }

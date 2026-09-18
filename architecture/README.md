@@ -172,8 +172,14 @@ Events dialog a day, read-only via its own `tools:read`-only Auth0 client.
 compose smoke drives create → due → complete through the real gateway.
 Same day, the owner made tasks the console's **front door**: `/` redirects
 to `/tasks`, tasks leads the top bar, and the graph is back at `/graph`
-(§15.3). Owner-run after merge (§13): the `tasks` roster entry on the VM,
-one `auth0-setup` re-run, the reminder installer.
+(§15.3). An owner UI pass the same day brought **schema v2** (the first
+in-place migration): time of day is optional and off by default, with
+date-only tasks pinned to local noon; **tags** with a management page and
+derived interval/status tags; **delete forever** for retired tasks through
+a purge that keeps the log append-only for everything else; and the task
+page's edit `<dialog>`, history toggle, and green/orange/red action trio
+(§16.2–§16.4). Owner-run after merge (§13): the `tasks` roster entry on
+the VM, one `auth0-setup` re-run, the reminder installer.
 
 **One human blocker remains, and it only gates P6: the Discord bot** ([§13](./13-setup.md) has the walkthrough) — **deferred by the owner** for now. Open questions accumulate in `QUESTIONS-FOR-OWNER.md` at the repo root (local-only, gitignored).
 

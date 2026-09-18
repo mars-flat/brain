@@ -2,6 +2,8 @@
  * Recurrence core (§16.2): pure state transitions over one task row and its
  * append-only event log. No I/O, no clock — `now` is always a parameter —
  * so every rule here is property-testable (§8.3) and byte-deterministic.
+ * The one piece of environment is the zone, passed in: a date-only task
+ * is pinned to local noon, and only Intl knows where noon is.
  *
  * The owner's rules, verbatim in code: the next occurrence is scheduled
  * only when the current one is closed (completed or cancelled); a late task
@@ -10,7 +12,7 @@
  * there is no occurrence table — the row IS the open occurrence.
  */
 
-import { DAY_MS } from "./time.ts";
+import { DAY_MS, localDate, noonOf } from "./time.ts";
 
 export const ANCHORS = ["completion", "due"] as const;
 export type Anchor = (typeof ANCHORS)[number];
@@ -44,6 +46,8 @@ export interface Task {
   status: TaskStatus;
   /** Unix ms. Non-null exactly when status is open — the one open occurrence. */
   dueAt: number | null;
+  /** False = due on a day, not at a time; dueAt is then pinned to local noon. */
+  hasTime: boolean;
   createdAt: number;
   updatedAt: number;
   /** When the last occurrence was closed (completed or cancelled). */
@@ -66,13 +70,17 @@ export interface CreateInput {
   anchor?: Anchor;
   /** Unix ms. Default: now + interval (now + 1 day for a one-off). */
   dueAt?: number;
+  /** Default false: a day, not a time (owner's call, 2026-09-18). */
+  hasTime?: boolean;
 }
 
 export interface CloseOptions {
   /** Schedule again? Default: yes whenever the task has an interval — opt-out, not opt-in. */
   repeat?: boolean;
-  /** Manual placement of the next occurrence (unix ms, must be in the future). */
+  /** Manual placement of the next occurrence (unix ms; today or later). */
   nextDueAt?: number;
+  /** Whether the manual placement carries a time of day. Default: as the task. */
+  nextHasTime?: boolean;
 }
 
 export interface EditPatch {
@@ -126,12 +134,27 @@ function assertInstant(ms: number, what: string): number {
   return Math.floor(ms);
 }
 
-export function createTask(input: CreateInput, now: number, id: string): Transition {
+/** A date-only occurrence lives at local noon; a timed one is exactly where it was put. */
+function pin(at: number, hasTime: boolean, tz: string): number {
+  return hasTime ? at : noonOf(at, tz);
+}
+
+/** Timed: strictly after now. Date-only: today or later — the day is the unit. */
+export function isFuture(at: number, hasTime: boolean, now: number, tz: string): boolean {
+  return hasTime ? at > now : localDate(at, tz) >= localDate(now, tz);
+}
+
+export function createTask(input: CreateInput, now: number, id: string, tz = "UTC"): Transition {
   const title = assertTitle(input.title);
   const notes = assertNotes(input.notes);
   const intervalMs = assertInterval(input.intervalMs);
   const anchor = assertAnchor(input.anchor);
-  const dueAt = assertInstant(input.dueAt ?? now + (intervalMs ?? DAY_MS), "due date");
+  const hasTime = input.hasTime ?? false;
+  const dueAt = pin(
+    assertInstant(input.dueAt ?? now + (intervalMs ?? DAY_MS), "due date"),
+    hasTime,
+    tz,
+  );
   const task: Task = {
     id,
     title,
@@ -140,6 +163,7 @@ export function createTask(input: CreateInput, now: number, id: string): Transit
     anchor,
     status: "open",
     dueAt,
+    hasTime,
     createdAt: now,
     updatedAt: now,
     lastClosedAt: null,
@@ -148,24 +172,30 @@ export function createTask(input: CreateInput, now: number, id: string): Transit
   return {
     task,
     events: [
-      { taskId: id, at: now, kind: "created", detail: { title, notes, intervalMs, anchor, dueAt } },
+      {
+        taskId: id,
+        at: now,
+        kind: "created",
+        detail: { title, notes, intervalMs, anchor, dueAt, hasTime },
+      },
     ],
   };
 }
 
 /** The next occurrence for a recurring task, per its anchor (§16.2). */
-export function nextDue(task: Task, now: number): number {
+export function nextDue(task: Task, now: number, tz = "UTC"): number {
   if (task.intervalMs == null)
     throw new TaskError(
       "a one-off task has no next occurrence — pass a next due date or set an interval",
     );
-  if (task.anchor === "completion" || task.dueAt == null) return now + task.intervalMs;
+  if (task.anchor === "completion" || task.dueAt == null)
+    return pin(now + task.intervalMs, task.hasTime, tz);
   // Due-anchored: keep the cadence phase, but never land in the past — a
   // task late by several intervals advances to the FIRST future slot
   // (§16.2, question T-3). One pile-up-free step, never one per missed slot.
   let next = task.dueAt + task.intervalMs;
   if (next <= now) next += (Math.floor((now - next) / task.intervalMs) + 1) * task.intervalMs;
-  return next;
+  return pin(next, task.hasTime, tz);
 }
 
 /**
@@ -179,6 +209,7 @@ export function closeTask(
   kind: CloseKind,
   opts: CloseOptions,
   now: number,
+  tz = "UTC",
 ): Transition {
   if (task.status !== "open" || task.dueAt == null) throw new TaskError("task is not open");
   if (!(CLOSE_KINDS as readonly string[]).includes(kind))
@@ -199,34 +230,51 @@ export function closeTask(
   }
   let next: number;
   let manual = false;
+  let hasTime = task.hasTime;
   if (opts.nextDueAt != null) {
-    next = assertInstant(opts.nextDueAt, "next due date");
-    if (next <= now) throw new TaskError("the next occurrence must be in the future");
+    hasTime = opts.nextHasTime ?? task.hasTime;
+    next = pin(assertInstant(opts.nextDueAt, "next due date"), hasTime, tz);
+    if (!isFuture(next, hasTime, now, tz))
+      throw new TaskError("the next occurrence must be in the future");
     manual = true;
   } else {
-    next = nextDue(task, now);
+    next = nextDue(task, now, tz);
   }
   return {
-    task: { ...base, dueAt: next },
+    task: { ...base, dueAt: next, hasTime },
     events: [
       closed,
       {
         taskId: task.id,
         at: now,
         kind: "rolled",
-        detail: { from: task.dueAt, to: next, anchor: task.anchor, manual },
+        detail: { from: task.dueAt, to: next, anchor: task.anchor, manual, hasTime },
       },
     ],
   };
 }
 
-export function rescheduleTask(task: Task, dueAt: number, now: number): Transition {
+export function rescheduleTask(
+  task: Task,
+  dueAt: number,
+  hasTime: boolean | undefined,
+  now: number,
+  tz = "UTC",
+): Transition {
   if (task.status !== "open" || task.dueAt == null) throw new TaskError("task is not open");
-  const to = assertInstant(dueAt, "due date");
-  if (to === task.dueAt) return { task, events: [] };
+  const ht = hasTime ?? task.hasTime;
+  const to = pin(assertInstant(dueAt, "due date"), ht, tz);
+  if (to === task.dueAt && ht === task.hasTime) return { task, events: [] };
   return {
-    task: { ...task, dueAt: to, updatedAt: now },
-    events: [{ taskId: task.id, at: now, kind: "rescheduled", detail: { from: task.dueAt, to } }],
+    task: { ...task, dueAt: to, hasTime: ht, updatedAt: now },
+    events: [
+      {
+        taskId: task.id,
+        at: now,
+        kind: "rescheduled",
+        detail: { from: task.dueAt, to, hasTime: ht },
+      },
+    ],
   };
 }
 
@@ -279,12 +327,19 @@ export function retireTask(task: Task, now: number): Transition {
   };
 }
 
-export function reopenTask(task: Task, dueAt: number | undefined, now: number): Transition {
+export function reopenTask(
+  task: Task,
+  dueAt: number | undefined,
+  hasTime: boolean | undefined,
+  now: number,
+  tz = "UTC",
+): Transition {
   if (task.status !== "retired") throw new TaskError("task is not retired");
-  const to = assertInstant(dueAt ?? now + (task.intervalMs ?? DAY_MS), "due date");
+  const ht = hasTime ?? task.hasTime;
+  const to = pin(assertInstant(dueAt ?? now + (task.intervalMs ?? DAY_MS), "due date"), ht, tz);
   return {
-    task: { ...task, status: "open", dueAt: to, updatedAt: now },
-    events: [{ taskId: task.id, at: now, kind: "reopened", detail: { to } }],
+    task: { ...task, status: "open", dueAt: to, hasTime: ht, updatedAt: now },
+    events: [{ taskId: task.id, at: now, kind: "reopened", detail: { to, hasTime: ht } }],
   };
 }
 
@@ -292,6 +347,7 @@ export function reopenTask(task: Task, dueAt: number | undefined, now: number): 
  * Replay the event log into the row it describes. The store's invariant
  * (§16.2, tested by property): `foldEvents(events(id))` equals `get(id)` —
  * the log is not a decoration, it is a second derivation of the truth.
+ * Tag changes ride `edited` events too but touch no row column.
  */
 export function foldEvents(events: TaskEvent[]): Task | null {
   let t: Task | null = null;
@@ -306,6 +362,8 @@ export function foldEvents(events: TaskEvent[]): Task | null {
         anchor: (d.anchor as Anchor | undefined) ?? "completion",
         status: "open",
         dueAt: d.dueAt as number,
+        // Events written before the field existed (schema v1) were all timed.
+        hasTime: (d.hasTime as boolean | undefined) ?? true,
         createdAt: e.at,
         updatedAt: e.at,
         lastClosedAt: null,
@@ -321,16 +379,27 @@ export function foldEvents(events: TaskEvent[]): Task | null {
         break;
       case "rolled":
       case "rescheduled":
-        t = { ...t, dueAt: d.to as number, updatedAt: e.at };
+        t = {
+          ...t,
+          dueAt: d.to as number,
+          hasTime: (d.hasTime as boolean | undefined) ?? t.hasTime,
+          updatedAt: e.at,
+        };
         break;
       case "edited":
-        t = { ...t, ...(d.patch as Partial<Task>), updatedAt: e.at };
+        t = { ...t, ...((d.patch as Partial<Task> | undefined) ?? {}), updatedAt: e.at };
         break;
       case "retired":
         t = { ...t, status: "retired", dueAt: null, updatedAt: e.at };
         break;
       case "reopened":
-        t = { ...t, status: "open", dueAt: d.to as number, updatedAt: e.at };
+        t = {
+          ...t,
+          status: "open",
+          dueAt: d.to as number,
+          hasTime: (d.hasTime as boolean | undefined) ?? t.hasTime,
+          updatedAt: e.at,
+        };
         break;
       default:
         throw new TaskError(`unknown event kind ${String(e.kind)}`);
@@ -378,4 +447,29 @@ export function formatInterval(ms: number | null): string {
   if (ms % DAY_MS === 0) return plural(ms / DAY_MS, "day");
   if (ms % 3_600_000 === 0) return plural(ms / 3_600_000, "hour");
   return `${ms} ms`;
+}
+
+// ── tags (§16.2): user-named labels, plus derived ones that cannot be edited ──
+
+/** The derived interval tag: "every 1 week", or "one-off". Also the chip text. */
+export function intervalTag(intervalMs: number | null): string {
+  return intervalMs == null ? "one-off" : `every ${formatInterval(intervalMs)}`;
+}
+
+/** The interval and status of a task render as tags too; these names are reserved. */
+export function isReservedTagName(name: string): boolean {
+  const s = name.trim().toLowerCase();
+  return s === "open" || s === "retired" || s === "one-off" || /^every\s/.test(s);
+}
+
+const TAG_MAX = 40;
+
+/** Trimmed, single-spaced, 1–40 chars, not a derived tag's name. */
+export function normalizeTagName(name: string): string {
+  const s = name.trim().replace(/\s+/g, " ");
+  if (!s) throw new TaskError("tag name is required");
+  if (s.length > TAG_MAX) throw new TaskError(`tag name too long (${TAG_MAX} max)`);
+  if (isReservedTagName(s))
+    throw new TaskError(`"${s}" is a built-in tag (intervals and statuses are tags already)`);
+  return s;
 }
