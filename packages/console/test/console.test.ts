@@ -438,7 +438,7 @@ describe("tasks (§16) — the console's one write path", () => {
     expect(body).toContain(`class="bar"`);
     expect(body).toContain(`<hr class="rule">`);
     expect(body).toContain(`href="/tasks/tags"`);
-    const js = await fetch(`${console_.url}/tasks.js`, { headers: { cookie } });
+    const js = await fetch(`${console_.url}/console.js`, { headers: { cookie } });
     expect(js.status).toBe(200);
     expect(js.headers.get("content-type")).toContain("javascript");
     expect(await js.text()).toContain("showModal");
@@ -526,6 +526,12 @@ describe("tasks (§16) — the console's one write path", () => {
     });
     expect(done.status).toBe(303);
     expect(done.headers.get("location")).toBe("/tasks?ok=done-rolled");
+    // notices are toasts: good news auto-dismisses, and carries a dismiss button
+    const toasted = await get(cookie, "/tasks?ok=done-rolled");
+    expect(toasted).toContain(`class="toast ok auto"`);
+    expect(toasted).toContain("done — scheduled again");
+    expect(toasted).toContain(`aria-label="dismiss"`);
+    expect(toasted).not.toContain(`<p class="ok">`);
     const detail = await get(cookie, `/tasks/${id}`);
     expect(detail).toContain("done · on time");
     expect(detail).toContain("next due");
@@ -540,7 +546,7 @@ describe("tasks (§16) — the console's one write path", () => {
     expect(detail).toContain(`<dialog id="edit">`);
     expect(detail).toContain(`data-dialog="edit"`);
     expect(detail).toContain(`formmethod="dialog"`);
-    expect(detail).toContain(`src="/tasks.js"`);
+    expect(detail).toContain(`src="/console.js"`);
     const retired = await post(cookie, `/tasks/${id}/retire`, { csrf });
     expect(retired.headers.get("location")).toBe(`/tasks/${id}?ok=retired`);
     const retiredList = await get(cookie, "/tasks?view=retired");
@@ -649,6 +655,8 @@ describe("tasks (§16) — the console's one write path", () => {
     expect(bad.headers.get("location")).toMatch(/^\/tasks\/new\?err=/);
     const form = await get(cookie, bad.headers.get("location") as string);
     expect(form).toContain("title is required");
+    expect(form).toContain(`class="toast warn"`); // warnings stay until dismissed — no "auto"
+    expect(form).not.toContain(`class="toast warn auto"`);
     const badInterval = await post(cookie, "/tasks", {
       csrf,
       title: "x",

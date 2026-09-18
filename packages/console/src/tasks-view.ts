@@ -24,7 +24,7 @@ import {
   type TaskStore,
   wallParts,
 } from "@brain/tasks";
-import { esc, page } from "./html.ts";
+import { esc, page, toast } from "./html.ts";
 
 export interface TasksCtx {
   store: TaskStore;
@@ -32,8 +32,6 @@ export interface TasksCtx {
   csrf: string;
   now: number;
 }
-
-const SCRIPT = `<script type="module" src="/tasks.js"></script>`;
 
 const INTERVALS: Array<[string, string]> = [
   ["1d", "every day"],
@@ -68,8 +66,8 @@ const OK_MESSAGES: Record<string, string> = {
 export function noticeFrom(url: URL): string {
   const ok = url.searchParams.get("ok");
   const err = url.searchParams.get("err");
-  if (ok && OK_MESSAGES[ok]) return `<p class="ok">${OK_MESSAGES[ok]}</p>`;
-  if (err) return `<p class="warn">${esc(err.slice(0, 200))}</p>`;
+  if (ok && OK_MESSAGES[ok]) return toast("ok", OK_MESSAGES[ok]);
+  if (err) return toast("warn", esc(err.slice(0, 200)));
   return "";
 }
 
@@ -335,8 +333,7 @@ export function taskPage(
             <button class="btn" type="submit" formmethod="dialog" formnovalidate>cancel</button></p>
        </form>
      </dialog>
-     <p><a href="/tasks">← all tasks</a></p>
-     ${SCRIPT}`,
+     <p><a href="/tasks">← all tasks</a></p>`,
     { authed: true },
   );
 }
