@@ -36,7 +36,9 @@ const BASE = `https://${DOMAIN}/api/v2`;
 // exact string up as an API identifier — so production must register the
 // real /mcp URL (env, §9.4: the domain stays out of this public file).
 // The bare-name default remains for dev stacks.
-const AUDIENCE = process.env.GATEWAY_AUDIENCE ?? "tool-gateway";
+// On the laptop the hook's audience is the same canonical URL — accept it too,
+// so a re-run for one more client never falls back to the bare name.
+const AUDIENCE = process.env.GATEWAY_AUDIENCE ?? process.env.BRAIN_HOOK_AUDIENCE ?? "tool-gateway";
 const SCOPES = [
   { value: "brain:read", description: "read memory: recall, expand, neighbors, timeline, trace" },
   { value: "brain:write", description: "write memory: note, pin, ingest" },
@@ -78,6 +80,17 @@ interface ResourceServer {
   identifier: string;
 }
 const servers = await api<ResourceServer[]>("GET", "/resource-servers?per_page=50");
+// Never mint a second API by accident. 2026-09-18: a re-run on a laptop whose
+// .env lacked GATEWAY_AUDIENCE fell back to the bare name, recreated the API
+// that the canonical-URL migration had retired, and granted three clients
+// against it — every one of those tokens was then refused by the gateway.
+const urlApis = servers.filter((s) => /^https?:\/\//.test(s.identifier));
+if (!AUDIENCE.startsWith("http") && urlApis.length > 0) {
+  console.error(
+    `refusing: this tenant already has a URL-identified API (${urlApis.map((s) => s.identifier).join(", ")}) — set GATEWAY_AUDIENCE to it before re-running`,
+  );
+  process.exit(2);
+}
 let rs = servers.find((s) => s.identifier === AUDIENCE);
 if (rs) {
   console.log(`✓ API ${AUDIENCE} exists`);
