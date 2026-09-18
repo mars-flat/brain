@@ -403,21 +403,29 @@ describe("tasks (§16) — the console's one write path", () => {
   const post = (
     cookie: string,
     path: string,
-    fields: Record<string, string>,
+    fields: Record<string, string | string[]>,
     headers: Record<string, string> = {},
-  ) =>
-    fetch(`${console_.url}${path}`, {
+  ) => {
+    const body = new URLSearchParams();
+    for (const [k, v] of Object.entries(fields))
+      for (const x of Array.isArray(v) ? v : [v]) body.append(k, x);
+    return fetch(`${console_.url}${path}`, {
       method: "POST",
       redirect: "manual",
       headers: { cookie, origin: console_.url, ...headers },
-      body: new URLSearchParams(fields),
+      body,
     });
+  };
+  const get = async (cookie: string, path: string) =>
+    (await fetch(`${console_.url}${path}`, { headers: { cookie } })).text();
   async function csrfFor(cookie: string): Promise<string> {
-    const body = await (await fetch(`${console_.url}/tasks/new`, { headers: { cookie } })).text();
+    const body = await get(cookie, "/tasks/new");
     return /name="csrf" value="([^"]+)"/.exec(body)?.[1] ?? "";
   }
+  const idFrom = (res: Response) =>
+    (res.headers.get("location") ?? "").slice("/tasks/".length).split("?")[0] as string;
 
-  test("the tab renders behind auth, empty at first, with the nav entry and form-action CSP", async () => {
+  test("the tab renders behind auth, empty at first, with the bar, the rule, the nav entry, the CSP, and its script", async () => {
     expect((await fetch(`${console_.url}/tasks`, { redirect: "manual" })).status).toBe(302);
     const cookie = await login();
     const res = await fetch(`${console_.url}/tasks`, { headers: { cookie } });
@@ -427,6 +435,32 @@ describe("tasks (§16) — the console's one write path", () => {
     expect(body).toContain(`href="/tasks"`);
     expect(body).toContain("form-action 'self'");
     expect(body).toContain("America/Toronto");
+    expect(body).toContain(`class="bar"`);
+    expect(body).toContain(`<hr class="rule">`);
+    expect(body).toContain(`href="/tasks/tags"`);
+    const js = await fetch(`${console_.url}/tasks.js`, { headers: { cookie } });
+    expect(js.status).toBe(200);
+    expect(js.headers.get("content-type")).toContain("javascript");
+    expect(await js.text()).toContain("showModal");
+  });
+
+  test("the new-task form: custom interval and time inputs exist but are CSS-hidden until chosen", async () => {
+    const cookie = await login();
+    const form = await get(cookie, "/tasks/new");
+    expect(form).toContain(`class="interval-pick"`);
+    expect(form).toContain(`name="interval_custom"`);
+    expect(form).toContain(`class="due-pick"`);
+    expect(form).toContain(`type="date" name="due"`);
+    expect(form).toContain(`name="has_time"`); // unchecked by default
+    expect(form).not.toContain(`name="has_time" checked`);
+    expect(form).toContain(`type="time" name="time"`);
+    // the hide rules ride the page CSS, keyed on :has()
+    expect(form).toContain(
+      "option:not([value=custom]):checked) input[name=interval_custom] { display:none; }",
+    );
+    expect(form).toContain(
+      "input[name=has_time]:not(:checked)) input[type=time] { display:none; }",
+    );
   });
 
   test("a POST without the token, from another origin, or anonymous writes nothing", async () => {
@@ -455,12 +489,10 @@ describe("tasks (§16) — the console's one write path", () => {
       body: new URLSearchParams({ title: "x", interval: "1w", csrf }),
     });
     expect(anon.status).toBe(302); // login bounce, nothing written
-    expect(
-      await (await fetch(`${console_.url}/tasks`, { headers: { cookie } })).text(),
-    ).not.toContain(">x<");
+    expect(await get(cookie, "/tasks")).not.toContain(">x<");
   });
 
-  test("create → list → done prompt (yes default) → rolled a week out → retire → reopen", async () => {
+  test("create (date-only) → list → done prompt (yes default) → rolled a week out → retire → reopen timed", async () => {
     const cookie = await login();
     const csrf = await csrfFor(cookie);
     const created = await post(cookie, "/tasks", {
@@ -472,16 +504,19 @@ describe("tasks (§16) — the console's one write path", () => {
       due: "",
     });
     expect(created.status).toBe(303);
-    const loc = created.headers.get("location") ?? "";
-    expect(loc).toMatch(/^\/tasks\/[A-Za-z0-9_-]+\?ok=created$/);
-    const id = loc.slice("/tasks/".length).split("?")[0] as string;
-    const list = await (await fetch(`${console_.url}/tasks`, { headers: { cookie } })).text();
+    expect(created.headers.get("location")).toMatch(/^\/tasks\/[A-Za-z0-9_-]+\?ok=created$/);
+    const id = idFrom(created);
+    const list = await get(cookie, "/tasks");
     expect(list).toContain("water plants");
-    expect(list).toContain("every 1 week");
+    expect(list).toContain(`href="/tasks?tag=every%201%20week"`); // the interval is a tag
     expect(list).toContain(`href="/tasks/${id}/close?kind=completed"`);
-    const prompt = await (
-      await fetch(`${console_.url}/tasks/${id}/close?kind=completed`, { headers: { cookie } })
-    ).text();
+    expect(list).toContain("text-decoration:underline"); // titles read as links
+    const detail0 = await get(cookie, `/tasks/${id}`);
+    // date-only: the due line carries no clock time (history timestamps always do)
+    const dueLine = /in 7 days<\/span>\s*<span class="muted">([^<]+)</.exec(detail0)?.[1] ?? "";
+    expect(dueLine).toMatch(/2026$/);
+    expect(dueLine).not.toMatch(/[AP]M/);
+    const prompt = await get(cookie, `/tasks/${id}/close?kind=completed`);
     expect(prompt).toContain("schedule again?");
     expect(prompt).toContain(`value="yes" checked`); // the owner's default
     const done = await post(cookie, `/tasks/${id}/close`, {
@@ -491,19 +526,26 @@ describe("tasks (§16) — the console's one write path", () => {
     });
     expect(done.status).toBe(303);
     expect(done.headers.get("location")).toBe("/tasks?ok=done-rolled");
-    const detail = await (
-      await fetch(`${console_.url}/tasks/${id}`, { headers: { cookie } })
-    ).text();
+    const detail = await get(cookie, `/tasks/${id}`);
     expect(detail).toContain("done · on time");
     expect(detail).toContain("next due");
     expect(detail).toContain("in 7 days");
     expect(detail).toContain("1 closed");
+    // the detail page's shape: colored action trio, history toggle, edit modal
+    expect(detail).toContain(`class="btn good"`);
+    expect(detail).toContain(`class="btn warn"`);
+    expect(detail).toContain(`class="btn bad"`);
+    expect(detail).toContain("<details");
+    expect(detail).toContain("history");
+    expect(detail).toContain(`<dialog id="edit">`);
+    expect(detail).toContain(`data-dialog="edit"`);
+    expect(detail).toContain(`formmethod="dialog"`);
+    expect(detail).toContain(`src="/tasks.js"`);
     const retired = await post(cookie, `/tasks/${id}/retire`, { csrf });
     expect(retired.headers.get("location")).toBe(`/tasks/${id}?ok=retired`);
-    expect(
-      await (await fetch(`${console_.url}/tasks?view=retired`, { headers: { cookie } })).text(),
-    ).toContain("water plants");
-    // closing a retired task bounces back with a notice instead of a prompt
+    const retiredList = await get(cookie, "/tasks?view=retired");
+    expect(retiredList).toContain("water plants");
+    expect(retiredList).toContain(`href="/tasks/${id}/purge"`); // delete forever, retired only
     expect(
       (
         await fetch(`${console_.url}/tasks/${id}/close?kind=completed`, {
@@ -512,13 +554,91 @@ describe("tasks (§16) — the console's one write path", () => {
         })
       ).status,
     ).toBe(303);
-    const reopened = await post(cookie, `/tasks/${id}/reopen`, { csrf, due: "2026-12-01T09:00" });
+    const reopened = await post(cookie, `/tasks/${id}/reopen`, {
+      csrf,
+      due: "2026-12-01",
+      has_time: "on",
+      time: "09:00",
+    });
     expect(reopened.status).toBe(303);
-    const again = await (
-      await fetch(`${console_.url}/tasks/${id}`, { headers: { cookie } })
-    ).text();
-    expect(again).toContain("Dec 1, 2026"); // rendered in TASKS_TZ
+    const again = await get(cookie, `/tasks/${id}`);
+    expect(again).toMatch(/Dec 1, 2026(,| at) 9:00 AM/); // timed, rendered in TASKS_TZ
     expect(again).toContain("reopened");
+    // and back to date-only via reschedule without the time toggle
+    const moved = await post(cookie, `/tasks/${id}/reschedule`, { csrf, due: "2026-12-02" });
+    expect(moved.headers.get("location")).toBe(`/tasks/${id}?ok=rescheduled`);
+    const dated = await get(cookie, `/tasks/${id}`);
+    expect(dated).toContain("Dec 2, 2026");
+    expect(dated).not.toMatch(/Dec 2, 2026(,| at) \d/); // date-only again: no clock
+  });
+
+  test("tags: managed on their own page, assigned by checkbox, filterable, built-ins read-only", async () => {
+    const cookie = await login();
+    const csrf = await csrfFor(cookie);
+    const tagsEmpty = await get(cookie, "/tasks/tags");
+    expect(tagsEmpty).toContain("no tags yet");
+    expect(tagsEmpty).toContain("built-in");
+    expect(
+      (await post(cookie, "/tasks/tags", { csrf, name: "retired" })).headers.get("location"),
+    ).toMatch(/err=.*built-in/);
+    expect(
+      (await post(cookie, "/tasks/tags", { csrf, name: "home" })).headers.get("location"),
+    ).toBe("/tasks/tags?ok=tag-created");
+    const tagsPage = await get(cookie, "/tasks/tags");
+    expect(tagsPage).toContain(`value="home"`);
+    const tid = /\/tasks\/tags\/(\d+)\/rename/.exec(tagsPage)?.[1] as string;
+    expect(tid).toBeTruthy();
+    // the task form now offers it as a read-only checkbox list
+    expect(await get(cookie, "/tasks/new")).toContain(`name="tags" value="home"`);
+    const a = idFrom(
+      await post(cookie, "/tasks", { csrf, title: "sweep", interval: "1w", tags: ["home"] }),
+    );
+    idFrom(await post(cookie, "/tasks", { csrf, title: "untagged", interval: "1w" }));
+    const all = await get(cookie, "/tasks");
+    expect(all).toContain(`href="/tasks?tag=home"`);
+    const filtered = await get(cookie, "/tasks?tag=home");
+    expect(filtered).toContain("sweep");
+    expect(filtered).not.toContain("untagged");
+    expect(filtered).toContain("filtered by");
+    expect(await get(cookie, `/tasks/${a}`)).toContain(`name="tags" value="home" checked`);
+    // rename flows through to the task; delete removes it from the task
+    expect(
+      (await post(cookie, `/tasks/tags/${tid}/rename`, { csrf, name: "house" })).headers.get(
+        "location",
+      ),
+    ).toBe("/tasks/tags?ok=tag-renamed");
+    expect(await get(cookie, `/tasks/${a}`)).toContain(`href="/tasks?tag=house"`);
+    expect(
+      (await post(cookie, `/tasks/tags/${tid}/delete`, { csrf })).headers.get("location"),
+    ).toBe("/tasks/tags?ok=tag-deleted");
+    expect(await get(cookie, `/tasks/${a}`)).not.toContain(`href="/tasks?tag=house"`);
+    // derived tags list with counts and cannot be posted to
+    const tagsAfter = await get(cookie, "/tasks/tags");
+    expect(tagsAfter).toContain(`href="/tasks?tag=every%201%20week"`);
+    expect(tagsAfter).toContain("· interval");
+    expect(tagsAfter).toContain("· status");
+  });
+
+  test("permanent delete: retired only, confirmed on its own page, gone afterwards", async () => {
+    const cookie = await login();
+    const csrf = await csrfFor(cookie);
+    const id = idFrom(await post(cookie, "/tasks", { csrf, title: "temp", interval: "1d" }));
+    const tooEarly = await fetch(`${console_.url}/tasks/${id}/purge`, {
+      headers: { cookie },
+      redirect: "manual",
+    });
+    expect(tooEarly.status).toBe(303);
+    expect(tooEarly.headers.get("location")).toMatch(/err=.*retire/);
+    expect((await post(cookie, `/tasks/${id}/purge`, { csrf })).headers.get("location")).toMatch(
+      /err=.*retired/,
+    );
+    await post(cookie, `/tasks/${id}/retire`, { csrf });
+    const confirm = await get(cookie, `/tasks/${id}/purge`);
+    expect(confirm).toContain("delete forever");
+    expect(confirm).toContain("no undo");
+    const purged = await post(cookie, `/tasks/${id}/purge`, { csrf });
+    expect(purged.headers.get("location")).toBe("/tasks?view=retired&ok=purged");
+    expect((await fetch(`${console_.url}/tasks/${id}`, { headers: { cookie } })).status).toBe(404);
   });
 
   test("rule violations come back as a notice on the form, never a 500; bad ids 404", async () => {
@@ -527,9 +647,7 @@ describe("tasks (§16) — the console's one write path", () => {
     const bad = await post(cookie, "/tasks", { csrf, title: "   ", interval: "1w" });
     expect(bad.status).toBe(303);
     expect(bad.headers.get("location")).toMatch(/^\/tasks\/new\?err=/);
-    const form = await (
-      await fetch(`${console_.url}${bad.headers.get("location")}`, { headers: { cookie } })
-    ).text();
+    const form = await get(cookie, bad.headers.get("location") as string);
     expect(form).toContain("title is required");
     const badInterval = await post(cookie, "/tasks", {
       csrf,
@@ -540,6 +658,9 @@ describe("tasks (§16) — the console's one write path", () => {
     expect(badInterval.headers.get("location")).toMatch(/unreadable/);
     expect((await fetch(`${console_.url}/tasks/nope`, { headers: { cookie } })).status).toBe(404);
     expect((await fetch(`${console_.url}/tasks/..%2Fetc`, { headers: { cookie } })).status).toBe(
+      404,
+    );
+    expect((await fetch(`${console_.url}/tasks/tags/9/nope`, { headers: { cookie } })).status).toBe(
       404,
     );
   });

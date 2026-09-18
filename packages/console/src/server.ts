@@ -36,7 +36,7 @@ export function startConsole(cfg: ConsoleConfig): RunningConsole {
   const store = new BrainStore(db);
   // The tasks store (§16.3): the console's one write path. Its own file,
   // created on first open — the vault stays read-only here (§15.3).
-  const tasks = new TaskStore(openTasksDb(cfg.tasksDbPath));
+  const tasks = new TaskStore(openTasksDb(cfg.tasksDbPath), undefined, undefined, cfg.tasksTz);
   const secure = cfg.baseUrl.startsWith("https://");
   const client: OidcClient = {
     issuer: cfg.issuer,
@@ -164,7 +164,11 @@ export function startConsole(cfg: ConsoleConfig): RunningConsole {
         const rendered = nodePage(store, id);
         return rendered ? html(rendered) : html(errorPage(`no node “${esc(id)}”`), 404);
       }
-      const tasksRes = await handleTasks(req, url, session, cfg, tasks, cfg.tasksTz);
+      if (path === "/tasks.js")
+        return new Response(Bun.file(join(import.meta.dir, "tasks-client.js")), {
+          headers: { "content-type": "text/javascript; charset=utf-8" },
+        });
+      const tasksRes = await handleTasks(req, url, session, cfg, tasks);
       if (tasksRes) return tasksRes;
       if (path === "/dashboard/refresh" && req.method === "POST") {
         const wait = 60_000 - (Date.now() - lastForcedRefresh);

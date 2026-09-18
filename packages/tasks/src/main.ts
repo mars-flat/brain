@@ -28,5 +28,7 @@ if (process.env.TASKS_TZ && tz !== process.env.TASKS_TZ.trim())
   console.error(`mcp-tasks: unknown TASKS_TZ "${process.env.TASKS_TZ}", using UTC`);
 console.error(`mcp-tasks: store ${path} · tz ${tz}`);
 
-const server = buildTasksServer(new TaskStore(openTasksDb(path)), { tz });
+const server = buildTasksServer(new TaskStore(openTasksDb(path), undefined, undefined, tz), {
+  tz,
+});
 await server.connect(new StdioServerTransport());

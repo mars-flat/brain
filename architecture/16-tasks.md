@@ -41,13 +41,31 @@ is no occurrence table, no backfill, no overdue fan-out — the task row *is*
 the open occurrence.
 
 ```
-tasks(id, title, notes, interval_ms?, anchor, status, due_at?, created_at, updated_at,
-      last_closed_at?, closes)
-  anchor := 'completion' | 'due'      -- 'due' is the advanced toggle
-  status := 'open' | 'retired'        -- open ⇔ due_at IS NOT NULL (a CHECK constraint)
-task_events(id, task_id, at, kind, detail json)   -- append-only by trigger
+tasks(id, title, notes, interval_ms?, anchor, status, due_at?, has_time, created_at,
+      updated_at, last_closed_at?, closes)
+  anchor   := 'completion' | 'due'    -- 'due' is the advanced toggle
+  status   := 'open' | 'retired'      -- open ⇔ due_at IS NOT NULL (a CHECK constraint)
+  has_time := 0 | 1                   -- 0 = due on a DAY; due_at is then local noon (below)
+task_events(id, task_id, at, kind, detail json)   -- append-only by trigger (purge excepted, §16.3)
   kind := created | completed | cancelled | rolled | rescheduled | edited | retired | reopened
+tags(id, name UNIQUE NOCASE)   task_tags(task_id, tag_id)   -- user tags; derived ones are not rows
 ```
+
+**A task is due on a day unless you say otherwise** (owner, 2026-09-18:
+time is optional, off by default). A date-only task's `due_at` is pinned to
+**12:00 local** in the store's zone — noon, not midnight, because a DST
+shift of ±1h can then never move it onto a different day, so "every 8
+weeks" stays on the same weekday through November. Every transition
+re-pins (create, roll, reschedule, reopen), and the day is the unit: a
+date-only placement "today" is valid after noon has passed. Timed tasks
+are exactly where they were put.
+
+**Tags** are user-named labels managed as a list (create, rename, delete —
+deleting removes the tag from every task) and *assigned* from a task's
+form, where the list is read-only. Two families are derived rather than
+stored and render as tags too: the interval ("every 1 week", "one-off")
+and the status ("open", "retired"). They filter like user tags, cannot be
+edited or deleted, and their names are reserved.
 
 "Done" and "cancelled" are **events on the occurrence, not task states**:
 closing an open occurrence immediately rolls the task to its next one
@@ -64,7 +82,9 @@ parameter — so the rules are property-tested (§8.3 style, `fast-check`):
 | **No pile-up** | Closing a due-anchored task late by *k* intervals emits exactly one `rolled` event; the next due is the first slot strictly after `max(now, due)`, keeps the cadence phase (`(next − due) mod interval = 0`), and is within one interval of `max(now, due)` |
 | **Completion anchor** | `next = now + interval`, however late |
 | **Opt-out** | `repeat = false` (or a one-off's default) retires: `due_at = null`, events `[closed, retired]` |
-| **Replay** | `foldEvents(events(id))` deep-equals `get(id)` after any random history — the log is a second derivation of the truth, not a decoration |
+| **Replay** | `foldEvents(events(id))` deep-equals `get(id)` after any random history, in UTC and in a DST zone — the log is a second derivation of the truth, not a decoration. Tag changes ride `edited` events and touch no row column |
+| **Date-only** | A task with `has_time = 0` sits at 12:00 local on its day after every transition, in any zone |
+| **Purge** | Only a retired task can be permanently deleted; the deletion takes that task's events and tag links and nothing else's, and casual deletes stay blocked |
 | **Determinism** | Same ops + same clock → identical rows and logs |
 
 Two edges worth knowing: a one-off asked to repeat with no manual date is a
@@ -94,6 +114,18 @@ Rules the code enforces rather than documents: the one-occurrence CHECK
 at the engine; and `TASKS_DB_PATH` **must be absolute** or the upstream
 refuses to start — the §4.3 spawn-boundary lesson, applied before it bites
 again.
+
+**Schema versions are migrations, and v2 is the first** (2026-09-18):
+`has_time`, the tag tables, and the purge carve-out. A v1 file migrates in
+place on open, inside one transaction, and the migration is tested against
+a verbatim v1 fixture — the VM's live store crossed it on the next deploy.
+**Purge** is the one path that removes history: the delete trigger admits a
+task's event rows only while a row in `task_purges` marks that task's purge
+in flight, and the store inserts and removes that marker inside the purge
+transaction. Everything else that touches `task_events` still aborts. The
+owner asked for permanent deletion of retired tasks; this is how it
+coexists with an append-only log without weakening the log for anything
+else.
 
 **Time.** Instants are unix ms in storage and ISO on the wire; a zone
 matters only at the day boundary ("due today") and in what a human reads.
@@ -138,6 +170,23 @@ a retired task) come back as a notice on the page the user came from — the
 store's transactions mean a refused write is a no-op, never a half-write.
 Ids are opaque UUIDs; hostile ids are rejected by regex before SQL.
 
+**The tab in detail** (owner's UI pass, 2026-09-18): a bar with the
+open/retired toggle on the left and *tags* + *new task* on the right, a
+rule under it, underlined titles so rows read as links, and chips that
+double as filters (`?tag=…` — the interval, the status, and user tags).
+Forms take a **date plus an off-by-default "set a time" toggle**; the time
+input, like the custom-interval field, exists in the markup but is hidden
+by a CSS `:has()` rule until its toggle is chosen — no script, and a
+browser without `:has()` simply shows both. `/tasks/tags` manages the tag
+list (rename inline, delete, create) and lists the derived tags read-only
+with counts. A task's page puts *done* (green), *skip this one* (orange),
+and *retire* (red) on one line, folds the history into a `<details>`
+toggle, and edits in a native `<dialog>` with save/cancel — opened by
+`tasks-client.js`, served as `/tasks.js`: the console's second script
+after the graph's, same-origin as the CSP requires. Retired tasks gain
+**delete forever**, which lands on its own confirmation page before the
+POST; open tasks must be retired first.
+
 ### 16.5 The `tasks.*` upstream
 
 `packages/tasks/src/main.ts` is a stdio MCP server the gateway spawns from
@@ -146,14 +195,21 @@ Google instances (the example vault carries the synthetic entry). Ten tools,
 plain JSON Schemas, risk kinds via annotations (§4.4):
 
 ```
-tasks.list(status=open|retired|all)      read
-tasks.get(id)                             read   → task + full event history
-tasks.due(horizon_days=3)                 read   → overdue / today / upcoming / later, by LOCAL day
-tasks.create(title, interval, notes?, anchor?, due_at?)          write
+tasks.list(status=open|retired|all, tag?)   read
+tasks.get(id)                                read   → task + full event history
+tasks.due(horizon_days=3)                    read   → overdue / today / upcoming / later, by LOCAL day
+tasks.create(title, interval, notes?, anchor?, due_at?, tags?)   write
 tasks.complete(id, repeat?, next_due_at?)                         write
 tasks.cancel(id, repeat?, next_due_at?)                           write
-tasks.reschedule(id, due_at)  tasks.update(id, …)  tasks.retire(id)  tasks.reopen(id, due_at?)   write
+tasks.reschedule(id, due_at)  tasks.update(id, …, tags?)  tasks.retire(id)  tasks.reopen(id, due_at?)   write
 ```
+
+A date argument that is a bare date (`2026-09-24`) makes the occurrence
+date-only; a wall time or an ISO instant makes it timed. Results carry
+`has_time` and `tags`, and `due_human` drops the clock for date-only
+tasks. `tags` names must already exist — the list is managed in the
+console. There is deliberately **no purge tool**: permanent deletion stays
+a console act behind a confirmation page.
 
 Reads carry `readOnlyHint`; nothing carries `destructiveHint` — retire is
 reversible by reopen and the log cannot be deleted — so writes fall to the
@@ -213,6 +269,9 @@ the tailnet name never enters the public repo (§9.4).
   off the tailnet (§12 Q10).
 - **Inline, non-blocking completion** (§12 Q14) and a due-count tile on
   `/dashboard` — both cheap, neither asked for.
+- **Tag management or purge over MCP.** Tags are assigned by name from any
+  surface, but the list is curated in the console; permanent deletion is a
+  confirmed console act (§16.5).
 - **A `brain doctor` check on the store** — the console healthcheck and
   the gateway's upstream status (§15.4) already surface a missing or
   unreadable file.
