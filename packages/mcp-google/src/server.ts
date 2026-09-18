@@ -7,6 +7,11 @@
  * Kind classification (§4.4) rides annotations: reads carry readOnlyHint,
  * drive_delete_forever carries destructiveHint (→ admin: step-up +
  * confirm); everything else falls to write → default-confirm.
+ *
+ * Filter control (2026-09-18) needs the gmail.settings.basic consent scope
+ * on top of gmail.modify; an account consented before that date answers
+ * the three mail_*_filter tools with a 403 until re-consented
+ * (scripts/google-auth.ts).
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -23,16 +28,21 @@ import {
   driveUpdate,
 } from "./drive.ts";
 import {
+  type FilterAction,
+  type FilterCriteria,
+  mailCreateFilter,
   mailCreateLabel,
+  mailDeleteFilter,
   mailGetMessage,
   mailGetThread,
+  mailListFilters,
   mailListLabels,
   mailModifyLabels,
   mailSearch,
 } from "./gmail.ts";
 import { GoogleApiError, GoogleClient, type GoogleClientOptions } from "./google.ts";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
 export interface GoogleServerOptions extends GoogleClientOptions {
   /** Owner short-name for the account (g-2k05 …) — lands in tool descriptions. */
@@ -112,6 +122,50 @@ function tools(label: string): ToolDef[] {
           remove_label_ids: { type: "array", items: { type: "string" } },
         },
         required: ["message_ids"],
+      },
+    },
+    {
+      name: "mail_list_filters",
+      description: `List Gmail filters (${acct}): each filter's criteria (from, to, subject, query …) and its label actions.`,
+      inputSchema: { type: "object", properties: {} },
+      annotations: readOnly,
+    },
+    {
+      name: "mail_create_filter",
+      description: `Create a Gmail filter (${acct}) that labels, archives (remove INBOX), or marks read (remove UNREAD) every future match. criteria.query takes full Gmail search syntax. Forwarding is not supported.`,
+      inputSchema: {
+        type: "object",
+        properties: {
+          criteria: {
+            type: "object",
+            properties: {
+              from: { type: "string" },
+              to: { type: "string" },
+              subject: { type: "string" },
+              query: { type: "string", description: "Gmail search syntax" },
+              negated_query: { type: "string" },
+              has_attachment: { type: "boolean" },
+              exclude_chats: { type: "boolean" },
+            },
+          },
+          action: {
+            type: "object",
+            properties: {
+              add_label_ids: { type: "array", items: { type: "string" } },
+              remove_label_ids: { type: "array", items: { type: "string" } },
+            },
+          },
+        },
+        required: ["criteria", "action"],
+      },
+    },
+    {
+      name: "mail_delete_filter",
+      description: `Delete a Gmail filter by id (${acct}). Existing labels on already-filtered mail are untouched.`,
+      inputSchema: {
+        type: "object",
+        properties: { id: { type: "string" } },
+        required: ["id"],
       },
     },
     {
@@ -280,6 +334,17 @@ export function buildGoogleServer(opts: GoogleServerOptions): Server {
               remove_label_ids: args.remove_label_ids as string[] | undefined,
             }),
           );
+        case "mail_list_filters":
+          return text(await mailListFilters(g));
+        case "mail_create_filter":
+          return text(
+            await mailCreateFilter(g, {
+              criteria: (args.criteria as FilterCriteria) ?? {},
+              action: (args.action as FilterAction) ?? {},
+            }),
+          );
+        case "mail_delete_filter":
+          return text(await mailDeleteFilter(g, str("id")));
         case "drive_search":
           return text(
             await driveSearch(g, {

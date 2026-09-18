@@ -8,8 +8,11 @@
  *
  * Requires GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET in the
  * environment (bun auto-loads .env from the repo root). Scopes are
- * gmail.modify + drive — the §W2 minimum; sending is excluded by tool
+ * gmail.modify + gmail.settings.basic + drive; sending is excluded by tool
  * surface and gateway policy, not by scope (Google offers no such scope).
+ * settings.basic (added 2026-09-18) is what filter control needs — a token
+ * minted before then serves every other tool and 403s the mail_*_filter
+ * ones until the account is re-consented here.
  */
 
 const [name, email] = process.argv.slice(2);
@@ -28,6 +31,7 @@ const PORT = 8765;
 const REDIRECT = `http://127.0.0.1:${PORT}/callback`;
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.modify",
+  "https://www.googleapis.com/auth/gmail.settings.basic",
   "https://www.googleapis.com/auth/drive",
 ].join(" ");
 

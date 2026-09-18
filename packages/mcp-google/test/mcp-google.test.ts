@@ -47,11 +47,11 @@ async function call(name: string, args: Record<string, unknown> = {}) {
 }
 
 describe("tool surface (§W2)", () => {
-  test("advertises the sixteen tools; nothing send- or draft-shaped exists", async () => {
+  test("advertises the nineteen tools; nothing send-, draft-, or forward-shaped exists", async () => {
     const { tools } = await client.listTools();
-    expect(tools).toHaveLength(16);
+    expect(tools).toHaveLength(19);
     for (const t of tools) {
-      expect(t.name).not.toMatch(/send|draft|compose|reply/i);
+      expect(t.name).not.toMatch(/send|draft|compose|reply|forward/i);
       expect(t.description).toContain("g-test");
     }
   });
@@ -64,6 +64,7 @@ describe("tool surface (§W2)", () => {
       "mail_get_message",
       "mail_get_thread",
       "mail_list_labels",
+      "mail_list_filters",
       "drive_search",
       "drive_get_metadata",
       "drive_read",
@@ -74,6 +75,8 @@ describe("tool surface (§W2)", () => {
     for (const name of [
       "mail_create_label",
       "mail_modify_labels",
+      "mail_create_filter",
+      "mail_delete_filter",
       "drive_create",
       "drive_update",
       "drive_copy",
@@ -244,5 +247,61 @@ describe("drive", () => {
     const res = await call("drive_read", { id: "nope" });
     expect(res.isError).toBe(true);
     expect(res.text).toContain("404");
+  });
+});
+
+describe("filters (2026-09-18)", () => {
+  test("create → list → delete, snake_case on the wire both ways", async () => {
+    const label = (await call("mail_create_label", { name: "streams/digest" })).out as {
+      id: string;
+    };
+    const created = (
+      await call("mail_create_filter", {
+        criteria: { query: '"digest@example.invalid" subject:"Daily Digest"' },
+        action: { add_label_ids: [label.id], remove_label_ids: ["INBOX"] },
+      })
+    ).out as { id: string; criteria: Record<string, unknown>; action: Record<string, unknown> };
+    expect(created.id).toBeTruthy();
+    expect(created.criteria).toEqual({ query: '"digest@example.invalid" subject:"Daily Digest"' });
+    expect(created.action).toEqual({ add_label_ids: [label.id], remove_label_ids: ["INBOX"] });
+
+    const listed = (await call("mail_list_filters")).out?.filters as Array<{ id: string }>;
+    expect(listed.map((f) => f.id)).toEqual([created.id]);
+    // Wire shape is Google's camelCase, translated at the edge.
+    expect(fake.state.filters.get(created.id)?.action).toEqual({
+      addLabelIds: [label.id],
+      removeLabelIds: ["INBOX"],
+    });
+
+    const deleted = await call("mail_delete_filter", { id: created.id });
+    expect(deleted.isError).toBe(false);
+    expect((await call("mail_list_filters")).out?.filters).toEqual([]);
+  });
+
+  test("a forwarding action is refused before any request is built", async () => {
+    const before = fake.state.filters.size;
+    const res = await call("mail_create_filter", {
+      criteria: { from: "anyone@example.invalid" },
+      action: { forward: "elsewhere@example.invalid", add_label_ids: ["INBOX"] },
+    });
+    expect(res.isError).toBe(true);
+    expect(res.text).toMatch(/forward/i);
+    expect(fake.state.filters.size).toBe(before);
+  });
+
+  test("empty criteria or an empty action are tool errors, and unknown labels surface the API error", async () => {
+    expect(
+      (await call("mail_create_filter", { criteria: {}, action: { add_label_ids: ["INBOX"] } }))
+        .isError,
+    ).toBe(true);
+    expect(
+      (await call("mail_create_filter", { criteria: { from: "a@b.invalid" }, action: {} })).isError,
+    ).toBe(true);
+    const unknown = await call("mail_create_filter", {
+      criteria: { from: "a@b.invalid" },
+      action: { add_label_ids: ["Label_nope"] },
+    });
+    expect(unknown.isError).toBe(true);
+    expect(unknown.text).toContain("unknown label");
   });
 });
