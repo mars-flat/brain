@@ -31,7 +31,7 @@ flowchart TB
     Q --> F1 --> F2 --> F3 --> F4 --> B1 --> B2 --> B3 --> B4 --> K1 --> K2 --> K3 --> OUT["Context pack ≤ B"]
 ```
 
-**Tiering is the whole trick.** A node is never dropped for scoring low — it is **downgraded**. The top-3 **eligible** nodes render full, ranks 4–12 as summaries, 13–60 as one-line stubs. Every stub carries its id, so the model can call `brain.expand(["decision/x"])` mid-conversation and promote exactly what it needs.
+**Tiering is the whole trick.** A node is never dropped for scoring low — it is **downgraded**. The top-3 **eligible** nodes render full, ranks 4–12 as summaries, and everything below as one-line stubs — there is no stub cap short of the budget itself. Every stub carries its id, so the model can call `brain.expand(["x"])` mid-conversation and promote exactly what it needs. Ids are **bare basenames** (§5.2): the pack prints `decision/x` as a label, but `expand` resolves `x`, and a `type/id` handle lands in the result's `missing` list.
 
 **Full slots are query-anchored** (added 2026-08-31, from the paraphrase
 suite's findings): a node may hold a full slot only if it was a seed, within
@@ -101,33 +101,44 @@ summaries/stubs behind a `LOW CONFIDENCE` banner, because a weak lexical
 match must not be dressed up as a ranked answer; **A < 2.0 abstain** — the
 pack is the **vault catalog** as one-line stubs (budget-capped, §5.6-style
 explicit), never a fabricated neighborhood. Explicit caller `seeds` bypass
-the gate; young graphs (<50 nodes) and pre-calibration indexes fall back to
-the legacy θ. Weights come from `brain tune` (§8.5), which holds the
+the gate; young graphs (<50 nodes) skip it too — any seed hit is served
+confidently, recall over precision (§5.6) — and an index with no stored
+calibration falls back to the legacy scalar θ_seed = 5.0 on the best hit. Weights come from `brain tune` (§8.5), which holds the
 original suite at 1.0 as a hard constraint — after tuning, the paraphrase
 suite scores 1.0 on ¶-recall, recovery, placement, and abstention.
 
 **Ties break by node id, always.** FTS5 returns equal-scoring rows in rowid order, and rowids change when the index is rebuilt — so an unstable sort would make identical queries return different packs before and after `brain rebuild`. Every ranking step sorts by `(score DESC, id ASC)`. This is what makes the determinism invariant in §8.3 actually hold.
 
 ```
-── CONTEXT PACK (3,847 / 4,000 tokens · 41 nodes · 3 hops) ──
-[FULL]    decision/gateway-runs-on-ec2         612t
-[FULL]    constraint/discord-needs-no-ingress  488t
-[SUMMARY] preference/minimal-ops-surface       142t
-[SUMMARY] concept/ports-and-adapters           156t
-  ... 9 more summaries
-[STUB]    decision/run-everything-locally  ⚠ superseded by gateway-runs-on-ec2
-[STUB]    person/... · project/... · 26 more
-⚠ CONFLICT: concept/single-binary contradicts decision/split-edge-and-core
-→ expand any stub with brain.expand(ids)
+── CONTEXT PACK (3847 tokens · 41 nodes · 3 hops) ──
+[FULL]    decision/gateway-runs-on-ec2 — Tool gateway runs on one Azure VM
+  <summary>
+  📌 PIN: <correction, when pinned>
+
+  <body>
+[FULL]    constraint/discord-needs-no-ingress — Discord needs no ingress
+  …
+[SUMMARY] preference/minimal-ops-surface — Minimal ops surface
+  <summary>
+[STUB]    decision/run-everything-locally — Run everything locally  ⚠ superseded by gateway-runs-on-ec2
+[STUB]    person/… — …
+⚠ CONFLICT: single-binary contradicts split-edge-and-core
+(+26 more omitted by budget: a, b, c, d, e, +21 more)
+→ expand any id with brain.expand(ids)
 ```
+
+The header reports the pack's *measured* size, not the budget; entries carry
+no per-line token counts, every included node is listed (nothing is collapsed
+into "9 more"), and conflict and supersede flags name bare ids — the form
+`brain.expand` takes.
 
 ### 5.6 Cold start
 
 You're starting from an empty vault, so the first weeks matter more than they would with bulk ingest.
 
 - `brain.recall` on an empty or thin graph returns `{ pack: "", nodes: [], cold_start: true }` — an explicit signal, never a fabricated context.
-- The system prompt instructs: on `cold_start`, skip recall and lean on `brain.note` to capture aggressively.
-- **`brain init` seeds a small scaffold**: `project/`, `preference/`, and `person/me` nodes from a short interview. Ten nodes on day one is the difference between traversal working and traversal having nothing to traverse.
+- There is no conversation runtime yet to carry a system-prompt rule (P6); today the `brain-memory` skill is the instruction surface, and `cold_start: true` is simply what a caller sees and should answer with `brain.note` captures rather than retries.
+- **`brain init` creates the scaffold only** — the directories, `BRAIN.md`, the vault `.gitignore`, `.obsidian/app.json`, and `git init` — then prints a `brain note` hint. The seed interview revision 5 planned (`project/`, `preference/`, `person/me` from a few questions) is **not built**; day-one seeding is by hand with `@node` marker lines. Ten nodes on day one is still the difference between traversal working and traversal having nothing to traverse.
 - The consolidator runs with a **lower extraction threshold for the first 200 nodes**, then tightens. Early over-capture is cheap; lint merges duplicates later.
 
 ### 5.7 Write path — consolidation
@@ -141,15 +152,14 @@ stateDiagram-v2
     Extracting --> Resolving: cheap model extracts candidate<br/>facts, decisions, entities, preferences
     Resolving --> Reserving: match to existing nodes<br/>(FTS5 + alias table + trigram similarity)
     Reserving --> Merging: ATOMIC node-id reservation
-    Merging --> Linting: write nodes + typed edges
-    Linting --> Committed: check pins, contradictions, schema
+    Merging --> Committed: validate in memory, write nodes + typed edges
     Committed --> [*]: git commit, append log.md, reindex
 
     Extracting --> Failed: model error
     Failed --> Queued: backoff, max 3
     Merging --> Conflict: two candidates claim one id
     Conflict --> Merging: retry under lock
-    Linting --> Quarantine: pin violation or low confidence
+    Resolving --> Quarantine: pin violation, low confidence,<br/>ambiguous match, or non-high trust
     Quarantine --> [*]: surfaced for review in Obsidian
 ```
 
@@ -157,7 +167,7 @@ Four load-bearing properties, each fixing a documented llm-wiki failure mode:
 
 1. **Single writer + atomic reservation.** Parallel ingests forking one concept into three near-duplicate pages is the most-reported problem. A queue with one consumer plus a reservation table removes the race by construction.
 2. **Pins survive.** If a change contradicts a pin on the target node → quarantine, never overwrite.
-3. **Quarantine, not silent acceptance.** Low-confidence extractions and anything `provenance: untrusted` land in `quarantine/` — which is a folder in your Obsidian vault, so review is just reading notes and dragging them out.
+3. **Quarantine, not silent acceptance.** Low-confidence extractions, ambiguous matches, and every candidate from a **medium- or low-trust** episode land in `quarantine/` — written with `provenance: untrusted` — which is a folder in your Obsidian vault, so review is just reading notes and dragging them out. An episode whose trust is `untrusted` never gets that far: ingest refuses it outright (§6.5), so nothing from it is stored, queued, or reviewable. There is no lint stage in the run; every one of these decisions is made while planning the merge, before a byte is written.
 4. **Git commit per run.** Full audit trail; `git revert` is a working undo for memory.
 
 **Entity resolution without embeddings** uses three cheap signals in order: exact id/alias match → FTS5 BM25 on title+aliases → trigram (Jaccard on character 3-grams) over titles. Ambiguity above a threshold goes to quarantine rather than guessing. Deterministic, testable, no model.
@@ -193,33 +203,32 @@ P0 pinned the details in `packages/contracts/episode.schema.json`: `seq` must be
 
 Any harness that can POST this gets the brain. That's the whole contract.
 
-**Cadence:** debounced ~10 minutes after a conversation goes idle, plus a nightly pass. Not per-message — per-message extraction produces a graph full of noise.
+**Cadence:** a fixed systemd timer on the VM runs `brain consolidate --batch` every 15 minutes (5 minutes after boot); each tick collects finished batches, promotes staged uploads into batch jobs, drains what came back through the single writer, and stages one new upload (§5.8). There is no idle-debounce and no nightly pass — the timer is the whole schedule, and the ten-minute constant that does exist is the minimum age of a staged upload before its batch is created, not a debounce. Still not per-message — per-message extraction produces a graph full of noise, and an episode is a whole session.
 
-Three P2 implementation notes. Extraction is an interface with two implementations: the LLM path (structured outputs, `medium` effort) and a **deterministic `@node` marker grammar** — `@node <type> "Title" summary:"…" edge:rel=target` — which powers the tests, works offline, and gives `brain note` a precise hand-capture syntax. The consolidator stores each episode **twice**: readable markdown plus the canonical JSON envelope, so Layer 1 really is regenerable if the schema improves (§5.1). And extraction runs **synchronously**, not via the Batch API yet — batch is a flat cost discount with a 24h ceiling (§5.8), which is the wrong trade until the P5 deploy makes consolidation a background cadence; the port hides the switch.
+Three P2 implementation notes. Extraction is an interface with two implementations: the LLM path (structured outputs, `medium` effort) and a **deterministic `@node` marker grammar** — `@node <type> "Title" summary:"…" edge:rel=target` — which powers the tests, works offline, and gives `brain note` a precise hand-capture syntax. The consolidator stores each episode **twice**: readable markdown plus the canonical JSON envelope, so Layer 1 really is regenerable if the schema improves (§5.1). And extraction runs through the **Batch API by default** on the VM (`BRAIN_EXTRACTION_MODE=batch`, since P5 — §5.8 has the cadence and the 2026-08/09 incident history); `BRAIN_EXTRACTION_MODE=sync` extracts inline at full price, which is what the interactive dev loop uses. The port hides the switch: the batch request is the sync request verbatim.
 
 ### 5.9 Lint
 
-Nightly. Output is a **proposal file in the vault**, not a mutation — you approve with `brain lint --apply`.
+On demand — `brain lint`; nothing schedules it, and no model is involved. Output is a **proposal file in the vault**, not a mutation — you approve with `brain lint --apply`.
 
 | Check | Action |
 |---|---|
-| Contradictions | Two `active` nodes asserting incompatible things → add `contradicts`, flag |
-| Stale | `active`, unreferenced 90d, newer node covers it → propose `supersedes` |
+| Contradictions | *(model-assisted — not built)* Two `active` nodes asserting incompatible things → add `contradicts`, flag |
+| Stale | A near-duplicate pair (same type, similarity ≥ 0.85) where the older node is still `active` and was created more than 30 days before the newer → propose `supersedes` |
 | Orphans | No edges → propose links or merge |
-| Near-duplicates | Trigram similarity > 0.85 on title+summary → propose merge |
+| Near-duplicates | Trigram similarity ≥ 0.85 on the title, or on title+summary, same type only → propose merge |
 | Broken links | Wikilink to nonexistent note → repair or drop |
 | Property/body drift | `## Links` block disagrees with frontmatter → regenerate |
-| Pin violations | Generated content contradicts a pin → revert, escalate |
-| Summary drift | `summary` no longer reflects body → regenerate |
-| Salience decay | Apply exponential decay across all nodes |
+| Pin violations | A pin whose target node no longer exists → error. (A candidate that would *supersede* a pinned node is quarantined by the consolidator itself, §5.7 — lint never sees it) |
+| Summary drift | *(model-assisted — not built)* `summary` no longer reflects body → regenerate |
+| Salience decay | Apply exponential decay across all nodes (90-day half-life toward 1.0) |
 
 **Blocking is mandatory, or lint does not terminate.** Contradiction and near-duplicate checks are pairwise, and all-pairs at 10⁴ nodes is 5×10⁷ comparisons — infeasible for trigrams and absurd for an LLM pass. Every pairwise check runs only within a **candidate block**:
 
 - same `type` **and** at least one shared `tag`, **or**
-- within 2 hops of each other in the graph, **or**
-- top-20 FTS5 matches for the node's own title
+- the top-5 FTS5 matches for the node's own title, restricted to the same `type`
 
-…and only for nodes **touched since the last lint run**, tracked by a watermark. That turns a quadratic sweep into a few thousand comparisons per night. Full sweeps are available as `brain lint --full` for occasional use, and are expected to take minutes, not seconds.
+(the revision-5 "within 2 hops" block was never built — the two above found everything the eval vault had to find). Restricting the sweep to nodes **touched since the last lint run** via a watermark is the planned next step once vault size demands it; today every run is the full sweep, there is no `--full` flag, and the pass is milliseconds at 10²–10³ nodes.
 
 P2 shipped the mechanical checks (broken links, orphans, near-duplicates/stale with blocking, links-mirror drift, missing pin targets, salience decay) with `--apply` limited to the mechanical fixes — drift re-render, broken-link drops, decay. The two model-assisted checks (semantic contradictions, summary drift) and the watermark wait until the nightly LLM pass exists; every pass is currently a full pass, which is milliseconds at 10² nodes.
 
@@ -229,13 +238,13 @@ P2 shipped the mechanical checks (broken links, orphans, near-duplicates/stale w
 brain.recall(query, budget_tokens=4000, hops=3, types?, seeds?, as_of?)
   -> { pack, nodes:[{id,tier,score}], conflicts, expand_handles, cold_start,
        confidence: "high" | "low" | "none" }   # graded gate, §5.5 (2026-08-31)
-brain.expand(ids[], tier)            -> upgraded renders
+brain.expand(ids[], tier)            -> upgraded renders; unknown ids in `missing`   # bare ids
 brain.neighbors(id, rels?, depth=1)  -> subgraph edge list
-brain.note(text, links?, type?)      -> { pending_id }   # enqueues, never writes directly
+brain.note(text, links?, type?)      -> { pending_id, processed, retried }   # enqueues, then runs the single writer
 brain.pin(node_id, correction, reason) -> { pin_id }     # survives all future generation
 brain.timeline(query?, from?, to?)   -> episodes, chronological
 brain.trace(node_id)                 -> provenance chain to source episodes
-brain.ingest(episode)                -> { episode_id, processed, retried }   # P5, §6.4
+brain.ingest(episode)                -> { episode_id, processed, retried, queued? }   # P5, §6.4; queued:true in BRAIN_INGEST_MODE=queue
 ```
 
 `brain.trace` gives every claim a citation back to the episode it came from.
@@ -244,7 +253,7 @@ brain.ingest(episode)                -> { episode_id, processed, retried }   # P
 
 **`as_of` ships in two stages** — revision 2 understated this. True git time-travel means checking out the vault at a timestamp and building a throwaway index for that tree: minutes of work per query, and a second index path to maintain.
 
-- **P1 — cheap version.** Filter the *current* graph to nodes with `created <= as_of`, and treat `supersedes` edges created after `as_of` as not yet existing. Answers "what did I know in June" correctly for anything additive. Milliseconds, no extra machinery.
+- **P1 — cheap version.** Filter the *current* graph to nodes with `created <= as_of` and drop every edge that touches a node removed that way — which is how a `supersedes` edge from a later node disappears. Edges carry no timestamp of their own, so a `supersedes` edge added later *between two nodes that both already existed* still counts: the cheap version is exactly as good as node `created` dates. Answers "what did I know in June" correctly for anything additive. Milliseconds, no extra machinery.
 - **Later, optional — true version.** `git worktree` at the nearest commit before `as_of`, build a temp index, query, discard. Only worth building if the cheap version proves misleading in practice.
 
 The cheap version is wrong only where a node was *edited in place* rather than superseded — which the lint rules already discourage, since superseding is the documented way to change a decision.

@@ -46,9 +46,12 @@ tasks(id, title, notes, interval_ms?, anchor, status, due_at?, has_time, created
   anchor   := 'completion' | 'due'    -- 'due' is the advanced toggle
   status   := 'open' | 'retired'      -- open ⇔ due_at IS NOT NULL (a CHECK constraint)
   has_time := 0 | 1                   -- 0 = due on a DAY; due_at is then local noon (below)
+                                      -- column DEFAULT 1; the form and the tool default a bare date to 0
 task_events(id, task_id, at, kind, detail json)   -- append-only by trigger (purge excepted, §16.3)
   kind := created | completed | cancelled | rolled | rescheduled | edited | retired | reopened
-tags(id, name UNIQUE NOCASE)   task_tags(task_id, tag_id)   -- user tags; derived ones are not rows
+tags(id, name UNIQUE NOCASE, created_at)   task_tags(task_id, tag_id)   -- user tags; derived ones are not rows
+tasks_meta(key, value)                    -- schema version, the migration gate (§16.3)
+task_purges(task_id)                      -- a purge in flight; rows live for one transaction (§16.3)
 ```
 
 **A task is due on a day unless you say otherwise** (owner, 2026-09-18:
@@ -74,7 +77,8 @@ the event they leave behind — which is exactly the signal a later reader
 would want ("skipped four times, done twice").
 
 Transitions are pure functions in `core.ts` — no I/O, no clock, `now` is a
-parameter — so the rules are property-tested (§8.3 style, `fast-check`):
+parameter — so the rules are property-tested (§8.3 style, `fast-check`;
+the **Purge** row is the exception, example-tested against the store):
 
 | Invariant | Statement |
 |---|---|
@@ -145,7 +149,9 @@ dashboard, one login, one cert. Since 2026-09-18 it is also the **front
 door** — the root URL redirects here and tasks leads the top bar (owner's
 call; the graph moved back to its own `/graph` route, §15.3). Server-rendered, forms that **POST and
 303-redirect** so a refresh never repeats a write — the same pattern the
-dashboard's refresh button already used. No JavaScript was added.
+dashboard's refresh button already used. The forms work without script;
+the one page script (`/console.js`, below) only opens the edit dialog and
+dismisses toasts.
 
 §15.3's "the console never writes" is now "the console never writes **the
 vault**". The tasks store is the one thing it writes, and that write path
@@ -159,7 +165,8 @@ failing either check is a 403 page, never a write.
 The completion flow is the owner's spec verbatim: *done* or *skip* on a
 row → a page asking **schedule again?** with three answers — *yes* (the
 default button, showing the computed next date and why), *yes, on a date I
-pick* (a `datetime-local` prefilled with the computed date), *no — retire*.
+pick* (a date input prefilled with the computed date, plus the same
+off-by-default "set a time" toggle every form uses), *no — retire*.
 For a one-off the default flips to *no*. The handoff's counter-proposal —
 complete immediately and show an inline reversible line — is recorded in
 §12 Q14 and would be a one-file swap; the blocking prompt shipped because
@@ -251,8 +258,8 @@ again.
 first week of logs). A closed MacBook wakes for a few seconds every quarter
 hour to service TCP keepalives, launchd fires any missed ticks inside those
 windows, and the network is only half up: every early failure — connect
-refused, DNS timeout, a 60 s request timer that expired while the Mac
-slept mid-call — ran in one, and so did the tidy 09:00 "successes", which
+refused, DNS timeout, the MCP SDK's default 60 s request timer expiring
+while the Mac slept mid-call — ran in one, and so did the tidy 09:00 "successes", which
 stamped the day from behind a closed lid. The script now reads
 `pmset -g systemstate` and exits silently, stamp untouched, when the
 capabilities lack `Graphics`. On a real wake Wi-Fi and the tailnet still
@@ -273,10 +280,15 @@ Editor allowed) — shows the count and the first few lines with *Later* /
 *Open*, and *Open* launches the console's `/tasks`. Every failure path
 exits 0 and logs to `~/.brain/tasks-reminder.log`.
 
-Secrets: the plist and the config file (`~/.brain/tasks-reminder.json`:
-URLs, client id, hour) hold none. The agent's `WorkingDirectory` is the
-repo, so bun auto-loads `.env`, where `TASKS_REMINDER_CLIENT_SECRET` lives
-(§9.2). The gateway URL defaults from the hook's `brain-harness.json`, so
+Files under `~/.brain`: the config (`tasks-reminder.json`: gateway and
+console URLs, client id, audience, earliest hour, horizon), the day stamp
+(`tasks-reminder-last`), the log (`tasks-reminder.log`), and a token cache
+(`tasks-reminder-token.json`, mode 0600) holding the live `tools:read`
+access token between ticks. The plist and the config hold no secrets; the
+token cache does, and that is why it is the only 0600 file. The client
+secret itself never touches `~/.brain`: the agent's `WorkingDirectory` is
+the repo, so bun auto-loads `.env`, where `TASKS_REMINDER_CLIENT_SECRET`
+lives (§9.2). The gateway URL defaults from the hook's `brain-harness.json`, so
 the tailnet name never enters the public repo (§9.4).
 
 ### 16.7 Deliberately not built
@@ -306,9 +318,14 @@ the tailnet name never enters the public repo (§9.4).
   does — so the intake lives in a session or a routine, not in a package
   that couples two upstreams. The owner confirmed every §12 Q10–Q14 default
   the same day; the surface is considered done as built.
-- **A `brain doctor` check on the store** — the console healthcheck and
-  the gateway's upstream status (§15.4) already surface a missing or
-  unreadable file.
+- **A `brain doctor` check on the store.** The console's `/healthz` runs a
+  cheap query against the tasks store and answers 503 when the file cannot
+  be read (2026-09-24; before that it answered `ok` unconditionally), and
+  the gateway's upstream status (§15.4) shows the `tasks` upstream down if
+  its open fails. What neither detects: a *missing* file is created empty
+  on first open, because first deploy needs that — so a bad mount that
+  presents an empty directory looks like a fresh install, not a fault.
+  `brain backup` and the task count on `/tasks` are the signals for that.
 
 ---
 

@@ -299,6 +299,16 @@ export function buildBrainServer(opts: BrainMcpOptions): Server {
         const iso = now.toISOString().replace(/\.\d+Z$/, "Z");
         const noteText = String(args.text ?? "");
         const links = (args.links as string[] | undefined) ?? [];
+        // `type` is a hint for the extractor, honoured the way the CLI's
+        // --type is: wrap the text in an @node marker line (§5.7). The
+        // marker grammar is per line, so the related-links line below
+        // stays outside it. Audit 2026-09-24: this argument was accepted
+        // by the schema and silently dropped before.
+        const type = typeof args.type === "string" && args.type ? args.type : undefined;
+        const body =
+          noteText.trimStart().startsWith("@node") || !type
+            ? noteText
+            : `@node ${type} ${JSON.stringify(noteText.slice(0, 80))} summary:${JSON.stringify(noteText)}`;
         const episode: EpisodeEnvelope = {
           schema_version: 1,
           episode_id: `ep_${ulid(now)}`,
@@ -313,7 +323,7 @@ export function buildBrainServer(opts: BrainMcpOptions): Server {
               seq: 0,
               kind: "message",
               role: "user",
-              content: links.length ? `${noteText}\n\n(related: ${links.join(", ")})` : noteText,
+              content: links.length ? `${body}\n\n(related: ${links.join(", ")})` : body,
               ts: iso,
             },
           ],

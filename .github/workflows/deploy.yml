@@ -6,8 +6,10 @@
 # compose pull/up, `brain doctor`, auto-rollback to the previous tag.
 #
 # While the VM doesn't exist (pre-§3.1 provisioning) the deploy job skips
-# cleanly and the image still publishes. Manual redeploy of any commit:
-# workflow_dispatch from that commit's ref. Actions pinned by SHA (§9.3).
+# cleanly and the image still publishes. Manual redeploy: workflow_dispatch
+# on main — the credential is pinned to main and deploy.sh resets the VM to
+# origin/main, so it redeploys main's HEAD, not an arbitrary commit.
+# Actions pinned by SHA (§9.3).
 name: deploy
 
 on:

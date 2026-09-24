@@ -12,29 +12,31 @@ Everything an agent structurally cannot do: create accounts, accept terms, enter
 |---|---|
 | Docker, git, `gh` | installed |
 | `gh` authenticated as `mars-flat` | ✅ — repo creation, pushes, branch protection, Actions config all scriptable |
-| `mars-flat/brain` repo | ✅ exists, public, empty |
+| `mars-flat/brain` repo | ✅ exists, public (branch-protected `main`, §8.6) |
 | **Obsidian + vault** | ✅ `brain/vault/` is an Obsidian vault |
 | **OpenAI API key** | ✅ — unblocks P2 |
 | **Azure subscription + credit** | ✅ — guard rails in `azure/azure-config.md`; budgets re-spaced 2026-08-27 (§3.2) |
 | **Auth0 account** | ✅ tenant created 2026-08-27 — configuration is scripted (`scripts/auth0-setup.ts`), see the P5 steps below |
+| **OpenAI usage limit** | ✅ set in the platform dashboard 2026-08-27 — the only cap on model spend, which Azure budgets cannot see (§3.2) |
+| **A domain + DNS API** | ✅ since 2026-08-28 — the console edge (§15.1) needs `CONSOLE_DOMAIN`, `CONSOLE_ACME_EMAIL` and a DNS-API token for lego's DNS-01 (Vercel DNS today; the zone had to move off a host without an API). Public DNS points at the tailnet IP; no public IP was added |
 
 ### Needed per phase
 
 | Phase | What you must provide | Blocking? |
 |---|---|---|
-| **P0** | **Bun installed** — `curl -fsSL https://bun.sh/install \| bash`. Not currently on the machine | Trivial, but P0 doesn't run without it |
+| **P0** | **Bun installed** — `curl -fsSL https://bun.sh/install \| bash` (installed; CI and the image pin 1.4.0) | done |
 | **P1 – P2** | *nothing — all satisfied* | no |
 | **P3** | Credentials for any *real* upstream MCP servers you want fronted | No — fake servers cover local dev and all tests |
 | ~~**P4**~~ | ~~IdP account (Auth0/Clerk)~~ **Resolved:** local **Keycloak** container is the P4 IdP (owner, §12 Q6) — `docker compose -f deploy/keycloak/compose.yaml up -d` auto-imports the realm. **No account, no browser signup.** | **No** — fully local |
 | **P5** | ~~Azure budget adjustment (§3.2); GitHub↔Entra federated credential~~ **done 2026-08-27** (budgets re-spaced; `brain-deploy` app + id-pinned federated credential; `rg-brain` + `brain-vm` provisioned). Remaining human steps: the three below | Only the Auth0 credential blocks finishing P5 |
 | **P6** | **Discord application + bot token**, your Discord user ID | 🔴 **Yes** — blocks P6 |
-| **W1.6** (optional) | **OpenAI Admin API key** for the dashboard's spend line — regular keys 403 on the costs endpoint (`api.usage.read` is admin-only). Platform → Settings → Organization → Admin keys; lands as `OPENAI_ADMIN_KEY` in laptop `.env` + VM compose `.env` | No — the card shows a hint instead |
+| **W1.6** (optional) | **OpenAI Admin API key** for the dashboard's spend line — regular keys 403 on the costs endpoint (`api.usage.read` is admin-only). Platform → Settings → Organization → Admin keys; lands as `OPENAI_ADMIN_KEY` in laptop `.env` + VM compose `.env` (`.env.example` carries no line for it — add one; compose and the console read it) | No — the card shows a hint instead |
 | **T1** (tasks, §16) | Three owner-run steps after the merge deploys: **(1)** the `tasks` server entry in the private vault's `config/servers.yaml` **on the VM** (the VM is the only writer, §3.1; copy the example vault's entry — `TASKS_DB_PATH`/`TASKS_TZ` come from compose) and `docker compose restart gateway`; **(2)** re-run `bun scripts/auth0-setup.ts` with a Management credential — it creates the `tasks-reminder` M2M client (`tools:read` only) and prints the id; the secret goes in the laptop `.env` as `TASKS_REMINDER_CLIENT_SECRET`. The script's audience must be the canonical resource URL: it reads `GATEWAY_AUDIENCE`, falling back to `BRAIN_HOOK_AUDIENCE`, and since 2026-09-18 refuses to run with the bare-name default when a URL-identified API already exists (that day's re-run without either variable recreated the retired bare-name API and granted three clients against it — cleaned up by hand); **(3)** on the Mac, `bun packages/tasks-reminder/src/install.ts --client-id <id>` (gateway URL and audience default from `.claude/brain-harness.json`). ~~Optional: `TASKS_TZ=<IANA zone>` in the VM compose `.env`~~ (set to the owner's zone 2026-09-18, §12 Q13) | **No** — the console tab works on deploy; the `tasks.*` tools wait on (1), the reminder on (1)–(3) |
 
 ### The three P5 human steps — all done 2026-08-27
 
 1. ~~**Auth0 Management credential**~~ ✅ — `brain-mgmt` created, `scripts/auth0-setup.ts` configured the tenant (API + scopes, brain-cli PKCE, brain-hook, agent-runtime, grants), end-to-end auth verified from the laptop. The `brain-mgmt` credential can be deleted or kept for re-runs (the script is idempotent).
-2. ~~**Tailscale**~~ ✅ — brain-vm is `brain-vm.tail57f6ea.ts.net`; `tailscale serve` fronts the gateway with TLS; Tailscale SSH enabled for ops.
+2. ~~**Tailscale**~~ ✅ — brain-vm is `<vm>.<tailnet>.ts.net` (the real name stays out of this public file, §9.2; it lives in the laptop's gitignored `.claude/brain-harness.json` and the VM's compose `.env`). At P5 `tailscale serve` fronted the gateway with TLS; since 2026-08-28 Caddy on the console domain does (§15.1) and `tailscale serve` is off. Tailscale SSH enabled for ops.
 3. ~~**GHCR package visibility**~~ ✅ — public; deploys pull.
 
 **Post-P5 hardening (recommended):** a fresh Auth0 tenant lets *anyone* create a tenant user (open database signups + Google social login are on by default), and any authenticated user of a first-party app can mint scoped tokens. The tailnet already stops outsiders from *reaching* the gateway, so this is defense-in-depth, not an open door. These are **tenant-level connection settings, not per-app** — the surface they protect is `brain-cli`'s login page. **Order matters — create your user before locking the door:** (1) User Management → Users → Create User (email + password, connection `Username-Password-Authentication`) — the account the owner logs into the brain with; (2) Authentication → Database → Username-Password-Authentication → **Disable Sign Ups**; (3) Authentication → Social → **google-oauth2** → delete it or untick all apps (skip if the owner prefers logging in *with* Google — then the first login creates the Google-backed user instead of step 1, and the connection stays). Longer-term, the §4.5 policy can additionally pin `principal` to the owner's `sub`.
@@ -62,11 +64,13 @@ DISCORD_USER_ID=...        # step 6 — the entire allowlist
 DISCORD_GUILD_ID=...       # optional, if using a channel rather than DMs
 ```
 
+*(Nothing reads these yet — P6 is unbuilt and `.env.example` carries no `DISCORD_*` lines. The names are the plan, recorded here so the walkthrough is complete when the day comes.)*
+
 > **The token is a full bot credential.** Anyone holding it controls the bot. It lives in `vault/.env`, which is gitignored inside a repo that is itself gitignored (§9.1) — but if it ever leaks, Reset Token immediately invalidates the old one.
 
 ### Things only you can ever do, at any phase
 
-- **Re-consent each Google account once for filter control** (2026-09-18): `bun scripts/google-auth.ts <short-name> <email>` again — the scope set grew by `gmail.settings.basic`. Until then that account's `mail_*_filter` tools 403; everything else keeps working on the old token. The new token lands in the laptop vault's secret store; the VM picks it up on its next vault pull.
+- **Re-consent each Google account once for filter control** (2026-09-18): `bun scripts/google-auth.ts <short-name> <email>` again — the scope set grew by `gmail.settings.basic`. Until then that account's `mail_*_filter` tools 403; everything else keeps working on the old token. **Where the token lands:** the script runs `brain secret set google/<short-name>` against whatever `BRAIN_VAULT_PATH` names *on the machine running it* — the laptop. Under one vault, one writer (§3.1) the laptop clone never reaches the VM, so the token has to be set on the VM as well: Tailscale SSH in and run `docker compose exec -T gateway bun /app/packages/cli/src/main.ts secret set google/<short-name>` with the refresh token on stdin — the same command as W2's owner-run secrets copy (the VM's store has its own master key at `/data/vault/secrets/master.key`; records do not transfer between stores). An earlier version of this line said the VM would "pick it up on its next vault pull"; nothing pulls, and following it strands the token on the laptop.
 - **Click "Allow" on OAuth consent screens.** The gateway generates the URL and handles everything after the redirect — but the consent itself is a human act. This is by design, not a limitation.
 - **Accept terms of service** for any provider.
 - **Enter payment details** anywhere.
@@ -78,13 +82,13 @@ DISCORD_GUILD_ID=...       # optional, if using a channel rather than DMs
 | Assumption | Reality |
 |---|---|
 | A vector DB or embedding provider | §1 — none, unless `brain eval` later demands it |
-| A domain, ever | **Not needed at all now** — no public IP means no TLS (§3.1). Only returns with WhatsApp |
+| A domain, ever | ~~Not needed — no public IP means no TLS~~ **Needed since 2026-08-28** for the console edge (§15.1): a real hostname in a browser wants a real certificate. Public DNS → tailnet IP, DNS-01 certificate, still no public IP. The *public* webhook only returns with WhatsApp |
 | `age` installed for secret encryption | **Dropped.** `secrets-file` uses `node:crypto` (scrypt + AES-256-GCM) instead — one less install, one less binary in the container, no behaviour lost |
 | `better-sqlite3`, a test runner, a transpiler | **All dropped** — `bun:sqlite`, `bun test`, and native TS replace them (§10) |
 | Real upstream credentials for development | Fake MCP servers cover P3 and every test |
 | A second GitHub repo for the vault | ~~§9.1 — local git repo, no remote until P5~~ done 2026-08-27: private `mars-flat/brain-vault` |
-| Azure adapters (Key Vault, Storage Queue, Blob) | One VM runs fine on `secrets-file` / `queue-sqlite` / `object-fs`. Build the ports, skip the adapters (§3) |
-| Caddy, TLS certs, a static IP | Dropped — Discord is outbound-only and Tailscale covers laptop access (§3.1) |
+| Azure adapters (Key Vault, Storage Queue, Blob) | One VM runs fine on `secrets-file` / `queue-sqlite`; `ObjectStore` has no adapter because nothing needs one. Build the ports, skip the adapters (§3) |
+| Caddy, TLS certs, a static IP | ~~Dropped~~ **Caddy and a Let's Encrypt certificate are back** for the console edge (2026-08-28, §15.1 — `deploy/compose/Caddyfile`, `deploy/vm/certs.sh`, monthly renewal timer). The static IP stays dropped: the edge is reachable only over the tailnet |
 
 ---
 

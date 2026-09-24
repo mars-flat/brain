@@ -64,7 +64,19 @@ export function startConsole(cfg: ConsoleConfig): RunningConsole {
       const url = new URL(req.url);
       const path = url.pathname;
 
-      if (path === "/healthz") return new Response("ok");
+      // The compose healthcheck probes this. It proves the tasks store can
+      // be read, not that it is the right file: a missing file was created
+      // empty at startup, as first deploy needs (§16.7).
+      if (path === "/healthz") {
+        try {
+          tasks.counts();
+          return new Response("ok");
+        } catch (err) {
+          return new Response(`tasks store unreadable: ${(err as Error).message}`, {
+            status: 503,
+          });
+        }
+      }
 
       if (path === "/login") {
         const auth = await buildAuthRequest(client);

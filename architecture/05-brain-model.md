@@ -21,7 +21,6 @@ flowchart TB
         N3 -->|about| N2
     end
     subgraph L2["Layer 2 — Navigation, derived + gitignored"]
-        IDXM["index.md — catalog, Bases-generated"]
         LOG["log.md — append-only changelog"]
         DB[("_index/brain.db — FTS5")]
     end
@@ -34,7 +33,7 @@ flowchart TB
     SCH -.->|governs| L1
 ```
 
-Layer 0 is truth-of-record; Layer 1 is *interpretation* and can be regenerated if the schema improves; Layer 2 is a pure cache, rebuilt in seconds and **never committed**; Layer 3 is the only file you hand-write.
+Layer 0 is truth-of-record; Layer 1 is *interpretation* and can be regenerated if the schema improves; Layer 2 is a pure cache, rebuilt in seconds and **never committed**; Layer 3 is the only file you hand-write. There is no generated `index.md`: the catalog that §1 and §5.5 fall back to is a query over `brain.db`, rendered on demand and never written to disk (revision 5 had planned a Bases-generated file; nothing needed it).
 
 ### 5.2 A node is an Obsidian note
 
@@ -80,10 +79,10 @@ Four things to note:
 - **Links are bare basenames, and `id` equals the basename.** This is not cosmetic. Obsidian's link autocomplete inserts the **shortest unambiguous form** — typing `[[` and picking this note yields `[[gateway-runs-on-ec2]]`, *not* `[[decision/gateway-runs-on-ec2]]`. If the parser expected path-form links, every link you create by hand in Obsidian would fail to resolve. So:
   - **Node ids are globally unique basenames** across the whole vault. Type lives in the `type:` property and in the folder for organization only — it is never part of the identifier.
   - The resolver matches by basename, then by alias, exactly as Obsidian does.
-  - **Lint enforces basename uniqueness** — a collision is a hard error, because it would make links ambiguous for both Obsidian and the resolver.
+  - **The vault loader enforces basename uniqueness** — a collision is a hard error at load time, so `brain rebuild`, `brain lint`, and every tool that opens the vault refuse to proceed, because it would make links ambiguous for both Obsidian and the resolver.
   - `.obsidian/app.json` pins `"newLinkFormat": "shortest"` and `"useMarkdownLinks": false` so the app and the parser always agree.
 
-- **`salience` is *not* in frontmatter — it lives only in SQLite.** It's bumped on every full-tier render (§5.5), so storing it in the note would make **every read a write**: git churn on each query, and a second writer racing the single-writer consolidator (§5.7). Derived, mutable, high-frequency values stay in the index; the markdown holds only what a human would want to read and edit.
+- **`salience` is *not* in frontmatter — it lives only in SQLite.** It's bumped whenever the model `brain.expand`s a node (§5.5), so storing it in the note would make **every read a write**: git churn on each query, and a second writer racing the single-writer consolidator (§5.7). Derived, mutable, high-frequency values stay in the index; the markdown holds only what a human would want to read and edit.
 
 - **The `## Links` body block is a lint-maintained mirror.** Obsidian's docs do not state whether property links appear in graph view and backlinks. Rather than bet the design on unverified behaviour, the body block guarantees graph-view edges and backlinks regardless. *Spike closed (2026-08-25):* the owner confirmed graph view and backlinks work on the example vault (with mirrors present — the docs remain silent on property-only links), and the question lost its stakes anyway: canonical rendering centralized in `renderNote`, which emits the mirror for free, so dropping it would buy no consolidator simplification. **The mirror stays canonical.** Frontmatter stays authoritative for traversal either way.
 
@@ -115,7 +114,7 @@ The two bold rules are the correctness guarantees of the entire memory system:
 
 Without these, a memory system confidently hands you last month's answer. With them, it hands you the current answer and shows its work. Both are enforced as **property-based tests** (§8.3), not merely intended.
 
-Inverse edges (`superseded_by`, `causes`, …) are **derived into SQLite at index time**, never written to disk. One direction on disk, both directions in the index.
+Inverse edges (`superseded_by`, `causes`, …) are never written to disk, and they are not materialized as rows either: the index holds **one row per on-disk edge**, indexed on both endpoints, and the traversal builds bidirectional adjacency in memory when it loads the graph slice. One direction on disk, both directions at traversal time.
 
 Two notational details fixed at P0: episode files are named with the **full date in the basename** (`episodes/2026/08/2026-08-24-tool-gateway-design.md`) — date-sharded folders alone would let basenames collide across months, and basenames are the identifier. And `sources:` frontmatter is the canonical provenance notation — the indexer materializes each entry as a `derived_from` edge, so notes rarely write `derived_from` explicitly.
 
@@ -147,7 +146,7 @@ A query hitting `D1` on one literal word picks up, in one hop, the constraint th
 ### 5.11 Storage
 
 - **Source of truth:** Obsidian vault, its own local git repo (§9.1). Human-editable, diffable, portable, and openable on your phone.
-- **Derived index:** one SQLite file at `_index/brain.db` — `nodes`, `edges`, `episodes`, `pins`, `salience`, plus `nodes_fts` (FTS5, `porter` tokenizer). **Gitignored**, rebuilt by `brain rebuild`. One P1 nuance to §5.1's "pure cache": `brain rebuild` **preserves the `salience` table** — usage history is derived from nothing and exists nowhere else, so wiping it on rebuild would silently reset what the ranking learned.
+- **Derived index:** one SQLite file at `_index/brain.db` — `meta`, `nodes`, `edges`, `aliases`, `episodes`, `pins`, `salience`, plus `nodes_fts` (FTS5, `porter` tokenizer). The consolidator keeps its own tables in the same file (`reservations`, `consolidated_episodes`, `run_lock`, and the batch-transport pair `extraction_batches` / `extraction_requests`). **Gitignored**, rebuilt by `brain rebuild`. One P1 nuance to §5.1's "pure cache": `brain rebuild` **preserves the `salience` table** — usage history is derived from nothing and exists nowhere else, so wiping it on rebuild would silently reset what the ranking learned — and the consolidator's tables and the calibration row in `meta` survive it for the same reason.
 - **Scale:** a heavy year is O(10⁴) nodes, O(10⁵) edges. SQLite does 3-hop traversal on that in single-digit milliseconds.
 - **Do not** reach for Neo4j, a hosted vector DB, or Postgres.
 

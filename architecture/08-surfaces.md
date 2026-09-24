@@ -12,8 +12,8 @@ flowchart TB
         MAN["config/surfaces.yaml<br/>config/harnesses.yaml"]
     end
     subgraph SP["SurfaceAdapter implementations"]
-        S1["@brain/surface-discord ✅"]
-        S2["@brain/surface-cli ✅"]
+        S1["@brain/surface-discord ⬜ P6"]
+        S2["@brain/surface-cli ⬜ P6"]
         S3["@brain/surface-whatsapp ⬜"]
         S4["@brain/surface-slack ⬜"]
     end
@@ -30,6 +30,8 @@ flowchart TB
     H1 & H2 -.->|"implements HarnessAdapter"| ROUTER
     HOST --> ROUTER --> AR["agent-runtime<br/>server-side agent loop"] --> GW
 ```
+
+**What exists today (2026-09-24):** `@brain/harness-claude-code` and the `SurfaceAdapter` / `HarnessAdapter` port types in `packages/contracts`. Everything on the surface side of this diagram — `surface-host`, the Session Router, `agent-runtime`, `config/surfaces.yaml`, `config/harnesses.yaml`, `@brain/surface-testkit`, and every `surface-*` package — is P6 design, unbuilt and deferred by the owner (README). The ✅/⬜ marks are the truth; treat §6.0–§6.3 as the spec P6 will be built to, not as a description of running code.
 
 ### 6.0 The agent runtime — the piece that actually calls the model
 
@@ -54,14 +56,14 @@ flowchart TB
     end
 ```
 
-`packages/agent-runtime` is a **thin loop**, not a framework:
+`packages/agent-runtime` (P6, unbuilt) is a **thin loop**, not a framework:
 
 1. On a new conversation, call `brain.recall` and seed the system prompt with the pack.
 2. Call the model with the four gateway meta-tools bound.
 3. Execute tool calls through the gateway.
 4. **Translate gateway control responses into surface affordances** — this is the wiring revision 2 left dangling:
    - `needs_confirm` → `ctx.requestConfirmation(...)`, then retry with the `confirm_token`
-   - `needs_auth` → `ctx.presentAuthLink(...)`, then retry with the `poll_token`
+   - `needs_auth` → `ctx.presentAuthLink(...)`, then retry with the `poll_token` — *both halves are unbuilt: the gateway never emits `needs_auth` today (south-bound credentials are static, §4.3). Build the broker and this handler together in P6, not this handler alone.*
    - `403 insufficient_scope` → step-up re-authorization (§4.3)
 5. Loop until the model stops calling tools; reply via `ctx.send`.
 6. On idle, emit the episode envelope.
@@ -96,7 +98,7 @@ export interface SurfaceContext {
 
 `requestConfirmation` and `presentAuthLink` are the two affordances that differ per surface. Putting them **in the port** is precisely what lets the policy `confirm` effect and the gateway's `needs_auth` flow work on any new surface with zero core changes. Get this wrong and every new surface means touching the gateway.
 
-Registration is config, not code:
+Registration is config, not code (P6 — the file does not exist yet):
 
 ```yaml
 # config/surfaces.yaml
@@ -107,7 +109,7 @@ surfaces:
     config: { guildAllowlist: ["${DISCORD_GUILD_ID}"], userAllowlist: ["${DISCORD_USER_ID}"] }
 ```
 
-**Conformance test suite.** `@brain/surface-testkit` exports a suite every adapter must pass — ordering, reconnect, confirmation timeout, allowlist rejection, long-message chunking. A new surface is "done" when the shared suite is green. That's the open-closed guarantee made executable.
+**Conformance test suite** (P6, unbuilt). `@brain/surface-testkit` exports a suite every adapter must pass — ordering, reconnect, confirmation timeout, allowlist rejection, long-message chunking. A new surface is "done" when the shared suite is green. That's the open-closed guarantee made executable.
 
 ### 6.2 Discord adapter
 
@@ -134,7 +136,7 @@ sequenceDiagram
     alt existing conversation
         ST-->>R: conv_88 + recent turns
     else new
-        R->>B: brain.recall(text, budget=3000)
+        R->>B: brain.recall(query, budget_tokens=3000)
         B-->>R: context pack (or cold_start)
         R->>ST: create conv_89 with pack
     end
@@ -175,24 +177,26 @@ That's the entire Claude Code integration. **Hermes later is a sibling package**
 
 **Built 2026-08-27, between P4 and P5** — the §11 argument ("every day the brain isn't running is a day of context you don't get back") applies to the harness as soon as the brain works, so Mode A shipped early with three deviations from the sketch above:
 
-- **Delivery is the CLI, not a POST.** The brain has no HTTP surface until P5, so the `SessionEnd` hook (`packages/harness-claude-code/hooks/session-end.ts`) writes the envelope and runs `brain ingest --now`. ~~The POST swap lands in that one script when the gateway goes remote.~~ **Landed at P5 (2026-08-27):** with a gateway configured (`TOOL_GATEWAY_URL` env, or the `.claude/brain-harness.json` that `install()` writes) the hook delivers via MCP `tools_call → brain.ingest` (§5.10) — issuer discovered from the gateway's RFC 9728 PRM, token via `client_credentials` (`BRAIN_HOOK_CLIENT_ID`/`_SECRET`, disk-cached at `~/.brain/harness-token.json` because SessionEnd is a fresh process and IdP free tiers meter M2M tokens). The local CLI is the fallback on any delivery failure — a session never breaks over memory capture, in either mode.
+- **Delivery is the CLI, not a POST.** The brain has no HTTP surface until P5, so the `SessionEnd` hook (`packages/harness-claude-code/hooks/session-end.ts`) writes the envelope and runs `brain ingest --now`. ~~The POST swap lands in that one script when the gateway goes remote.~~ **Landed at P5 (2026-08-27):** with a gateway configured (`TOOL_GATEWAY_URL` env, or the `.claude/brain-harness.json` that `install()` writes) the hook delivers via MCP `tools_call → brain.ingest` (§5.10) — issuer discovered from the gateway's RFC 9728 PRM, token via `client_credentials` (`BRAIN_HOOK_CLIENT_ID`/`_SECRET`, disk-cached at `~/.brain/harness-token.json` because SessionEnd is a fresh process and IdP free tiers meter M2M tokens). On a delivery failure the hook falls back to the local CLI **only if a local vault exists** (`<vault>/BRAIN.md`, i.e. inside `~/brain`); anywhere else the episode is logged as not ingested and dropped, exit 0. Either way a session never breaks over memory capture.
 - **The CLAUDE.md snippet grew into a skill.** Recall/capture is judgment, not configuration: `.claude/skills/brain-memory/` carries the protocol (recall before acting; capture the moment a durable fact appears; `pin` corrections; supersede reversals; never wait for session end), and a three-line `CLAUDE.md` points at it. The SessionEnd sweep is the backstop for what in-flight capture misses, not the primary path.
-- **`install()` is static for now** — the config it would write is committed to the repo instead (`.mcp.json`, `.claude/settings.json`, the skill). ~~It starts writing real config at P5.~~ **Real since P5:** `install({gatewayUrl, targetDir})` merge-writes the `.mcp.json` HTTP entry, the SessionEnd hook registration, and `.claude/brain-harness.json` (never credentials — those stay in the environment). Idempotent; existing servers and hooks are preserved.
+- **`install()` is static for now** — the config it would write is committed to the repo instead (`.mcp.json`, `.claude/settings.json`, the skill). ~~It starts writing real config at P5.~~ **Real since P5:** `install({gatewayUrl, targetDir, oauthClientId?})` merge-writes the `.mcp.json` HTTP entry (with an `oauth: {clientId, callbackPort: 8484}` block when a pre-registered client id is given — Auth0 has no DCR), the SessionEnd hook registration, and `.claude/brain-harness.json` carrying `gatewayUrl` only (never credentials — those stay in the environment; the `audience`/`clientId`/`tokenCachePath` keys the hook also reads are hand-placed, see the next bullet). Idempotent; existing servers and hooks are preserved.
 - **User-scope reach (owner directive, 2026-08-31).** The repo-scoped trigger+protocol pair is mirrored at user scope so every session on the owner's machine can use the brain, not just sessions inside `~/brain`: the deployed gateway is registered user-scope as `tool-gateway-remote` (HTTP), `~/.claude/skills/brain-memory` is a symlink to the repo copy of the skill (one canonical, versioned protocol — no drift), and a short `~/.claude/CLAUDE.md` carries the recall/capture trigger globally. The pattern is unchanged — thin always-loaded trigger, skill as protocol — only the scope widened. This config is machine-local and hand-placed; fold it into `install()` if it grows a user-scope mode. Note the asymmetry: outside the repo there is no SessionEnd hook, so in-the-moment `brain.note` capture is the only global write path.
 - **One gateway, one writer (owner directive, 2026-09-17).** The project-scope stdio entry — `.mcp.json`, a gateway run on the laptop against the local clone — is gone: sessions inside `~/brain` use the same user-scope `tool-gateway-remote` as everywhere else, and the SessionEnd hook targets the VM through a hand-placed, gitignored `.claude/brain-harness.json` (`gatewayUrl` + `audience`; credentials still come from `.env`) instead of relying on bun's `.env` auto-load alone. Two gateways had meant two vaults in practice — captures inside the repo landed in the laptop clone, everywhere else on the VM — and the clones drifted (§3.1). `install()` still writes an HTTP `.mcp.json` entry; that is the packaged path for a fresh install, not this repo. Known lag: the statusline (`hooks/statusline.ts`) counts the laptop clone, so it is only as fresh as the owner's last `git pull` of `vault/`.
 
-The envelope is built by `normalizeEpisode`: deterministic episode id derived from the session id (rerunning the hook is a no-op even before the ledger's idempotency), thinking blocks / tool results / command tags / sidechain lines stripped so they never enter episodic storage, tool calls kept as digests per §5.7, oldest turns trimmed first under the §5.8 guard, and sessions below a small floor (two user turns / 200 user chars) skipped entirely — an extraction call costs money and a two-line session isn't memory.
+The envelope is built by `normalizeEpisode`: deterministic episode id derived from the session id (rerunning the hook is a no-op even before the ledger's idempotency), thinking blocks / tool results / command tags / sidechain lines stripped so they never enter episodic storage, tool calls kept as digests per §5.7, oldest turns trimmed first under the §5.8 guard. The hook — not `normalizeEpisode`, which refuses only a zero-turn transcript — skips sessions below a small floor (two user turns, or fewer than 200 user characters; `BRAIN_SESSION_MIN_CHARS` overrides the latter) — an extraction call costs money and a two-line session isn't memory.
 
 Because SessionEnd fires after the session UI is gone, the "logged to memory" signal is out-of-band (owner request, 2026-08-27): on success the hook posts a macOS notification (`brain: session logged — +N nodes`, best-effort, macOS only), and a committed statusline (`hooks/statusline.ts`, registered in `.claude/settings.json`) shows `🧠 N nodes · last ingest Xh ago` during every session — which also confirms the previous session's sweep the moment the next one starts.
 
 ### 6.5 Trust tiers
 
-| Tier | Surfaces | Reads | Writes | Shell/FS | Memory writes |
+| Tier | Surfaces | Reads | Writes | Admin | Memory writes |
 |---|---|---|---|---|---|
 | **high** | CLI, Claude Code on your machine | allow | allow | allow | direct |
 | **medium** | Discord DM | allow | confirm | deny | quarantine |
 | **low** | Discord guild channel | allow | confirm | deny | quarantine |
 | **untrusted** | anything not allowlisted | deny | deny | deny | never |
+
+The columns are the §4.4 *kinds*: "Admin" is `admin` (shell, delete, anything with `destructiveHint`), and an ordinary filesystem write is a `write` — so from a medium or low surface it gets *confirm*, not deny, unless a policy rule denies it (the example policy's `fs.write` deny for Discord is that rule). The matrix composes with policy and can only narrow (§4.5).
 
 The memory column matters as much as the tool column. If a low-trust surface writes directly to the graph, anyone who can message you can plant a false `preference` that steers every future conversation. **Memory poisoning is the subtler attack and the more durable one.**
 

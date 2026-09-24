@@ -39,9 +39,11 @@ Same trust chain as the gateway (§4.3), different grant: the console is a
 **confidential authorization-code + PKCE client** against the same IdP
 tenant; the id_token verifies against the issuer JWKS (jose); the session
 is a stateless HMAC cookie (HttpOnly, SameSite=Lax, 7d) so deploys never
-log the owner out. `CONSOLE_ALLOWED_SUB` pins the console to the owner's
-identity — any other authenticated user gets a 403 *that shows their sub*
-(pinning requires learning the sub once). Dev stack runs the same code
+log the owner out. `CONSOLE_ALLOWED_SUB` (a comma-separated list of
+subjects, in practice one) pins the console to the owner's identity — any
+other authenticated user gets a 403 at `/callback` *that shows their sub*
+(pinning requires learning the sub once); a cookie carrying an unpinned
+sub gets a plain 403 on every other route. Dev stack runs the same code
 against the compose Keycloak; only env differs. Logout clears the cookie
 and lands on a **local** signed-out page rather than bouncing to `/login`
 — the IdP's SSO cookie would silently re-login and make the button a
@@ -54,7 +56,9 @@ No static site generator, no Obsidian Publish, no rebuild step: the console
 reads the same `/data/vault` (and FTS5 index) the consolidator maintains,
 via `@brain/brainstore` — parsing, wikilink vocabulary, and search already
 existed; the viewer is a thin server-rendered layer (marked + a CSS file's
-worth of style, CSP `default-src 'self'`, zero external assets). Node pages
+worth of style, CSP `default-src 'self'; style-src 'unsafe-inline';
+img-src 'self' data:; form-action 'self'` — inline `style=` attributes are
+admitted for the hand-rolled SVGs, nothing else is — zero external assets). Node pages
 show summary/body with `[[wikilinks]]` resolved to viewer links, typed
 edges both directions, pins, and provenance; plus index-by-type, the
 episode timeline, and FTS5 search. The index and timeline share the one

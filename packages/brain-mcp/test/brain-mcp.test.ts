@@ -4,7 +4,7 @@
  */
 
 import { beforeAll, describe, expect, test } from "bun:test";
-import { cpSync, mkdtempSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MarkerExtractor } from "@brain/consolidator";
@@ -23,8 +23,11 @@ function gitInit(vault: string): void {
   Bun.spawnSync(["git", "config", "user.name", "test"], { cwd: vault });
 }
 
+let vaultPath = "";
+
 beforeAll(async () => {
   const vault = mkdtempSync(join(tmpdir(), "brain-mcp-"));
+  vaultPath = vault;
   cpSync(EXAMPLE, vault, { recursive: true });
   gitInit(vault);
   const server = buildBrainServer({
@@ -113,6 +116,17 @@ describe("brain over MCP (§5.10)", () => {
     });
     const tr = trace.structuredContent as { episodes: Array<{ episode_id: string }> };
     expect(tr.episodes[0]?.episode_id).toBe(out.pending_id);
+  });
+
+  test("note honours `type` on plain text by wrapping it in an @node marker", async () => {
+    const res = await client.callTool({
+      name: "note",
+      arguments: { text: "Plain-text notes carry their type through MCP", type: "decision" },
+    });
+    const out = res.structuredContent as { processed: Array<{ newNodes: string[] }> };
+    const id = out.processed[0]?.newNodes[0];
+    expect(id).toBeTruthy();
+    expect(existsSync(join(vaultPath, "nodes", "decision", `${id}.md`))).toBe(true);
   });
 
   test("ingest accepts a §5.7 envelope, consolidates, and is idempotent on redelivery", async () => {
