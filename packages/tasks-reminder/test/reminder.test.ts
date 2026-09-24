@@ -11,10 +11,13 @@ import { join } from "node:path";
 import { LABEL, plistPath, renderPlist, uninstall, writeInstall } from "../src/install.ts";
 import {
   dialogText,
+  isDarkWake,
+  isTransientNetworkError,
   loadReminderConfig,
   readStamp,
   reminderPaths,
   shouldFire,
+  withNetworkRetry,
   writeStamp,
 } from "../src/reminder.ts";
 
@@ -37,6 +40,79 @@ describe("the daily gate", () => {
     expect(readStamp(stamp)).toBeNull();
     writeStamp(stamp, "2026-09-17");
     expect(readStamp(stamp)).toBe("2026-09-17");
+  });
+});
+
+describe("dark wakes and flaky networks", () => {
+  test("a dark wake lacks Graphics; a full wake has it; garbage never blocks", () => {
+    const full =
+      "Current System Capabilities are: CPU Graphics Audio Network \nCurrent Power State: 4\n";
+    const dark = "Current System Capabilities are: CPU Network \nCurrent Power State: 2\n";
+    expect(isDarkWake(full)).toBe(false);
+    expect(isDarkWake(dark)).toBe(true);
+    expect(isDarkWake("Current System Capabilities are: CPU \n")).toBe(true);
+    expect(isDarkWake("")).toBe(false);
+    expect(isDarkWake("Internal failure: Failed to get power state information")).toBe(false);
+  });
+
+  test("connect, DNS and timeout errors are transient; auth and tool refusals are not", () => {
+    for (const m of [
+      "Unable to connect. Is the computer able to access the url?",
+      "getaddrinfo ETIMEOUT brain.example",
+      "MCP error -32001: Request timed out",
+      "fetch failed",
+      "connect ECONNREFUSED 100.64.0.1:443",
+    ])
+      expect(isTransientNetworkError(new Error(m))).toBe(true);
+    for (const m of [
+      'token request failed (403): {"error":"access_denied"}',
+      "gateway refused tasks.due: policy denied",
+    ])
+      expect(isTransientNetworkError(new Error(m))).toBe(false);
+  });
+
+  test("retries transient failures with the delay, gives up after N, and never retries the rest", async () => {
+    const slept: number[] = [];
+    const sleep = async (ms: number) => {
+      slept.push(ms);
+    };
+    let calls = 0;
+    const flaky = async () => {
+      calls++;
+      if (calls < 3) throw new Error("fetch failed");
+      return "ok";
+    };
+    const retried: number[] = [];
+    const out = await withNetworkRetry(flaky, {
+      attempts: 3,
+      delayMs: 20_000,
+      sleep,
+      onRetry: (n) => retried.push(n),
+    });
+    expect(out).toBe("ok");
+    expect(calls).toBe(3);
+    expect(slept).toEqual([20_000, 20_000]);
+    expect(retried).toEqual([1, 2]);
+
+    calls = 0;
+    const alwaysDown = async () => {
+      calls++;
+      throw new Error("Unable to connect. Is the computer able to access the url?");
+    };
+    await expect(withNetworkRetry(alwaysDown, { attempts: 3, delayMs: 1, sleep })).rejects.toThrow(
+      "Unable to connect",
+    );
+    expect(calls).toBe(3);
+
+    calls = 0;
+    const forbidden = async () => {
+      calls++;
+      throw new Error("token request failed (403)");
+    };
+    await expect(withNetworkRetry(forbidden, { attempts: 3, delayMs: 1, sleep })).rejects.toThrow(
+      "403",
+    );
+    expect(calls).toBe(1);
   });
 });
 
