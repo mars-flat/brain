@@ -31,7 +31,7 @@ Then read **only** the chapter covering what you're touching. The docs were spli
 | Traversal, packing, scoring, consolidation, lint | `06-brain-runtime` |
 | `packages/gateway/` — MCP, auth, policy, tool index | `04-gateway` |
 | `packages/console/` — the web console, dashboard, edge | `15-console` |
-| `packages/tasks/`, `packages/tasks-reminder/`, the console's `/tasks` tab | `16-tasks` |
+| `packages/tasks/`, `packages/tasks-reminder/`, the console's `/tasks` tab | `packages/tasks/README.md` (§16 lives there — package doc by the owner's rule) + `15-console` §15.7 |
 | `packages/agent-runtime/`, `surface-*`, session router | `08-surfaces` |
 | `adapters/`, Docker, Compose, anything Azure | `03-deployment` (+ `azure/azure-config.md`) |
 | Tests, invariants, CI workflows | `10-testing` |
