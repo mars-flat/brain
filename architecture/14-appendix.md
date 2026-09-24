@@ -6,13 +6,13 @@
 
 - **A graph database.** SQLite handles 10⁵ edges without noticing.
 - **A vector database.** §1. Revisit only if `brain eval` says so.
-- **Kubernetes.** Compose on one box. You have five containers.
-- **A web UI.** Obsidian *is* the UI — graph view, search, mobile, editing. This is the single biggest thing Obsidian buys you.
+- **Kubernetes.** Compose on one box. You have three containers (gateway, console, caddy) — plus Keycloak only in the dev overlay.
+- **A web UI** — *built after all* (W1, 2026-08-28, §15). Obsidian is still the *graph-editing* UI, and that part of the rule held: the console never writes the vault. What got built is an authenticated viewer plus an ops dashboard, because the vault lives on a VM the owner does not open Obsidian against, and later the one write surface that is not memory at all — the tasks tab (§16). The rule survives as "no web UI for editing memory".
 - **Multi-tenancy / RBAC.** One user.
 - **Real-time consolidation.** Debounced batch produces a dramatically cleaner graph at zero cost to you.
 - **An authorization server at all, probably.** Implement RFC 9728 protected resource metadata, audience validation, and scope challenges — that's the resource-server half, and it's required. Let a hosted IdP be the AS (§4.3, question 6). Definitely no consent-management UI for a single user.
 - **Your own agent loop from scratch.** Use the OpenAI Agents SDK in `agent-runtime` (§6.0). Write the four things specific to this system; inherit the rest.
-- **A public IP, TLS, or Caddy — until WhatsApp.** Discord is outbound-only and Tailscale covers laptop access (§3.1). Every one of those is a cost line and an attack surface you don't need yet.
+- **A public IP — until WhatsApp.** Discord is outbound-only and Tailscale covers laptop access (§3.1). *TLS and Caddy were built after all* (2026-08-28, §15.1, §12 Q3): the console wanted to be a normal HTTPS site, and a real Let's Encrypt cert via DNS-01 on a tailnet-only name costs one timer and no exposure. The public IP is the part that is an attack surface, and it is still not built.
 - **Hermes, WhatsApp, or any second surface before P6 ships.** The ports exist so you *can* — which is exactly why you don't need to yet.
 - **A second gateway, or a second writable copy of the vault, on the laptop.** One deployed gateway from every directory; the laptop's clone is read-only (§3.1). Two writers met only through the remote and drifted within days — twice (2026-09-17).
 
@@ -32,14 +32,14 @@
 | Term | Meaning |
 |---|---|
 | **Principal** | Canonical identity behind any surface. Config-driven, never hardcoded |
-| **Surface** | Transport a message arrives on: `cli`, `discord`, `claude-code` |
+| **Surface** | Transport a message arrives on. A free string in the envelope; in use today: `cli`, `claude-code`, `http` (the gateway's HTTP callers). `discord` arrives with P6 |
 | **Harness** | Process running the agent loop. Claude Code now; Hermes later |
 | **Episode** | One immutable conversation transcript. Layer 0 |
 | **Node** | One Obsidian note in the semantic graph. Layer 1 |
 | **Pack** | Token-budgeted, tiered rendering of a subgraph — output of `brain.recall` |
 | **Tier** | Render depth in a pack: `full` · `summary` · `stub` |
 | **Pin** | Human correction that generation may never overwrite |
-| **URN** | Stable tool identifier, `<server>.<namespace>.<tool>` |
+| **URN** | Stable tool identifier, two segments: `<server>.<tool>` (e.g. `brain.recall`, `g-2006.mail_search`) — the server name from `servers.yaml` plus the tool's own name; there is no namespace segment (§4.4) |
 | **CIMD** | Client ID Metadata Document — URL-based OAuth `client_id`, replaces DCR |
 
 ---

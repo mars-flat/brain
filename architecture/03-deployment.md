@@ -23,14 +23,13 @@ flowchart TB
         P8["ModelClient"]
     end
 
-    subgraph Local["Adapters — local / portable (default)"]
-        A1["secrets-file<br/>age-encrypted"]
+    subgraph Local["Adapters — the three that exist (adapters/)"]
+        A1["secrets-file<br/>scrypt + AES-256-GCM"]
         A2["queue-sqlite"]
-        A5["fs-local"]
-        A4["embedder-null"]
+        A3["model-openai"]
     end
 
-    subgraph AZ["Adapters — Azure (opt-in by config)"]
+    subgraph AZ["Adapters — Azure (designed, none written)"]
         B1["secrets-azure<br/>Key Vault"]
         B2["queue-azure<br/>Storage Queue"]
         B5["object-azblob"]
@@ -39,13 +38,15 @@ flowchart TB
     DOM --> Ports
     P1 --> A1 & B1
     P2 --> A2 & B2
-    P5 --> A5 & B5
-    P4 --> A4
+    P8 --> A3
+    P5 -.-> B5
 ```
 
-**Rule enforced in CI:** a dependency-cruiser rule fails the build if `packages/core` or `packages/contracts` imports anything from `adapters/*` or any `@azure/*` package. Portability is a test, not a promise.
+*Audit note (2026-09-24):* only `secrets-file`, `queue-sqlite` and `model-openai` are written. `ObjectStore` and `Embedder` are ports with **no adapter at all** — nothing has needed a blob store, and the embedder stays null by decision #5 (§1). Earlier drafts of this chapter listed `fs-local`, `object-fs` and `embedder-null` as if they existed; they never did.
 
-**For a single VM you need almost none of these.** `secrets-file`, `queue-sqlite`, and `object-fs` run fine on the box; the Azure adapters only earn their keep if you later move to managed services. Build the ports, ship the local adapters, and leave the Azure column unimplemented until something forces it.
+**Rule enforced in CI:** dependency-cruiser (`.dependency-cruiser.cjs`) fails the build if `packages/contracts` imports anything outside its own tree, if `packages/core` imports anything but `core` or `contracts` (or `node:crypto`), or if anything under `packages/` imports an `@azure`, `aws-sdk` or `google-cloud` SDK — stricter than "no adapters in core". Portability is a test, not a promise.
+
+**For a single VM you need almost none of these.** `secrets-file` and `queue-sqlite` run fine on the box; the Azure adapters only earn their keep if you later move to managed services. Build the ports, ship the local adapters, and leave the Azure column unimplemented until something forces it — which, as of 2026-09-24, nothing has.
 
 ### 3.1 Deployment targets
 
@@ -53,15 +54,15 @@ flowchart TB
 |---|---|---|
 | **Local dev** | `docker compose up` — full stack, SQLite, file secrets, fake upstream MCP servers | Phases 0–4, and every CI e2e run |
 | **Azure single-host** ✅ | One `Standard_B2pls_v2` VM (2 vCPU ARM, 4 GB), Docker Compose, one managed disk, **no public IP**, Tailscale for access | **Phase 5** (the roadmap settled deploy at P5, §11 — "Phase 6" here was a revision-3 leftover). Identical compose file to local |
-| **Azure managed** | Container Apps + Files + Key Vault, Bicep in `deploy/bicep/azure` | Only if you outgrow one box. You won't |
+| **Azure managed** | Container Apps + Files + Key Vault. **No Bicep exists** — `deploy/` holds `compose/`, `keycloak/` and `vm/` only; the managed path is a note, not an artifact | Only if you outgrow one box. You won't |
 | **Any other host** | Same compose file, Hetzner/Fly/home server | Migration = `docker compose up` + restore volume |
 
-**Recommendation: one Azure VM with Docker Compose — and don't create it until the stack passes locally.** The compose file is byte-identical to what you tested locally, which is what makes migration free. Bicep is provided for the managed path but is not on the critical path.
+**Recommendation: one Azure VM with Docker Compose — and don't create it until the stack passes locally.** The compose file is byte-identical to what you tested locally, which is what makes migration free. Bicep was planned for the managed path and never written; nothing is on that path.
 
-**P5 implementation (2026-08-27), `deploy/compose/`:** the production stack is **one container** — the gateway over Streamable HTTP; brain-mcp is not a separate service but the gateway's stdio child, spawned per the vault's `config/servers.yaml` (`agent-runtime` and `surface-host` join the compose file at P6). Specifics a reader should know:
+**P5 implementation (2026-08-27), `deploy/compose/`:** at P5 the production stack was **one container** — the gateway over Streamable HTTP; brain-mcp is not a separate service but the gateway's stdio child, spawned per the vault's `config/servers.yaml`. **It is three services now:** the web console joined on 2026-08-28 (`console`, always on, §15) and Caddy the same day as the TLS edge (`caddy`, compose profile `edge`, production only, §15.1). The base compose file hard-requires the console's variables (`CONSOLE_BASE_URL`, `CONSOLE_CLIENT_ID`, `CONSOLE_SESSION_SECRET`, `${VAR:?}`), so a `docker compose up` with only the `GATEWAY_*` values fails at once rather than starting half a stack. `agent-runtime` and `surface-host` are still P6 and still absent. Specifics a reader should know:
 
-- **Host publish is loopback-only** (`127.0.0.1:8090`); `tailscale serve` on the VM fronts it over the tailnet with TLS. That is how "no public ingress" is realized with host-level `tailscaled` — no host port is reachable from anywhere but the machine itself and the tailnet.
-- The gateway grew `GATEWAY_HOST` (bind interface; the container sets `0.0.0.0`) and `GATEWAY_RESOURCE` (the advertised PRM/challenge URL — the tailnet URL, decoupled from the bind address).
+- **App publishes are loopback-only** (`127.0.0.1:8090` gateway, `127.0.0.1:8091` console). At P5, `tailscale serve` on the VM fronted the gateway over the tailnet with TLS; since 2026-08-28 Caddy does that job on `443` for the real domain, and it is the one service that binds all interfaces — safe only because the VM has no public IP, so the port is reachable from the tailnet and nowhere else (§15.1). "No public ingress" is a property of the network, not of the port bindings.
+- The gateway grew `GATEWAY_HOST` (bind interface; the container sets `0.0.0.0`) and `GATEWAY_RESOURCE` (the advertised PRM/challenge URL, decoupled from the bind address — the tailnet URL at P5, the console domain since the edge landed).
 - The **entrypoint rebuilds `_index/brain.db` only when missing** — derived state (§5.11) is absent on a fresh volume or restored backup, but a redundant rebuild is never run (salience lives in SQLite, §5.2).
 - The image (`oven/bun` pinned by digest, non-root, `--production` install) carries no `.env` and no vault — `.dockerignore` enforces the §9.1/§9.2 boundary at build time.
 - `compose.dev.yaml` overlays the P4 Keycloak container as IdP; `scripts/compose-smoke.sh` runs the full stack and drives unauth 401 → PRM → authed recall → step-up 403 from inside the network. CI runs it as the §8.2 e2e tier on every PR.
@@ -70,30 +71,32 @@ flowchart TB
 ```mermaid
 flowchart LR
     subgraph Internet
-        DAPI["Discord API"]
-        UP["Upstream APIs<br/>GitHub, Google"]
+        UP["Upstream APIs<br/>Google, OpenAI"]
+        DAPI["Discord API (P6, unbuilt)"]
     end
 
     subgraph VM["Azure B2pls_v2 — Docker Compose — NO public IP"]
         TS["tailscaled"]
-        subgraph Priv["internal docker network — no host ports"]
-            GW["tool-gateway"]
-            BR["brain-service"]
-            AR["agent-runtime"]
-            SUR["surface-host<br/>discord adapter"]
+        CAD["caddy :443<br/>(profile edge, §15.1)"]
+        subgraph Priv["loopback-only publishes"]
+            GW["tool-gateway :8090<br/>brain-mcp, tasks, mcp-google<br/>as stdio children"]
+            CON["console :8091"]
         end
-        VOL[("managed disk<br/>/data — vault + SQLite")]
+        VOL[("managed disk<br/>/data — vault + tasks + SQLite")]
     end
 
-    LAP["Your laptop<br/>Claude Code + Tailscale"]
+    LAP["Your laptop<br/>Claude Code + Tailscale + browser"]
 
-    DAPI <-->|"outbound websocket<br/><b>no inbound port needed</b>"| SUR
-    LAP -->|"tailnet — no public ingress"| GW
-    SUR --> AR --> GW
-    GW --> BR
+    LAP -->|"tailnet — public DNS, tailnet IP"| CAD
+    CAD -->|"/mcp*"| GW
+    CAD -->|"everything else"| CON
     GW -->|"outbound only"| UP
-    BR --- VOL
+    GW --- VOL
+    CON --- VOL
+    DAPI -.-|"outbound websocket, P6"| GW
 ```
+
+*(Diagram as of 2026-09-24. The revision-5 version showed `brain-service`, `agent-runtime` and `surface-host` as compose services; brain-mcp became a stdio child instead, and the other two are P6.)*
 
 **Drop the public IP.** Revision 3 put Caddy on a static IPv4 to terminate TLS. On Azure that is a line item (~$3.65/mo) *and* the only inbound attack surface in the whole system — and it turns out nothing needs it:
 
@@ -101,13 +104,13 @@ flowchart LR
 - **Laptop → gateway** runs over **Tailscale** (free tier covers this comfortably). MCP over the tailnet, no certificate, no exposed port.
 - **Upstream OAuth callbacks** are the only genuinely public thing — and they fire *once per upstream, ever*, during the `needs_auth` flow (§4.3). Run that leg against `localhost` on your laptop during setup; `localhost` redirect URIs are spec-legal. Nothing has to listen publicly on the VM.
 
-That removes a cost line, a TLS certificate to renew, a Caddy container, and the entire public ingress surface. **When WhatsApp arrives it needs a real public webhook** — that is when Caddy, the static IP, and the public-edge/private-core split from revision 1 all come back. Not before.
+That removes a cost line and the entire public ingress surface. **What came back early, and why (2026-08-28):** the web console (§15) wanted a real hostname in a browser, and a browser wants a certificate it trusts — so Caddy, a domain and a Let's Encrypt certificate returned for the console edge (§15.1) **without a public IP**: public DNS points the name at the VM's tailnet address, the certificate comes via DNS-01 (`deploy/vm/certs.sh`, lego, monthly timer), and Caddy proxies `/mcp*` to the gateway and everything else to the console. The static IP stays dropped, and so does every inbound path that is not the tailnet. **When WhatsApp arrives it needs a genuinely public webhook** — that is when the static IP and the public-edge/private-core split from revision 1 come back. Not before.
 
 **Migration procedure (make this a tested runbook, not a wiki page):**
 1. `brain backup` → tarball of `/data` + `git push` the vault.
 2. On the new host: install Docker, clone the public repo, restore `/data`, place `.env`.
 3. `docker compose up -d`.
-4. `brain doctor` verifies index integrity, gateway health, and upstream credential validity.
+4. `brain doctor` verifies the vault (path, own `.git`, parses clean) and the index (present, node count matches the vault). *That is all it checks* — gateway health is the compose healthcheck (PRM probe) plus the console's upstream-status panel (§15.4), and upstream credential validity shows up as an upstream's `auth_status` there; the broader doctor this chapter once promised was never written.
 
 Nothing in steps 1–4 is Azure-aware. That is the whole point.
 
@@ -126,7 +129,7 @@ The collision: revision 3's host (`t4g.medium` equivalent + 64 GiB disk + static
 
 **Fix it on both sides.**
 
-*Cut the infrastructure* — the changes above take it from ~$42.51 to roughly **$36–39/mo**: drop the static IP (−$3.65), and use one 32 GiB disk instead of 64 GiB (the vault is markdown and a SQLite index — tens of megabytes, not tens of gigabytes). The 4 GB VM is the floor and stays; five Bun services plus sandboxed MCP containers (§4.6) will not fit in 2 GB.
+*Cut the infrastructure* — the changes above take it from ~$42.51 to roughly **$36–39/mo**: drop the static IP (−$3.65), and use one 32 GiB disk instead of 64 GiB (the vault is markdown and a SQLite index — tens of megabytes, not tens of gigabytes). The 4 GB VM is the floor and stays: the compose memory limits alone (gateway 1.5 GB with its stdio upstream children inside it, console 512 MB, Caddy 256 MB) exceed 2 GB before Docker and `tailscaled` take theirs. (Revision 5 sized this for five Bun services plus per-server sandbox containers; §4.6's sandboxes were never built and the upstreams run as children of the gateway process.)
 
 *Re-space the budgets* so the warning fires before the guillotine. The original values put `monthly-tripwire` above `auto-shutdown-cap`, which is why the config correctly called it dead weight — it could never fire. **Done 2026-08-27**, at double the suggested values (owner: the sponsorship credit pool grew substantially, so the ladder scales with it):
 
@@ -142,7 +145,7 @@ The principle: **an auto-shutdown that fires during normal operation isn't a saf
 
 **Two costs Azure budgets cannot see:**
 
-- **OpenAI model spend** bills to OpenAI, not Azure. Set a separate usage limit in the OpenAI platform dashboard (§13). *Set — owner confirmed 2026-08-27.*
+- **OpenAI model spend** bills to OpenAI, not Azure. A separate usage limit in the OpenAI platform dashboard is the only cap — a human-only setting, listed in §13. *Set — owner confirmed 2026-08-27.*
 - **The credit-exhaustion conversion.** No budget prevents it. The only real controls are watching `total-credit-cap` alerts and knowing the expiry date.
 
 ---

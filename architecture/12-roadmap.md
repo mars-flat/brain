@@ -9,12 +9,12 @@ mars-flat/brain/                    # PUBLIC
 ├── packages/
 │   ├── contracts/                  # schemas + types, ZERO deps, written first
 │   │   ├── episode.schema.json  node.schema.json  policy.schema.json
-│   │   └── src/{gateway-tools,brain-tools,ports}.ts
+│   │   └── src/{episode,node,policy,gateway-tools,brain-tools,ports,validate}.ts
 │   ├── core/                       # pure domain logic — no I/O, no vendor SDKs
-│   │   └── src/{traverse,pack,score,policy,consolidate,lint,resolve}.ts
-│   ├── gateway/                    # tool gateway service
-│   │   └── src/{rs,as,cimd,credentials,index,pool,audit}.ts
-│   ├── brainstore/                 # vault read/write + SQLite FTS5 index
+│   │   └── src/{traverse,recall,pack,params,graph-stats,trigram,tokens,policy,consolidate,lint,resolve}.ts
+│   ├── gateway/                    # tool gateway service (resource server, §4)
+│   │   └── src/{auth,http,server,meta,toolindex,kinds,pool,audit,config,ssrf,main,main-http}.ts
+│   ├── brainstore/                 # vault read/write + SQLite FTS5 index + calibration
 │   ├── brain-mcp/                  # brain exposed as an MCP server
 │   ├── consolidator/               # episode → nodes, single writer
 │   ├── agent-runtime/              # † server-side agent loop (OpenAI Agents SDK)
@@ -27,7 +27,8 @@ mars-flat/brain/                    # PUBLIC
 │   ├── tasks-reminder/             # T1: the Mac launchd reminder — laptop-only, never deployed
 │   ├── console/                    # W1: web console + dashboard (§15) — /tasks tab writes §16's store
 │   ├── harness-claude-code/        # MCP config + SessionEnd hook + CLAUDE.md
-│   └── cli/                        # brain init | doctor | rebuild | lint | eval | backup
+│   └── cli/                        # brain init | rebuild | recall | expand | eval | tune | doctor |
+│                                   #   ingest | consolidate [--batch] | note | pin | lint | secret | backup
 ├── adapters/
 │   ├── secrets-file/  secrets-aws/†
 │   ├── queue-sqlite/  queue-sqs/†
@@ -39,8 +40,8 @@ mars-flat/brain/                    # PUBLIC
 ├── examples/vault-example/         # synthetic vault + eval query suites (§8.5)
 ├── docs/{SETUP.md,MIGRATION.md†,ADR/}   # SECURITY.md lives at the repo root
 ├── .github/{workflows/{ci.yml,deploy.yml,scan.yml},dependabot.yml}
-├── .githooks/pre-commit†           # refuses any staged vault/ path (CI's repo-split-guard covers it today)
-├── bunfig.toml  bun.lock  .env.example  .gitleaks.toml  .dependency-cruiser.js
+├── .githooks/pre-commit            # refuses staged vault/, azure/ and .env paths; runs gitleaks if installed (§9.1)
+├── bunfig.toml  bun.lock  .env.example  .gitleaks.toml  .dependency-cruiser.cjs  biome.json
 │
 ├── tasks/                          # ← the tasks store on a dev laptop (VM: /data/tasks). gitignored (§16.3)
 │
@@ -49,8 +50,9 @@ mars-flat/brain/                    # PUBLIC
     ├── .obsidian/                  #   open this folder as your Obsidian vault
     ├── BRAIN.md                    #   Layer-3 schema
     ├── nodes/ episodes/ pins/ quarantine/
-    ├── config/{policy.yaml,servers.yaml}
-    └── _index/brain.db             #   derived, gitignored in the vault repo
+    ├── config/{policy.yaml,servers.yaml,console.yaml,gmail-filters/}   # §4.5, §4.3, §15.4, W2
+    ├── secrets/                    #   envelope-encrypted store.json is tracked; master.key never (§4.3)
+    └── _index/{brain.db,gateway.db,audit.jsonl}   # derived + the gateway's confirm/rate state + the hash-chained audit; gitignored in the vault repo
 ```
 
 `vault/` appears in this tree for orientation only — the parent repo never tracks it (§9.1).
@@ -112,8 +114,8 @@ Estimates are working days and they're guesses. **P2 is most likely to double** 
 | # | Question | My default if you don't weigh in |
 |---|---|---|
 | 1 | ~~Where does the vault live?~~ **Decided:** `brain/vault/`, nested git repo (§9.1). **Private remote created 2026-08-27** (`mars-flat/brain-vault`, visibility verified before the first push; history audited — `secrets/master.key` never tracked, the envelope-encrypted `secrets/store.json` is deliberately committed per §4.3) | ~~accepted single-disk loss risk~~ — closed by the remote |
-| 2 | Public repo now, or after P4 hardening? | **Public from P0.** Retrofitting secret hygiene is how secrets leak. Starting public forces the discipline while the repo is empty |
-| 3 | ~~Domain for the gateway?~~ **Moot** — dropping the public IP removed the TLS requirement (§3.1) | Revisit only when WhatsApp needs a public webhook |
+| 2 | ~~Public repo now, or after P4 hardening?~~ **Resolved as defaulted:** public from P0 and never private since (visibility verified 2026-09-24) | ~~Public from P0~~ — retrofitting secret hygiene is how secrets leak; starting public forced the discipline while the repo was empty |
+| 3 | ~~Domain for the gateway?~~ **Built after all, for the console (2026-08-28, §15.1):** `brain.shanechen.ca`-style DNS resolving to the VM's *tailnet* IP, a real Let's Encrypt cert via lego DNS-01 renewed by a monthly timer, Caddy (compose profile `edge`) fronting the console and `/mcp`. The earlier "moot" ruling assumed no TLS without a public IP; a real cert on a tailnet-only name turned out to be cheap and it made the console a normal HTTPS site. **Still no public IP** — the escalation for that stays Cloudflare Tunnel + Access (§15.1) | ~~Revisit only when WhatsApp needs a public webhook~~ — done for the console; a public IP remains the WhatsApp-only question |
 | 4 | ~~Cheap model for consolidation?~~ **Decided:** `gpt-5.6-luna` at `medium` effort via Batch API (§5.8). ~~*P2 note:* extraction runs synchronously for now~~ **Batch landed at P5 (2026-08-27):** `brain consolidate --batch` is one cadence tick (collect finished batches → promote staged uploads into batch jobs → drain the queue through the normal single-writer → stage one new upload); a pending batch re-queues without burning §5.7 attempts, a failing episode is capped at three submissions before dead-lettering, and the batch request is the sync request verbatim. `BRAIN_INGEST_MODE=queue` on the VM makes `brain.ingest` enqueue-only so nothing bills inline; the sync path stays for the interactive dev loop. **Staging added 2026-08-30:** the upload and its `batches.create` now sit one cadence tick apart (§5.8 in `07-cost`) — an OpenAI batch-backend file-propagation bug (hit 2026-08-28, two days of every batch failing whole with "Cannot find file …" for inputs the files API served as `processed`) made create-immediately-after-upload unreliable; a failed create keeps the staged upload and retries next tick rather than re-uploading. **Kill switch 2026-09-01 → lifted 2026-09-17:** staging never beat the bug (every aged batch failed identically for three weeks, issue #48), so `BRAIN_EXTRACTION_MODE=sync` ran the cadence inline until a 1-item probe completed on 2026-09-17; batching is back, staging kept (§5.8) | Re-baseline after a week of real episodes. Effort, not model, is the cost lever — raise to `high` only if extraction quality demands it |
 | 5 | Does the Discord bot join a server, or DM only? | **DM only** at first. One user, no channel-permission surface area |
 | 6 | ~~Self-hosted authorization server, or hosted IdP?~~ **Done (2026-08-27): Auth0 is live.** Tenant configured as code (`scripts/auth0-setup.ts`: the gateway API + §4.3 scopes — audience since migrated to the canonical resource URL, display name `tool-gateway` — plus `brain-cli` native+PKCE, `brain-hook` M2M `brain:write`-only, `agent-runtime` M2M); the VM swap really was one issuer URL. Verified from the laptop over the tailnet: token minted, scope step-up enforced (write-only credential 403s on read), headless delivery → queued → consolidated → pushed. Claude Code uses the pre-registered `brain-cli` client id via the mcp `oauth` block (local scope — the tailnet URL stays out of the public repo, §9.2). *Hardening owner-side: disable public signups + social on the tenant (§13)* | ~~Hosted IdP~~ — resolved as decided |

@@ -6,7 +6,7 @@
 #   OPENAI_API_KEY        model key for the compose .env
 #   VAULT_DEPLOY_KEY_B64  base64 ed25519 key with write access to brain-vault
 #   GATEWAY_ISSUER        Auth0 issuer URL (placeholder until §12 Q6 wiring)
-#   GATEWAY_RESOURCE      tailnet /mcp URL (placeholder until tailscale up)
+#   GATEWAY_RESOURCE      the console domain's /mcp URL (§15.1; placeholder until the edge is up)
 #
 # Tailscale is installed but NOT brought up — `tailscale up` needs the
 # owner's auth (or TAILSCALE_AUTHKEY, see QUESTIONS-FOR-OWNER P5-3).
@@ -65,7 +65,7 @@ BRAIN_DATA_DIR=/data
 BRAIN_INGEST_MODE=queue
 GATEWAY_ISSUER=${GATEWAY_ISSUER:-https://pending-auth0.invalid/}
 GATEWAY_AUDIENCE=tool-gateway
-GATEWAY_RESOURCE=${GATEWAY_RESOURCE:-https://pending-tailnet.invalid/mcp}
+GATEWAY_RESOURCE=${GATEWAY_RESOURCE:-https://pending-domain.invalid/mcp}
 OPENAI_API_KEY=${OPENAI_API_KEY:-}
 EOF
   chmod 600 "$ENVF"
