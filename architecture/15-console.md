@@ -85,9 +85,8 @@ Obsidian-style settings panel (localStorage-persisted) drives display
 consolidator remains the vault's only writer (§5.7); read-only there is a
 code-level discipline (SQLite WAL needs fs write access even for readers).
 *Amended 2026-09-18:* the console does write one thing — the **tasks
-store** (§16), its own SQLite file beside the vault, through POST forms
-that carry a session-bound CSRF token and must be same-origin (§16.4). The
-vault rule is unchanged.
+store**, its own SQLite file beside the vault (§3.1) — through the one
+write path described in §15.7. The vault rule is unchanged.
 
 ### 15.4 The dashboard: links + live truth + expiry radar
 
@@ -184,6 +183,34 @@ placeholders where the truth is private. When the architecture moves,
 this page is part of keeping the docs true (`architecture-sync`).
 
 ---
+
+---
+
+### 15.7 The one write path
+
+Added 2026-09-18 with the tasks tab; recorded here because it changed a
+console invariant, not because of what it writes (the tab itself is
+package documentation — `packages/tasks/README.md` §16.4). "The console
+never writes" became "the console never writes **the vault**". The tasks
+store is the one thing it writes, and that path carries its own defence,
+because `SameSite=Lax` on the session cookie is most of CSRF protection
+but not all of it:
+
+- **POST and 303-redirect**, so a refresh never repeats a write — the
+  pattern the dashboard's refresh button already used. Forms work without
+  script.
+- **A token in every mutating form**, bound to the session: an HMAC of
+  `sub` + expiry under the session secret, so there is nothing to store
+  server-side.
+- **Same-origin proof on every POST** via `Origin` (or `Referer`), and
+  `form-action 'self'` in the CSP.
+- A POST failing either check is a 403 page, never a write. Store rule
+  violations come back as a notice on the page the user came from; the
+  store's transactions mean a refused write is a no-op, never a half-write.
+  Ids are opaque UUIDs, rejected by regex before SQL.
+
+Any future console write — there is none planned — goes through the same
+three checks or does not ship.
 
 ---
 
