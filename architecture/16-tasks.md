@@ -244,8 +244,22 @@ deploy pipeline. Its plist fires at 09:00, at login, and every 30 minutes;
 the script itself enforces the spec — silent before 9am local, silent once
 today's dialog has been shown (a date stamp in `~/.brain/`) — so
 `max(9am, first computer open)` is a *guard*, not a scheduler, and a tick
-that finds no tailnet simply retries half an hour later without touching
-the stamp.
+that cannot reach the gateway leaves the stamp alone so a later tick tries
+again.
+
+**Dark wakes are not "the computer open"** (found 2026-09-24, from the
+first week of logs). A closed MacBook wakes for a few seconds every quarter
+hour to service TCP keepalives, launchd fires any missed ticks inside those
+windows, and the network is only half up: every early failure — connect
+refused, DNS timeout, a 60 s request timer that expired while the Mac
+slept mid-call — ran in one, and so did the tidy 09:00 "successes", which
+stamped the day from behind a closed lid. The script now reads
+`pmset -g systemstate` and exits silently, stamp untouched, when the
+capabilities lack `Graphics`. On a real wake Wi-Fi and the tailnet still
+need a few seconds, so connect, DNS and timeout errors retry inside the
+tick (three attempts, 20 s apart, logged) rather than waiting for launchd's
+next one, which can be hours away once the lid closes again. Anything that
+is not a network error — a 403, a refused tool — fails at once as before.
 
 Read-only by construction: it calls `tasks.due` through the gateway with a
 **client-credentials token from its own Auth0 client, `tasks-reminder`,

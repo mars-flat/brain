@@ -9,8 +9,11 @@
  * "max(9am, first computer open)" is a guard, not a scheduler: launchd runs
  * this at 09:00, at login, and every half hour; the script exits silently
  * before 9am local or once it has shown today's dialog (a date stamp in
- * ~/.brain). A failed gateway call leaves the stamp alone so the next tick
- * retries — the laptop may simply not be on the tailnet yet.
+ * ~/.brain). A dark wake — the lid closed, the Mac up for a few seconds to
+ * service keepalives — is not "the computer open" and is skipped outright.
+ * A failed gateway call retries inside the tick (the network needs a few
+ * seconds after a real wake) and then leaves the stamp alone so the next
+ * tick tries again.
  *
  * Every failure path exits 0: a launchd agent that "fails" just gets
  * re-run and logged, and a reminder must never become a nag of errors.
@@ -115,6 +118,68 @@ export function writeStamp(path: string, day: string): void {
   writeFileSync(path, `${day}\n`);
 }
 
+/**
+ * A dark wake is not "the computer open". A closed MacBook wakes for a few
+ * seconds every quarter hour to service TCP keepalives, launchd fires any
+ * missed ticks inside those windows, and the network is only half up —
+ * every failure in the first week of logs ran that way (2026-09-22..24),
+ * and so did the 09:00 "successes". `pmset -g systemstate` lists the
+ * current capabilities: a full wake has `Graphics`, a dark wake does not.
+ */
+export function isDarkWake(systemState: string): boolean {
+  const m = /Current System Capabilities are:(.*)/i.exec(systemState);
+  if (!m) return false; // unrecognised output: never block the reminder on it
+  return !/\bGraphics\b/.test(m[1] ?? "");
+}
+
+export function readSystemState(): string {
+  if (process.platform !== "darwin") return "";
+  try {
+    const run = Bun.spawnSync(["pmset", "-g", "systemstate"], {
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+    return run.stdout.toString();
+  } catch {
+    return "";
+  }
+}
+
+/** Connect, DNS and timeout failures — the network still coming up after a wake. */
+export function isTransientNetworkError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /Unable to connect|fetch failed|ECONN|ENOTFOUND|ETIMEOUT|ETIMEDOUT|EAI_AGAIN|getaddrinfo|Request timed out|-32001/i.test(
+    msg,
+  );
+}
+
+export interface RetryOptions {
+  attempts: number;
+  delayMs: number;
+  sleep?: (ms: number) => Promise<void>;
+  onRetry?: (attempt: number, err: unknown) => void;
+}
+
+/**
+ * Wi-Fi and the tailnet need a few seconds after a real wake. Retrying
+ * inside the tick beats waiting for launchd's next one, which can be hours
+ * away if the lid closes again. Anything that is not a network error
+ * (a 403, a refused tool) is thrown at once.
+ */
+export async function withNetworkRetry<T>(fn: () => Promise<T>, opts: RetryOptions): Promise<T> {
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt >= opts.attempts || !isTransientNetworkError(err)) throw err;
+      opts.onRetry?.(attempt, err);
+      await sleep(opts.delayMs);
+    }
+  }
+}
+
 /** One `tasks.due` call through the gateway. */
 export async function fetchDue(cfg: ReminderConfig, clientSecret: string): Promise<DueSummary> {
   const target: DeliveryTarget = {
@@ -209,13 +274,22 @@ async function main(): Promise<void> {
   if (!gate.fire && !force && !dryRun) return; // silent by design
   if (!gate.fire) log(`${gate.reason} — continuing because of --force/--dry-run`);
 
+  if (isDarkWake(readSystemState())) {
+    if (!force && !dryRun) return; // lid closed: not "the computer open" — stamp untouched
+    log("dark wake (no display) — continuing because of --force/--dry-run");
+  }
+
+  const errText = (err: unknown) => (err instanceof Error ? err.message : String(err));
   let due: DueSummary;
   try {
-    due = await fetchDue(cfg, secret);
+    due = await withNetworkRetry(() => fetchDue(cfg, secret), {
+      attempts: 3,
+      delayMs: 20_000,
+      onRetry: (attempt, err) =>
+        log(`gateway unreachable (${errText(err)}) — retry ${attempt} of 2 in 20s`),
+    });
   } catch (err) {
-    log(
-      `gateway call failed (${err instanceof Error ? err.message : String(err)}) — will retry next tick`,
-    );
+    log(`gateway call failed (${errText(err)}) — will retry next tick`);
     return;
   }
 
