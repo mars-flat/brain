@@ -281,6 +281,17 @@ the tailnet name never enters the public repo (§9.4).
 - **Tag management or purge over MCP.** Tags are assigned by name from any
   surface, but the list is curated in the console; permanent deletion is a
   confirmed console act (§16.5).
+- **Automatic task intake inside `packages/tasks`.** Issue #72 proposed a
+  timer-driven Gmail reader that extracts tasks with a model call and
+  writes the store directly. **Deferred by the owner (2026-09-24), with a
+  direction:** services stay isolated — the tasks package reads no other
+  service's data, and no other service reads its store. Collecting tasks
+  from other sources (mail, university sites, whatever comes next) is done
+  by connecting further MCP upstreams behind the gateway and letting an
+  LLM act as the adapter, calling `tasks.*` (§16.5) the way any surface
+  does — so the intake lives in a session or a routine, not in a package
+  that couples two upstreams. The owner confirmed every §12 Q10–Q14 default
+  the same day; the surface is considered done as built.
 - **A `brain doctor` check on the store** — the console healthcheck and
   the gateway's upstream status (§15.4) already surface a missing or
   unreadable file.

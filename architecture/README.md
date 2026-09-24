@@ -24,11 +24,11 @@ Section numbers (§N) are stable across files and greppable, so a cross-referenc
 | [09-security](./09-security.md) | Threat model | 28 |
 | [10-testing](./10-testing.md) | TDD approach, invariants, CI/CD pipeline | 129 |
 | [11-repo-safety](./11-repo-safety.md) | Vault/code split, secrets, supply chain, packaging | 144 |
-| [12-roadmap](./12-roadmap.md) | Repo layout, build phases, open questions | 116 |
+| [12-roadmap](./12-roadmap.md) | Repo layout, build phases, open questions | 133 |
 | [13-setup](./13-setup.md) | **Prerequisites and the Discord bot walkthrough** | 83 |
 | [14-appendix](./14-appendix.md) | What not to build, glossary, revision-3 audit | 46 |
 | [15-console](./15-console.md) | The web console: authenticated vault viewer + ops dashboard | 180 |
-| [16-tasks](./16-tasks.md) | Recurring tasks: own SQLite store, the console's one write path, `tasks.*` upstream, Mac reminder | 210 |
+| [16-tasks](./16-tasks.md) | Recurring tasks: own SQLite store, the console's one write path, `tasks.*` upstream, Mac reminder | 303 |
 
 *Same idea as the brain's own `index.md` ([§5.1](./05-brain-model.md)): a cheap catalog you always read, pointing at expensive detail you load on demand.*
 
