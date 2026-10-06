@@ -13,7 +13,7 @@
   "dependencies": {
     "@brain/brainstore": "workspace:*",
     "@brain/tasks": "workspace:*",
-    "jose": "6.2.10",
-    "marked": "16.4.1"
+    "jose": "6.2.12",
+    "marked": "18.0.14"
   }
 }

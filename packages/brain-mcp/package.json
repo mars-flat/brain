@@ -17,6 +17,6 @@
     "@brain/core": "workspace:*",
     "@brain/model-openai": "workspace:*",
     "@brain/queue-sqlite": "workspace:*",
-    "@modelcontextprotocol/sdk": "1.30.0"
+    "@modelcontextprotocol/sdk": "1.32.0"
   }
 }

@@ -11,6 +11,6 @@
     "./policy.schema.json": "./policy.schema.json"
   },
   "devDependencies": {
-    "ajv": "8.17.1"
+    "ajv": "8.20.0"
   }
 }
