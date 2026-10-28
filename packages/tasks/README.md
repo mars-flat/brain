@@ -390,7 +390,7 @@ accept form's *similar open task* hint. The store applies three nets inside
 | Net | Catches | Pending row | Accepted / owner-dismissed row | Stale- or duplicate-dismissed row |
 |---|---|---|---|---|
 | **message key** (`proposal_sources`, folds included) | the same mail twice | duplicate (`key`) | duplicate (`key`) | duplicate (`key`) |
-| **thread key**, no window | a reply, reminder, "deadline extended" in the thread | **fold** | duplicate (`accepted` / `dismissed`) | ignored — treated as new |
+| **thread key**, same window as the entity | a reply, reminder, "deadline extended" in the thread | **fold** | duplicate (`accepted` / `dismissed`) within the window | ignored — treated as new |
 | **entity**, windowed from resolution: 90 days for `subscription` (Q17), 60 otherwise | the same thing from another thread or account; another receipt for the same service | **fold** | duplicate within the window | ignored |
 
 A **fold** appends one line to the pending row's notes (`also: <subject> ·

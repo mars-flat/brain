@@ -681,7 +681,10 @@ export class TaskStore {
       this.addSource(p.id, c, now);
       return { outcome: "created", proposal: p };
     });
-    return tx();
+    // Immediate: the lookups and the insert must sit under one write lock,
+    // or two writers (console + upstream) racing on a key would hit
+    // SQLITE_BUSY_SNAPSHOT instead of the second one seeing a duplicate.
+    return tx.immediate();
   }
 
   /**
@@ -691,7 +694,7 @@ export class TaskStore {
    */
   acceptProposal(
     id: string,
-    input: Partial<CreateInput> & { tags?: string[] } = {},
+    input: Partial<Omit<CreateInput, "dueAt">> & { dueAt?: number | null; tags?: string[] } = {},
   ): { task: Task; proposal: Proposal } {
     const now = this.now();
     const tx = this.db.transaction(() => {
@@ -703,8 +706,10 @@ export class TaskStore {
         notes: input.notes ?? p.notes,
         intervalMs: input.intervalMs ?? null,
         anchor: input.anchor,
-        dueAt: input.dueAt ?? p.dueAt ?? undefined,
-        hasTime: input.hasTime ?? (input.dueAt == null ? p.hasTime : undefined),
+        // undefined = the proposal's guess; null = the human cleared it (default due).
+        dueAt: input.dueAt === null ? undefined : (input.dueAt ?? p.dueAt ?? undefined),
+        hasTime:
+          input.hasTime ?? (input.dueAt === undefined && p.dueAt != null ? p.hasTime : undefined),
         tags: input.tags,
       });
       const accepted = markAccepted(p, task.id, now);
@@ -724,6 +729,8 @@ export class TaskStore {
 
   /** The manual trim (Q16): dismiss every pending proposal older than `days`. Returns how many. */
   dismissStaleProposals(days = 7): number {
+    if (!Number.isInteger(days) || days < 1 || days > 365)
+      throw new TaskError("older_than_days must be a whole number of days from 1 to 365");
     const now = this.now();
     const tx = this.db.transaction(() => {
       let n = 0;

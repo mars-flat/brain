@@ -107,17 +107,20 @@ describe("the duplicate nets (pure)", () => {
     }
   });
 
-  test("thread: pending folds, accepted and owner-dismissed suppress, stale and duplicate dismissals are ignored", () => {
+  test("thread: pending folds, accepted and owner-dismissed suppress within the window, stale and duplicate dismissals are ignored", () => {
     const pending = row({});
     expect(findDuplicate(c, { ...empty, byThread: [pending] }, T0)).toMatchObject({
       net: "thread",
       action: "fold",
     });
-    const accepted = row({ status: "accepted", resolvedAt: T0 - 400 * DAY_MS, taskId: "t1" });
+    const accepted = row({ status: "accepted", resolvedAt: T0 - 40 * DAY_MS, taskId: "t1" });
     expect(findDuplicate(c, { ...empty, byThread: [accepted] }, T0)).toMatchObject({
       action: "duplicate",
       reason: "accepted",
     });
+    // The window applies to the thread net too: one dismissal does not silence a thread forever.
+    const old = row({ status: "accepted", resolvedAt: T0 - 400 * DAY_MS, taskId: "t1" });
+    expect(findDuplicate(c, { ...empty, byThread: [old] }, T0)).toBeNull();
     const owner = row({ status: "dismissed", dismissReason: "owner", resolvedAt: T0 - DAY_MS });
     expect(findDuplicate(c, { ...empty, byThread: [owner] }, T0)).toMatchObject({
       action: "duplicate",
@@ -282,6 +285,12 @@ describe("the store", () => {
     expect(r.task.title).toBe("CS 348 A3 due");
     expect(r.task.dueAt).not.toBeNull();
     expect(r.task.hasTime).toBe(false);
+    // The human can clear the guess: null means "default due", not "the proposal's".
+    const p2 = s.propose(
+      input({ dedupeKey: "k9", threadKey: "t9", entity: "math239 q1" }),
+    ).proposal;
+    const r2 = s.acceptProposal(p2.id, { intervalMs: 7 * DAY_MS, dueAt: null });
+    expect(Math.abs((r2.task.dueAt as number) - (T0 + 7 * DAY_MS))).toBeLessThan(DAY_MS); // now + interval, pinned to noon
     expect(r.proposal).toMatchObject({ status: "accepted", taskId: r.task.id });
     expect(() => s.acceptProposal(proposal.id, { intervalMs: null })).toThrow(
       /accepted, not pending/,
@@ -325,6 +334,7 @@ describe("the store", () => {
     expect(s.proposal(a.id)).toMatchObject({ status: "dismissed", dismissReason: "stale" });
     expect(s.proposal(b.id)?.status).toBe("pending");
     expect(s.dismissStaleProposals(7)).toBe(0);
+    expect(() => s.dismissStaleProposals(0)).toThrow(/1 to 365/);
   });
 
   test("listing: pending newest first; filters by kind and status", () => {

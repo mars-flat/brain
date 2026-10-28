@@ -112,7 +112,7 @@ const KEY_MAX = 200;
 const SOURCE_MAX = 2000;
 export const NOTES_MAX = 4000;
 
-/** How long an accepted or owner-dismissed entity keeps suppressing (Q17: 3 months for subscriptions). */
+/** How long an accepted or owner-dismissed row keeps suppressing its thread and entity (Q17: 3 months for subscriptions). */
 export const ENTITY_WINDOW_MS: Record<ProposalKind, number> = {
   subscription: 90 * DAY_MS,
   university: 60 * DAY_MS,
@@ -214,10 +214,11 @@ export type DuplicateVerdict =
 
 /**
  * A pending row absorbs the newcomer (fold). An accepted row, or one the
- * OWNER dismissed, suppresses it. A row dismissed as stale or as a
- * duplicate never suppresses — the owner never looked at it, so a later
- * reminder must come back. Thread matches have no window (a thread is a
- * thread); entity matches expire per kind, measured from resolution.
+ * OWNER dismissed, suppresses it — for a window per kind, measured from
+ * resolution, on both the thread and the entity net (a long-lived thread
+ * must not be silenced forever by one dismissal). A row dismissed as stale
+ * or as a duplicate never suppresses — the owner never looked at it, so a
+ * later reminder must come back.
  */
 function verdictFor(
   row: Proposal,
@@ -226,10 +227,8 @@ function verdictFor(
   now: number,
 ): DuplicateVerdict | null {
   if (row.status === "pending") return { net, action: "fold", row };
-  if (net === "entity") {
-    const window = ENTITY_WINDOW_MS[kind];
-    if (row.resolvedAt == null || now - row.resolvedAt > window) return null;
-  }
+  const window = ENTITY_WINDOW_MS[kind];
+  if (row.resolvedAt == null || now - row.resolvedAt > window) return null;
   if (row.status === "accepted") return { net, action: "duplicate", reason: "accepted", row };
   if (row.dismissReason === "owner") return { net, action: "duplicate", reason: "dismissed", row };
   return null;

@@ -545,6 +545,8 @@ export function buildTasksServer(
         return { proposal: proposalOut(store.restoreProposal(need(a.id, "id")), tz) };
       case "dismiss_stale_proposals": {
         const days = typeof a.older_than_days === "number" ? a.older_than_days : 7;
+        if (!Number.isInteger(days) || days < 1 || days > 365)
+          throw new TaskError("older_than_days must be a whole number of days from 1 to 365");
         return { dismissed: store.dismissStaleProposals(days) };
       }
       default:
