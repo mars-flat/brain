@@ -415,7 +415,7 @@ export function closePromptPage(ctx: TasksCtx, t: Task, kind: "completed" | "can
          canRepeat
            ? `<label class="choice"><input type="radio" name="repeat" value="yes" checked> yes — next ${esc(formatWhen(next, ctx.tz, t.hasTime))} <span class="muted">(every ${esc(formatInterval(t.intervalMs))}, ${t.anchor === "due" ? "from the due date" : "from now"})</span></label>`
            : `<p class="muted">this is a one-off — it has no interval. pick a date to repeat it anyway.</p>`
-}
+       }
        <label class="choice"><input type="radio" name="repeat" value="date"> yes, on a date I pick:
          ${duePick(next, t.hasTime, ctx.tz)}</label>
        <label class="choice"><input type="radio" name="repeat" value="no"${canRepeat ? "" : " checked"}> no — retire this task</label>

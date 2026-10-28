@@ -126,7 +126,7 @@ export function nodePage(store: BrainStore, id: string): string | null {
              )
              .join("")}</ul>`
          : ""
-}`,
+     }`,
     { authed: true },
   );
 }
