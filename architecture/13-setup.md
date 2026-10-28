@@ -36,7 +36,7 @@ Everything an agent structurally cannot do: create accounts, accept terms, enter
 
 ### The three P5 human steps — all done 2026-08-27
 
-1. ~~**Auth0 Management credential**~~ ✅ — `brain-mgmt` created, `scripts/auth0-setup.ts` configured the tenant (API + scopes, brain-cli PKCE, brain-hook, agent-runtime, grants), end-to-end auth verified from the laptop. The `brain-mgmt` credential can be deleted or kept for re-runs (the script is idempotent).
+1. ~~**Auth0 Management credential**~~ ✅ — the Machine-to-Machine app is named **`mgmt-setup`** in the dashboard (earlier text here said `brain-mgmt`; corrected 2026-10-28), kept for re-runs: its id and secret sit in the laptop `.env` as `AUTH0_MGMT_CLIENT_ID` / `AUTH0_MGMT_CLIENT_SECRET` beside `AUTH0_DOMAIN`, and bun loads `.env` from the repo root, so `bun scripts/auth0-setup.ts` runs with nothing typed. `scripts/auth0-setup.ts` configured the tenant (API + scopes, brain-cli PKCE, brain-hook, agent-runtime, tasks-reminder, mail-tick, grants); end-to-end auth verified from the laptop. The same credential can read a new client's secret through the Management API (`GET /api/v2/clients/<id>?fields=client_secret`), which is how the mail-tick secret reached the VM without being displayed (2026-10-28).
 2. ~~**Tailscale**~~ ✅ — brain-vm is `<vm>.<tailnet>.ts.net` (the real name stays out of this public file, §9.2; it lives in the laptop's gitignored `.claude/brain-harness.json` and the VM's compose `.env`). At P5 `tailscale serve` fronted the gateway with TLS; since 2026-08-28 Caddy on the console domain does (§15.1) and `tailscale serve` is off. Tailscale SSH enabled for ops.
 3. ~~**GHCR package visibility**~~ ✅ — public; deploys pull.
 
