@@ -132,6 +132,13 @@ export function parseDue(text: string, tz: string): { at: number; hasTime: boole
   return { at: parseWhen(s, tz), hasTime: true };
 }
 
+/** The instants bounding the local day of `ms` in a zone: [start, next midnight). */
+export function dayBounds(ms: number, tz: string): { start: number; end: number } {
+  const day = localDate(ms, tz);
+  const next = new Date(Date.parse(`${day}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10);
+  return { start: instantOf(`${day}T00:00`, tz), end: instantOf(`${next}T00:00`, tz) };
+}
+
 /** Whole local days from `now` to `at` — negative is the past. */
 export function dayDelta(at: number, now: number, tz: string): number {
   const a = Date.parse(`${localDate(at, tz)}T00:00:00Z`);

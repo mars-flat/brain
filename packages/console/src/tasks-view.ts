@@ -10,7 +10,9 @@
  */
 
 import {
+  type Closed,
   DAY_MS,
+  dayDelta,
   describeDue,
   formatInterval,
   formatWhen,
@@ -143,15 +145,67 @@ function chips(t: Task, tags: string[]): string {
   );
 }
 
+/** Row-level actions are quiet: the row is the thing, the verbs sit at its edge. */
+function rowActs(ctx: TasksCtx, t: Task): string {
+  const id = esc(t.id);
+  return t.status === "open"
+    ? `<span class="acts"><a class="btn quiet" href="/tasks/${id}/close?kind=completed">done</a><a class="btn quiet" href="/tasks/${id}/close?kind=cancelled">skip</a></span>`
+    : `<span class="acts"><form class="inline" method="post" action="/tasks/${id}/reopen">${csrfInput(ctx)}<button class="btn" type="submit">reopen</button></form>
+         <a class="btn quiet danger" href="/tasks/${id}/purge">delete forever</a></span>`;
+}
+
 function taskRow(ctx: TasksCtx, t: Task, tags: string[]): string {
-  const acts =
-    t.status === "open"
-      ? `<span class="acts"><a href="/tasks/${esc(t.id)}/close?kind=completed">done</a><a href="/tasks/${esc(t.id)}/close?kind=cancelled">skip</a></span>`
-      : `<span class="acts"><form class="inline" method="post" action="/tasks/${esc(t.id)}/reopen">${csrfInput(ctx)}<button class="btn" type="submit">reopen</button></form>
-         <a class="danger" href="/tasks/${esc(t.id)}/purge">delete forever</a></span>`;
   return `<li><a class="title" href="/tasks/${esc(t.id)}">${esc(t.title)}</a>
     ${chips(t, tags)}
-    ${dueHtml(t, ctx)}${acts}</li>`;
+    ${dueHtml(t, ctx)}${rowActs(ctx, t)}</li>`;
+}
+
+/**
+ * A board card for the urgent band: an open task due by tomorrow. It is
+ * draggable onto the done column — the drop opens the same close prompt
+ * the done button does (console-client.js) — and carries that href as its
+ * drag payload so the two paths cannot diverge.
+ */
+function todoCard(ctx: TasksCtx, t: Task, tags: string[]): string {
+  const id = esc(t.id);
+  const closeHref = `/tasks/${id}/close?kind=completed`;
+  return `<article class="tcard" draggable="true" data-drag="${closeHref}">
+    <a class="title" href="/tasks/${id}">${esc(t.title)}</a>
+    <span class="acts"><a class="btn quiet" href="${closeHref}">done</a><a class="btn quiet" href="/tasks/${id}/close?kind=cancelled">skip</a></span>
+    <span class="meta">${dueHtml(t, ctx)}${tags.map((n) => `<a class="chip tag" href="${tagHref(n)}">${esc(n)}</a>`).join("")}</span>
+  </article>`;
+}
+
+/** A closed occurrence from today: read-only, greyed, with where the task went next. */
+function doneCard(ctx: TasksCtx, c: Closed): string {
+  const t = c.task;
+  const at = new Intl.DateTimeFormat("en-US", {
+    timeZone: ctx.tz,
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(c.at));
+  const next =
+    t.status === "open" && t.dueAt != null
+      ? `next ${esc(describeDue(t.dueAt, ctx.now, ctx.tz))}`
+      : "retired";
+  return `<article class="tcard closed">
+    <a class="title" href="/tasks/${esc(t.id)}">${esc(t.title)}</a>
+    <span class="meta">${c.kind === "completed" ? "done" : "skipped"} ${esc(at)} · ${next}</span>
+  </article>`;
+}
+
+/** The urgent band (§16.4): overdue + today + tomorrow as todo, today's closures as done. */
+function board(ctx: TasksCtx, todo: Task[], done: Closed[], tags: Map<string, string[]>): string {
+  const todoHtml = todo.length
+    ? todo.map((t) => todoCard(ctx, t, tags.get(t.id) ?? [])).join("")
+    : `<p class="empty">nothing due by tomorrow.</p>`;
+  const doneHtml = done.length
+    ? done.map((c) => doneCard(ctx, c)).join("")
+    : `<p class="empty">nothing closed yet today.</p>`;
+  return `<section class="board" aria-label="today, tomorrow and overdue">
+    <div class="col"><h3>todo <span class="muted">${todo.length}</span></h3>${todoHtml}</div>
+    <div class="col" data-drop="done"><h3>done <span class="muted">${done.length}</span></h3>${doneHtml}</div>
+  </section>`;
 }
 
 export function tasksPage(
@@ -164,27 +218,33 @@ export function tasksPage(
   const tagFilter = tag?.trim() || undefined;
   const seg = (v: "open" | "retired", href: string, label: string) =>
     `<a href="${href}"${v === view ? ` class="on"` : ""}>${label}</a>`;
+  let facts = `${counts.open} open · ${counts.retired} retired`;
   let body: string;
   if (view === "open") {
     const att = ctx.store.attention(7);
+    // The store's horizon buckets are by local day; "tomorrow" is the
+    // first day of upcoming and belongs on the board, the rest in the list.
+    const tomorrow = att.upcoming.filter((t) => dayDelta(t.dueAt as number, ctx.now, ctx.tz) === 1);
+    const week = att.upcoming.filter((t) => !tomorrow.includes(t));
+    facts = `${att.overdue.length} overdue · ${att.today.length} today · ${tomorrow.length} tomorrow · ${facts}`;
     const keep = tagFilter
       ? new Set(ctx.store.list("open", { tag: tagFilter }).map((t) => t.id))
       : null;
-    const only = (list: Task[]) => (keep ? list.filter((t) => keep.has(t.id)) : list);
-    const shown = [...att.overdue, ...att.today, ...att.upcoming, ...att.later].filter(
-      (t) => !keep || keep.has(t.id),
-    );
+    const only = <T extends { id: string }>(list: T[]) =>
+      keep ? list.filter((t) => keep.has(t.id)) : list;
+    const todo = only([...att.overdue, ...att.today, ...tomorrow]);
+    const done = ctx.store.closedToday().filter((c) => !keep || keep.has(c.task.id));
+    const shown = [...todo, ...only(week), ...only(att.later)];
     const tags = ctx.store.tagsFor(shown.map((t) => t.id));
     const section = (title: string, list: Task[]) =>
       list.length
         ? `<h3>${title} <span class="muted">${list.length}</span></h3><ul class="tasks">${list.map((t) => taskRow(ctx, t, tags.get(t.id) ?? [])).join("")}</ul>`
         : "";
     body =
-      shown.length === 0
+      shown.length === 0 && done.length === 0
         ? `<p class="muted">${counts.open === 0 ? `nothing open. <a href="/tasks/new">add a task</a>.` : "nothing open with that tag."}</p>`
-        : section("overdue", only(att.overdue)) +
-          section("today", only(att.today)) +
-          section("next 7 days", only(att.upcoming)) +
+        : board(ctx, todo, done, tags) +
+          section("next 7 days", only(week)) +
           section("later", only(att.later));
   } else {
     const list = ctx.store.list("retired", { tag: tagFilter });
@@ -199,14 +259,14 @@ export function tasksPage(
   return page(
     "tasks",
     `<h1>tasks</h1>
-     <p class="muted">${counts.open} open · ${counts.retired} retired · every task repeats until you say otherwise · times in ${esc(ctx.tz)}</p>
+     <p class="muted">${facts} · times in ${esc(ctx.tz)}</p>
      <div class="bar">
        <div class="seg">${seg("open", "/tasks", "open")}${seg("retired", "/tasks?view=retired", "retired")}</div>
-       <div class="right"><a class="btn" href="/tasks/tags">tags</a><a class="btn primary" href="/tasks/new">+ new task</a></div>
+       <div class="right"><a class="btn" href="/tasks/tags">tags</a><a class="btn primary" href="/tasks/new">new task</a></div>
      </div>
      <hr class="rule">
      ${notice}${filterLine}${body}`,
-    { authed: true },
+    { authed: true, wide: true },
   );
 }
 
@@ -222,7 +282,7 @@ export function newTaskPage(ctx: TasksCtx, notice: string): string {
        ${duePick(undefined, false, ctx.tz)}
        <label>tags</label>${tagPick(ctx.store.tags(), [])}
        <label>notes</label><textarea name="notes" maxlength="4000"></textarea>
-       <p><button class="btn primary" type="submit">create</button> <a href="/tasks">cancel</a></p>
+       <p class="row actions"><button class="btn primary" type="submit">create</button> <a class="btn quiet" href="/tasks">cancel</a></p>
      </form>`,
     { authed: true },
   );
@@ -281,12 +341,14 @@ export function taskPage(
 ): string {
   const open = t.status === "open";
   const id = esc(t.id);
+  // One primary per view (brain-console-design §5): done, or reopen. The
+  // destructive act is quiet and pushed to the far edge.
   const actions = open
     ? `<div class="row actions">
-         <a class="btn good" href="/tasks/${id}/close?kind=completed">done</a>
-         <a class="btn warn" href="/tasks/${id}/close?kind=cancelled">skip this one</a>
-         <form class="inline" method="post" action="/tasks/${id}/retire">${csrfInput(ctx)}<button class="btn bad" type="submit">retire</button></form>
+         <a class="btn primary" href="/tasks/${id}/close?kind=completed">done</a>
+         <a class="btn" href="/tasks/${id}/close?kind=cancelled">skip this one</a>
          <button class="btn" type="button" data-dialog="edit">edit</button>
+         <form class="inline push" method="post" action="/tasks/${id}/retire">${csrfInput(ctx)}<button class="btn quiet danger" type="submit">retire</button></form>
        </div>
        <form class="stack card" method="post" action="/tasks/${id}/reschedule">${csrfInput(ctx)}
          <label>move the current occurrence to</label>
@@ -296,11 +358,11 @@ export function taskPage(
     : `<div class="row actions">
          <form class="inline" method="post" action="/tasks/${id}/reopen">${csrfInput(ctx)}
            ${duePick(undefined, t.hasTime, ctx.tz)}
-           <button class="btn good" type="submit">reopen</button>
+           <button class="btn primary" type="submit">reopen</button>
            <span class="muted">(blank date = one interval from now)</span>
          </form>
-         <a class="btn bad" href="/tasks/${id}/purge">delete forever</a>
          <button class="btn" type="button" data-dialog="edit">edit</button>
+         <a class="btn quiet danger push" href="/tasks/${id}/purge">delete forever</a>
        </div>`;
   return page(
     t.title,
@@ -329,8 +391,8 @@ export function taskPage(
          <label>tags</label>${tagPick(ctx.store.tags(), tags)}
          <label>notes</label><textarea name="notes" maxlength="4000">${esc(t.notes)}</textarea>
          <p class="muted">edits never move the current occurrence — reschedule does</p>
-         <p><button class="btn primary" type="submit">save</button>
-            <button class="btn" type="submit" formmethod="dialog" formnovalidate>cancel</button></p>
+         <p class="row actions"><button class="btn primary" type="submit">save</button>
+            <button class="btn quiet" type="submit" formmethod="dialog" formnovalidate>cancel</button></p>
        </form>
      </dialog>
      <p><a href="/tasks">← all tasks</a></p>`,
@@ -357,7 +419,7 @@ export function closePromptPage(ctx: TasksCtx, t: Task, kind: "completed" | "can
        <label class="choice"><input type="radio" name="repeat" value="date"> yes, on a date I pick:
          ${duePick(next, t.hasTime, ctx.tz)}</label>
        <label class="choice"><input type="radio" name="repeat" value="no"${canRepeat ? "" : " checked"}> no — retire this task</label>
-       <p><button class="btn primary" type="submit">confirm</button> <a href="/tasks">cancel</a></p>
+       <p class="row actions"><button class="btn primary" type="submit">confirm</button> <a class="btn quiet" href="/tasks">cancel</a></p>
      </form>`,
     { authed: true },
   );
@@ -369,9 +431,9 @@ export function purgePromptPage(ctx: TasksCtx, t: Task, eventCount: number): str
     `delete forever: ${t.title}`,
     `<h1>delete forever: ${esc(t.title)}</h1>
      <p>This removes the task and its ${eventCount} history event${eventCount === 1 ? "" : "s"}. There is no undo — retired tasks can otherwise be reopened at any time.</p>
-     <form class="row" method="post" action="/tasks/${esc(t.id)}/purge">${csrfInput(ctx)}
+     <form class="row actions" method="post" action="/tasks/${esc(t.id)}/purge">${csrfInput(ctx)}
        <button class="btn bad" type="submit">delete forever</button>
-       <a href="/tasks/${esc(t.id)}">cancel</a>
+       <a class="btn quiet" href="/tasks/${esc(t.id)}">cancel</a>
      </form>`,
     { authed: true },
   );
@@ -387,7 +449,7 @@ export function tagsPage(ctx: TasksCtx, tags: Tag[], system: SystemTag[], notice
               <button class="btn" type="submit">rename</button></form>
             <a class="chip tag" href="${tagHref(t.name)}">${t.count} task${t.count === 1 ? "" : "s"}</a>
             <form class="inline" method="post" action="/tasks/tags/${t.id}/delete">${csrfInput(ctx)}
-              <button class="btn bad" type="submit">delete</button></form>
+              <button class="btn quiet danger" type="submit">delete</button></form>
           </li>`,
         )
         .join("")}</ul>`

@@ -88,6 +88,13 @@ code-level discipline (SQLite WAL needs fs write access even for readers).
 store**, its own SQLite file beside the vault (§3.1) — through the one
 write path described in §15.7. The vault rule is unchanged.
 
+*Design rules (2026-10-27):* the look and feel of every console surface
+— tokens, layout patterns, the button hierarchy, the script policy that
+keeps the forms-first baseline — is the `brain-console-design` skill
+(`.claude/skills/`), by the same logic as `architecture-sync`: judgment
+that the code cannot carry. The owner's direction it encodes: a clean
+operational dashboard, never a landing page.
+
 ### 15.4 The dashboard: links + live truth + expiry radar
 
 Tiles are server-side fetches, briefly cached, individually degradable — an

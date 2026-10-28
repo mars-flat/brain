@@ -532,15 +532,25 @@ describe("tasks (§16) — the console's one write path", () => {
     expect(toasted).toContain("done — scheduled again");
     expect(toasted).toContain(`aria-label="dismiss"`);
     expect(toasted).not.toContain(`<p class="ok">`);
+    // the board (2026-10-27): today's closure shows in the done column,
+    // read-only; the task itself, rolled a week out, is back in the list
+    expect(toasted).toContain(`class="board"`);
+    expect(toasted).toContain(`data-drop="done"`);
+    expect(toasted).toMatch(
+      /class="tcard closed"[\s\S]*?water plants[\s\S]*?done \d+:\d\d [AP]M · next in 7 days/,
+    );
+    expect(toasted).toContain("1 open · 0 retired");
     const detail = await get(cookie, `/tasks/${id}`);
     expect(detail).toContain("done · on time");
     expect(detail).toContain("next due");
     expect(detail).toContain("in 7 days");
     expect(detail).toContain("1 closed");
-    // the detail page's shape: colored action trio, history toggle, edit modal
-    expect(detail).toContain(`class="btn good"`);
-    expect(detail).toContain(`class="btn warn"`);
-    expect(detail).toContain(`class="btn bad"`);
+    // the detail page's shape: one primary (done), quiet danger (retire)
+    // pushed to the edge, history toggle, edit modal
+    expect(detail).toContain(`class="btn primary" href="/tasks/${id}/close?kind=completed">done`);
+    expect(detail).toContain(`class="btn" href="/tasks/${id}/close?kind=cancelled">skip this one`);
+    expect(detail).toContain(`class="btn quiet danger" type="submit">retire`);
+    expect(detail).not.toContain(`class="btn good"`);
     expect(detail).toContain("<details");
     expect(detail).toContain("history");
     expect(detail).toContain(`<dialog id="edit">`);
@@ -576,6 +586,46 @@ describe("tasks (§16) — the console's one write path", () => {
     const dated = await get(cookie, `/tasks/${id}`);
     expect(dated).toContain("Dec 2, 2026");
     expect(dated).not.toMatch(/Dec 2, 2026(,| at) \d/); // date-only again: no clock
+  });
+
+  test("the board: due-by-tomorrow tasks are draggable todo cards whose payload is their own done link; the week stays a list", async () => {
+    const cookie = await login();
+    const csrf = await csrfFor(cookie);
+    const toronto = (offsetDays: number) =>
+      new Date(Date.now() + offsetDays * 86_400_000).toLocaleDateString("en-CA", {
+        timeZone: "America/Toronto",
+      });
+    const make = (title: string, due: string) =>
+      post(cookie, "/tasks", { csrf, title, interval: "1w", due });
+    const late = idFrom(await make("overdue thing", toronto(-2)));
+    const today = idFrom(await make("today thing", toronto(0)));
+    const tmrw = idFrom(await make("tomorrow thing", toronto(1)));
+    const soon = idFrom(await make("midweek thing", toronto(4)));
+    const body = await get(cookie, "/tasks");
+    expect(body).toContain(`class="wide"`); // the board needs the room
+    expect(body).toMatch(/1 overdue · 1 today · 1 tomorrow · \d+ open/);
+    // overdue leads the todo column, then today, then tomorrow
+    const order = [late, today, tmrw].map((id) =>
+      body.indexOf(`data-drag="/tasks/${id}/close?kind=completed"`),
+    );
+    expect(order.every((i) => i > 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(body).toContain(`draggable="true"`);
+    expect(body).toMatch(/data-drag="\/tasks\/[^"]+"[\s\S]*?overdue thing[\s\S]*?days overdue/);
+    // the week list is not on the board and not draggable
+    const boardEnd = body.indexOf("</section>");
+    expect(body.indexOf("midweek thing")).toBeGreaterThan(boardEnd);
+    expect(body).not.toContain(`data-drag="/tasks/${soon}/close`);
+    expect(body).toContain("next 7 days");
+    // row and card verbs are quiet buttons, the one filled button is "new task"
+    expect(body).toContain(`class="btn quiet" href="/tasks/${soon}/close?kind=completed">done`);
+    expect(body).toContain(`class="btn primary" href="/tasks/new">new task`);
+    expect(body).not.toContain("+ new task");
+    // the script carries the drag → close-prompt shortcut
+    const js = await (await fetch(`${console_.url}/console.js`, { headers: { cookie } })).text();
+    expect(js).toContain(`[data-drop]`);
+    expect(js).toContain("location.assign");
+    for (const id of [late, today, tmrw, soon]) await post(cookie, `/tasks/${id}/retire`, { csrf });
   });
 
   test("tags: managed on their own page, assigned by checkbox, filterable, built-ins read-only", async () => {

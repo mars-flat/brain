@@ -217,6 +217,23 @@ a retired task) come back as a notice on the page the user came from — the
 store's transactions mean a refused write is a no-op, never a half-write.
 Ids are opaque UUIDs; hostile ids are rejected by regex before SQL.
 
+**The board** (owner, 2026-10-27): the open view leads with the urgent
+band — every task due by tomorrow — as a two-column board, *todo* and
+*done*, above the *next 7 days* and *later* lists. Todo holds overdue
+(first, with its red chip), today, and tomorrow; done holds the
+occurrences closed today, read from the event log (`closedToday()`,
+"done" and "skipped" being events, §16.2), greyed and read-only, each
+with where the task went next. There is no in-progress state and no
+schema change. Dragging a todo card onto done (`console-client.js`,
+native HTML5 drag events on `data-drag` / `data-drop`) navigates to the
+same **schedule again?** page the card's *done* button opens — the drop
+is a shortcut to that form, never a write of its own, so the no-script
+path and the drag path cannot disagree. The board is reserved for what
+is due now: the week and later lists never drag into it, and a list item
+reaches the board only by its date arriving (or a reschedule from its own
+page). The tab became a `wide` page for the room; detail pages stay in
+the reading column. Visual rules are the `brain-console-design` skill.
+
 **The tab in detail** (owner's UI pass, 2026-09-18): a bar with the
 open/retired toggle on the left and *tags* + *new task* on the right, a
 rule under it, underlined titles so rows read as links, and chips that
@@ -226,8 +243,11 @@ input, like the custom-interval field, exists in the markup but is hidden
 by a CSS `:has()` rule until its toggle is chosen — no script, and a
 browser without `:has()` simply shows both. `/tasks/tags` manages the tag
 list (rename inline, delete, create) and lists the derived tags read-only
-with counts. A task's page puts *done* (green), *skip this one* (orange),
-and *retire* (red) on one line, folds the history into a `<details>`
+with counts. A task's page puts *done*, *skip this one*, *edit* and
+*retire* on one line — since 2026-10-27 one filled primary (*done*),
+plain buttons, and a quiet red *retire* pushed to the far edge, replacing
+the green/orange/red trio (one coloured button per group,
+`brain-console-design` §5) — folds the history into a `<details>`
 toggle, and edits in a native `<dialog>` with save/cancel — opened by
 `console-client.js`, served as `/console.js` on every authed page: the
 console's second script after the graph's, same-origin as the CSP

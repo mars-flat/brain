@@ -36,7 +36,7 @@ import {
   type TaskStatus,
   type Transition,
 } from "./core.ts";
-import { DAY_MS, localDate } from "./time.ts";
+import { DAY_MS, dayBounds, localDate } from "./time.ts";
 
 export const SCHEMA_VERSION = 2;
 
@@ -140,6 +140,13 @@ export interface Attention {
   today: Task[];
   upcoming: Task[];
   later: Task[];
+}
+
+/** An occurrence closed today (§16.4's done column): the event, and the task as it is now. */
+export interface Closed {
+  task: Task;
+  at: number;
+  kind: CloseKind;
 }
 
 export interface Tag {
@@ -329,6 +336,30 @@ export class TaskStore {
       else if (day === today) out.today.push(t);
       else if (due <= horizon) out.upcoming.push(t);
       else out.later.push(t);
+    }
+    return out;
+  }
+
+  /**
+   * Occurrences closed during the LOCAL day of now (§16.4): the done column
+   * of the board. Read straight from the event log — "done" and "skipped"
+   * are events, not states (§16.2) — newest first, each with the task as
+   * it stands now (rolled to its next due, or retired). A purged task has
+   * no events left, so nothing here can dangle.
+   */
+  closedToday(tz = this.tz): Closed[] {
+    const { start, end } = dayBounds(this.now(), tz);
+    const rows = this.db
+      .query(
+        `SELECT task_id, at, kind, detail FROM task_events
+         WHERE kind IN ('completed', 'cancelled') AND at >= ? AND at < ?
+         ORDER BY at DESC, id DESC`,
+      )
+      .all(start, end) as EventRow[];
+    const out: Closed[] = [];
+    for (const r of rows) {
+      const task = this.get(r.task_id);
+      if (task) out.push({ task, at: r.at, kind: r.kind as CloseKind });
     }
     return out;
   }

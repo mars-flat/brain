@@ -15,3 +15,7 @@ one upstream behind the gateway (§4), not the gateway itself.
 - **Architecture first**: read `architecture/README.md` before building
   anything; the `architecture-sync` skill is the protocol for keeping the
   docs true.
+- **Console look and feel**: anything the owner sees in `packages/console`
+  — pages, buttons, boards, colour, page scripts — follows the
+  `brain-console-design` skill (a clean operational dashboard, never a
+  landing page).

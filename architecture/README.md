@@ -2,7 +2,7 @@
 
 **Status:** Revision 5 built through P5 — Azure host, OpenAI `gpt-5.6-luna`, Bun runtime. **P0–P5 complete (2026-08-27): the brain serves remotely** from `brain-vm` over the tailnet with Auth0 auth. **P6 (Discord) deferred by the owner.** See Current status below.
 **Code repo:** `mars-flat/brain` — **public** · **Vault:** private repo `mars-flat/brain-vault` — the VM's clone is the only writer; `brain/vault/` on the laptop is a read-only clone, never tracked here ([§9.1](./11-repo-safety.md))
-**MCP:** SDK 1.30.0 pinned (protocol `2025-11-25`) · **Last updated:** 2026-09-24
+**MCP:** SDK 1.32.0 pinned (protocol `2025-11-25`; 1.30.0 → 1.32.0 on 2026-10-27 for the §9.3 audit gate) · **Last updated:** 2026-10-27
 
 ---
 
