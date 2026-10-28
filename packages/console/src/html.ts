@@ -114,6 +114,25 @@ hr.rule { border:0; border-top:1px solid var(--line); margin:.7rem 0 1rem; }
 .tcard .meta { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:.3rem .5rem; align-items:baseline; font-size:.9rem; color:var(--muted); }
 .tcard.closed { background:transparent; border-style:dashed; }
 .tcard.closed .title { font-weight:500; color:var(--muted); text-decoration:line-through; text-decoration-color:var(--line); }
+/* Two columns on /tasks (§16.8, owner 2026-10-28): the board and lists, and
+   the proposed sidebar beside them. The sidebar drops under the lists below
+   64rem — inventory after attention — and the board keeps its own 44rem
+   stacking point, so it never sits two-up inside a cramped column. */
+.cols { display:grid; grid-template-columns:minmax(0,1fr) 20rem; gap:1.6rem; align-items:start; }
+.cols .main { min-width:0; }
+aside.side { border:1px solid var(--line); border-radius:10px; background:var(--card); padding:.7rem .9rem .5rem; }
+aside.side h3 { margin:0 0 .4rem; font-size:.95rem; }
+aside.side .empty { color:var(--muted); font-size:.9rem; margin:.4rem 0; }
+aside.side .row { margin:.4rem 0 .2rem; font-size:.85rem; justify-content:space-between; }
+ul.tasks.props li { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:.1rem .5rem; align-items:baseline; }
+ul.tasks.props .title.plain { text-decoration:none; font-weight:600; flex:none; }
+ul.tasks.props .facts { grid-column:1; display:flex; flex-wrap:wrap; gap:.2rem .3rem; }
+ul.tasks.props .src { grid-column:1; font-size:.82rem; color:var(--muted); }
+ul.tasks.props .acts { grid-column:2; grid-row:1 / span 3; align-self:start; }
+ul.tasks.props pre.notes { grid-column:1 / -1; font-size:.85rem; color:var(--muted); }
+@media (max-width: 64rem) {
+  .cols { grid-template-columns:1fr; }
+}
 @media (max-width: 44rem) {
   .board { grid-template-columns:1fr; }
   .board .col + .col { border-left:0; border-top:1px solid var(--line); }

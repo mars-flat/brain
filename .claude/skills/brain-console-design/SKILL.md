@@ -71,10 +71,13 @@ Rank for each tab:
 
 **Attention before inventory.** On `/tasks` the urgent band (overdue,
 today, tomorrow) is the hero of the page — not a visual hero, a
-*positional* one: top, full width, the only place colour is spent. The
-next-7-days list and the later list are inventory and sit below, denser
-and greyer. Retired stays behind the segmented toggle. A section the
-owner cannot act on today should never sit above one they can.
+*positional* one: top of the main column, the only place colour is
+spent. The one thing beside it is the **proposed sidebar** (owner,
+2026-10-28; §4): candidates waiting to be vetted, a 20rem column on the
+right that drops under the lists below 64rem. The next-7-days list and
+the later list are inventory and sit below, denser and greyer. Retired
+stays behind the segmented toggle. A section the owner cannot act on
+today should never sit above one they can.
 
 **Counts carry the headline.** The reference says titles should state
 the insight; here the equivalent is the muted fact line under `h1`
@@ -156,6 +159,21 @@ feel like one place.
   stay until dismissed. Never put a notice inline on the page.
 - **Confirmation page:** for the irreversible. One sentence of
   consequence, one red button, one cancel link.
+
+**Sidebar (the proposed list on `/tasks`, 2026-10-28).** The open
+view is a two-column grid (`.cols`): the board and lists in `.main`, an
+`<aside class="side">` headed *proposed · N* on the right. Rows are the
+dense `ul.tasks.props` shape — title as plain text (no detail page), a
+kind chip, a due chip when there is a guess, one muted breadcrumb
+(*account · sender · date*, never a link to the mail), and two controls:
+*accept* (plain button, opens the create form prefilled) and *dismiss*
+(quiet, a POST). At zero it shows one muted line, *nothing proposed.*,
+so the layout never jumps between ticks. The only other control is the
+quiet *dismiss older than 7 days* form, present only when something
+qualifies. Nothing in the sidebar is draggable, and a proposal reaches
+the board only by being accepted and having its date arrive. The retired
+view has no sidebar; `/tasks/proposed` is the full page with notes and
+a `<details>` of the last 30 days, each dismissed row carrying *restore*.
 
 **Board (the urgent band on `/tasks`, 2026-10-27).** Two columns —
 *todo · done* (the owner declined a *doing* lane: no in-progress state,

@@ -697,6 +697,139 @@ describe("tasks (§16) — the console's one write path", () => {
     expect((await fetch(`${console_.url}/tasks/${id}`, { headers: { cookie } })).status).toBe(404);
   });
 
+  test("proposed tasks (§16.8): the sidebar, the accept form, dismiss/restore, and the stale trim", async () => {
+    const cookie = await login();
+    const csrf = await csrfFor(cookie);
+    // Another process writes the proposal — the mail tick, through the gateway.
+    const { openTasksDb, TaskStore } = await import("@brain/tasks");
+    const side = new TaskStore(
+      openTasksDb(join(vault, "tasks", "tasks.db")),
+      undefined,
+      undefined,
+      "America/Toronto",
+    );
+    const r = side.propose({
+      title: "CS 348 A3 due",
+      kind: "university",
+      entity: "cs348 a3",
+      dedupeKey: "gmail:g-test:m1",
+      threadKey: "gmail:g-test:t1",
+      source: {
+        kind: "gmail",
+        account: "g-test",
+        from: "LEARN <noreply@learn.invalid>",
+        subject: "A3 posted",
+        received_at: Date.now() - 86_400_000,
+      },
+      notes: 'from LEARN <noreply@learn.invalid> on g-test · "A3 posted"',
+      dueAt: Date.now() + 5 * 86_400_000,
+      confidence: 0.8,
+    });
+    expect(r.outcome).toBe("created");
+    const pid = r.proposal.id;
+    // The sidebar on /tasks: count in the fact line, the row with its breadcrumb and no mail link, accept + dismiss.
+    let body = await get(cookie, "/tasks");
+    expect(body).toMatch(/· 1 proposed/);
+    expect(body).toContain(`<aside class="side"`);
+    expect(body).toContain(`class="cols"`);
+    expect(body).toContain("CS 348 A3 due");
+    expect(body).toContain("g-test · LEARN · ");
+    expect(body).not.toContain("mail.google.com");
+    expect(body).toContain(`href="/tasks/new?proposal=${pid}">accept`);
+    expect(body).toContain(`action="/tasks/proposed/${pid}/dismiss"`);
+    expect(body).not.toContain("dismiss older than"); // nothing stale yet
+    // Proposals never reach the board or the lists.
+    expect(body).not.toContain(`data-drag=`);
+    // Retired view has no sidebar.
+    expect(await get(cookie, "/tasks?view=retired")).not.toContain(`<aside class="side"`);
+    // The accept form: prefilled, one-off by default, breadcrumb above, hidden proposal id.
+    const form = await get(cookie, `/tasks/new?proposal=${pid}`);
+    expect(form).toContain("accept proposal");
+    expect(form).toContain(`name="proposal_id" value="${pid}"`);
+    expect(form).toContain(`value="CS 348 A3 due"`);
+    expect(form).toContain(`<option value="none" selected>`);
+    expect(form).toContain(`type="date" name="due" value="`);
+    expect(form).toMatch(/type="date" name="due" value="\d{4}-\d{2}-\d{2}"/);
+    expect(form).toContain("A3 posted");
+    // A refused accept comes back to the same form with the id kept, and the proposal stays pending.
+    const bad = await post(cookie, "/tasks", {
+      csrf,
+      proposal_id: pid,
+      title: "",
+      interval: "none",
+    });
+    expect(bad.status).toBe(303);
+    expect(bad.headers.get("location")).toContain(`/tasks/new?proposal=${pid}&err=`);
+    expect(side.proposal(pid)?.status).toBe("pending");
+    // Dismiss needs the token; then restore from the proposed page.
+    expect((await post(cookie, `/tasks/proposed/${pid}/dismiss`, { back: "/tasks" })).status).toBe(
+      403,
+    );
+    const dis = await post(cookie, `/tasks/proposed/${pid}/dismiss`, { csrf, back: "/tasks" });
+    expect(dis.headers.get("location")).toBe("/tasks?ok=dismissed");
+    expect(side.proposal(pid)?.dismissReason).toBe("owner");
+    body = await get(cookie, "/tasks/proposed");
+    expect(body).toContain("dismissed");
+    expect(body).toContain(`action="/tasks/proposed/${pid}/restore"`);
+    expect((await get(cookie, `/tasks/new?proposal=${pid}`)).length).toBeGreaterThan(0);
+    expect(
+      (
+        await fetch(`${console_.url}/tasks/new?proposal=${pid}`, {
+          headers: { cookie },
+          redirect: "manual",
+        })
+      ).headers.get("location"),
+    ).toContain("already%20dismissed");
+    const res = await post(cookie, `/tasks/proposed/${pid}/restore`, {
+      csrf,
+      back: "/tasks/proposed",
+    });
+    expect(res.headers.get("location")).toBe("/tasks/proposed?ok=restored");
+    // Accept for real: the task exists, the proposal points at it, the sidebar is empty again.
+    const ok = await post(cookie, "/tasks", {
+      csrf,
+      proposal_id: pid,
+      title: "CS 348 A3",
+      interval: "none",
+      notes: "",
+    });
+    expect(ok.status).toBe(303);
+    const tid = idFrom(ok);
+    expect(ok.headers.get("location")).toContain("?ok=accepted");
+    expect(side.proposal(pid)).toMatchObject({ status: "accepted", taskId: tid });
+    body = await get(cookie, "/tasks");
+    expect(body).toContain("nothing proposed.");
+    expect(body).toContain("CS 348 A3");
+    // The stale trim: a week-old pending proposal shows the button; the POST dismisses it as stale.
+    const old = new TaskStore(
+      openTasksDb(join(vault, "tasks", "tasks.db")),
+      () => Date.now() - 8 * 86_400_000,
+      undefined,
+      "America/Toronto",
+    );
+    const stale = old.propose({
+      title: "review/cancel Netflix",
+      kind: "subscription",
+      entity: "netflix",
+      dedupeKey: "gmail:g-test:m9",
+      source: { kind: "gmail", account: "g-test", from: "Netflix", subject: "receipt" },
+    });
+    body = await get(cookie, "/tasks");
+    expect(body).toContain("dismiss older than 7 days");
+    const trim = await post(cookie, "/tasks/proposed/dismiss-stale", { csrf, back: "/tasks" });
+    expect(trim.headers.get("location")).toBe("/tasks?ok=stale&n=1");
+    expect(side.proposal(stale.proposal.id)?.dismissReason).toBe("stale");
+    expect(await get(cookie, "/tasks?ok=stale&n=1")).toContain(
+      "dismissed 1 proposal older than a week",
+    );
+    // Hostile ids never reach SQL; unknown routes 404.
+    expect((await post(cookie, "/tasks/proposed/..%2Fx/dismiss", { csrf })).status).toBe(404);
+    expect(
+      (await fetch(`${console_.url}/tasks/proposed/nope`, { headers: { cookie } })).status,
+    ).toBe(404);
+    await post(cookie, `/tasks/${tid}/retire`, { csrf });
+  });
+
   test("rule violations come back as a notice on the form, never a 500; bad ids 404", async () => {
     const cookie = await login();
     const csrf = await csrfFor(cookie);

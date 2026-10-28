@@ -17,9 +17,13 @@ import {
   formatInterval,
   formatWhen,
   intervalTag,
+  isStale,
+  localDate,
   nextDue,
+  type Proposal,
   parseInterval,
   type SystemTag,
+  similarTaskHint,
   type Tag,
   type Task,
   type TaskEvent,
@@ -63,11 +67,26 @@ const OK_MESSAGES: Record<string, string> = {
   "tag-created": "tag created",
   "tag-renamed": "tag renamed",
   "tag-deleted": "tag deleted — removed from every task that had it",
+  accepted: "task created from the proposal",
+  dismissed: "proposal dismissed",
+  restored: "proposal restored",
 };
+
+/** The stale trim (§16.8): the toast carries how many went. */
+export const STALE_DAYS = 7;
 
 export function noticeFrom(url: URL): string {
   const ok = url.searchParams.get("ok");
   const err = url.searchParams.get("err");
+  if (ok === "stale") {
+    const n = Number(url.searchParams.get("n") ?? 0);
+    return toast(
+      "ok",
+      n === 0
+        ? "nothing older than a week to dismiss"
+        : `dismissed ${n} proposal${n === 1 ? "" : "s"} older than a week`,
+    );
+  }
   if (ok && OK_MESSAGES[ok]) return toast("ok", OK_MESSAGES[ok]);
   if (err) return toast("warn", esc(err.slice(0, 200)));
   return "";
@@ -208,6 +227,117 @@ function board(ctx: TasksCtx, todo: Task[], done: Closed[], tags: Map<string, st
   </section>`;
 }
 
+// ── proposed tasks (§16.8): the sidebar and its page ──────────────────────
+
+const KIND_LABEL: Record<Proposal["kind"], string> = {
+  university: "university",
+  job: "job",
+  subscription: "subscription",
+  other: "other",
+};
+
+/** "g-2006 · LEARN · 2026-10-27" — the breadcrumb that finds the mail; never a link (owner, Q10). */
+function sourceLine(p: Proposal, tz: string): string {
+  const s = p.source;
+  const parts: string[] = [];
+  if (typeof s.account === "string" && s.account) parts.push(s.account);
+  if (typeof s.from === "string" && s.from) parts.push(s.from.replace(/\s*<[^>]*>\s*$/, ""));
+  else if (s.kind !== "gmail") parts.push(String(s.kind));
+  if (typeof s.received_at === "number") parts.push(localDate(s.received_at, tz));
+  return parts.map(esc).join(" · ");
+}
+
+function proposalDue(p: Proposal, ctx: TasksCtx): string {
+  if (p.dueAt == null) return "";
+  const label = describeDue(p.dueAt, ctx.now, ctx.tz);
+  const cls =
+    label.endsWith("overdue") || label === "yesterday" ? "bad" : label === "today" ? "warn" : "";
+  return `<span class="chip ${cls}">${esc(label)}</span>`;
+}
+
+/** One proposed row: title (no detail page), kind and due chips, the breadcrumb, accept and dismiss. */
+function proposalRow(ctx: TasksCtx, p: Proposal, back: string): string {
+  const id = esc(p.id);
+  return `<li data-proposal="${id}">
+    <span class="title plain">${esc(p.title)}</span>
+    <span class="facts"><span class="chip">${KIND_LABEL[p.kind]}</span>${proposalDue(p, ctx)}</span>
+    <span class="src">${sourceLine(p, ctx.tz)}</span>
+    <span class="acts"><a class="btn" href="/tasks/new?proposal=${id}">accept</a>
+      <form class="inline" method="post" action="/tasks/proposed/${id}/dismiss">${csrfInput(ctx)}<input type="hidden" name="back" value="${esc(back)}"><button class="btn quiet" type="submit">dismiss</button></form></span>
+  </li>`;
+}
+
+function staleForm(ctx: TasksCtx, pending: Proposal[], back: string): string {
+  if (!pending.some((p) => isStale(p, ctx.now, STALE_DAYS))) return "";
+  return `<form class="inline" method="post" action="/tasks/proposed/dismiss-stale">${csrfInput(ctx)}<input type="hidden" name="back" value="${esc(back)}"><button class="btn quiet" type="submit">dismiss older than ${STALE_DAYS} days</button></form>`;
+}
+
+/** The sidebar on /tasks: pending proposals, newest first; one muted line at zero so the layout never jumps. */
+function proposedAside(ctx: TasksCtx, pending: Proposal[]): string {
+  const list = pending.length
+    ? `<ul class="tasks props">${pending.map((p) => proposalRow(ctx, p, "/tasks")).join("")}</ul>`
+    : `<p class="empty">nothing proposed.</p>`;
+  return `<aside class="side" aria-label="proposed tasks">
+    <h3>proposed <span class="muted">${pending.length}</span></h3>
+    ${list}
+    <p class="row"><a class="muted" href="/tasks/proposed">all proposed</a>${staleForm(ctx, pending, "/tasks")}</p>
+  </aside>`;
+}
+
+/** /tasks/proposed: pending in full, then the last 30 days of accepted and dismissed, with restore. */
+export function proposedPage(
+  ctx: TasksCtx,
+  pending: Proposal[],
+  resolved: Proposal[],
+  notice: string,
+): string {
+  const counts = ctx.store.proposalCounts();
+  const pendingHtml = pending.length
+    ? `<ul class="tasks props full">${pending
+        .map((p) =>
+          proposalRow(ctx, p, "/tasks/proposed").replace(
+            "</li>",
+            `${p.notes ? `<pre class="notes">${esc(p.notes)}</pre>` : ""}</li>`,
+          ),
+        )
+        .join("")}</ul>`
+    : `<p class="muted">nothing proposed. the mail tick adds candidates twice a day; any session can add one with <code>tasks.propose</code>.</p>`;
+  const resolvedHtml = resolved.length
+    ? `<ul class="tasks props">${resolved
+        .map((p) => {
+          const id = esc(p.id);
+          const what =
+            p.status === "accepted"
+              ? p.taskId
+                ? `accepted → <a href="/tasks/${esc(p.taskId)}">the task</a>`
+                : "accepted (task since deleted)"
+              : `dismissed${p.dismissReason && p.dismissReason !== "owner" ? ` as ${p.dismissReason}` : ""}`;
+          const when = p.resolvedAt == null ? "" : ` · ${esc(formatWhen(p.resolvedAt, ctx.tz))}`;
+          const restore =
+            p.status === "dismissed"
+              ? `<span class="acts"><form class="inline" method="post" action="/tasks/proposed/${id}/restore">${csrfInput(ctx)}<input type="hidden" name="back" value="/tasks/proposed"><button class="btn quiet" type="submit">restore</button></form></span>`
+              : "";
+          return `<li><span class="title plain muted">${esc(p.title)}</span><span class="chip">${KIND_LABEL[p.kind]}</span><span class="src">${what}${when}</span>${restore}</li>`;
+        })
+        .join("")}</ul>`
+    : `<p class="muted">nothing resolved in the last 30 days.</p>`;
+  return page(
+    "proposed tasks",
+    `<h1>proposed</h1>
+     <p class="muted">${counts.pending} pending · ${counts.accepted} accepted · ${counts.dismissed} dismissed · times in ${esc(ctx.tz)}</p>
+     <div class="bar">
+       <div class="seg"><a href="/tasks">open</a><a href="/tasks?view=retired">retired</a><a class="on" href="/tasks/proposed">proposed</a></div>
+       <div class="right">${staleForm(ctx, pending, "/tasks/proposed")}<a class="btn" href="/tasks/new">new task</a></div>
+     </div>
+     <hr class="rule">
+     ${notice}
+     <h3>pending <span class="muted">${pending.length}</span></h3>${pendingHtml}
+     <details class="card"><summary>accepted and dismissed, last 30 days <span class="muted">${resolved.length}</span></summary>${resolvedHtml}</details>
+     <p><a href="/tasks">← all tasks</a></p>`,
+    { authed: true },
+  );
+}
+
 export function tasksPage(
   ctx: TasksCtx,
   view: "open" | "retired",
@@ -221,6 +351,8 @@ export function tasksPage(
   let facts = `${counts.open} open · ${counts.retired} retired`;
   let body: string;
   if (view === "open") {
+    const pending = ctx.store.proposals("pending");
+    facts = `${facts} · ${pending.length} proposed`;
     const att = ctx.store.attention(7);
     // The store's horizon buckets are by local day; "tomorrow" is the
     // first day of upcoming and belongs on the board, the rest in the list.
@@ -240,12 +372,15 @@ export function tasksPage(
       list.length
         ? `<h3>${title} <span class="muted">${list.length}</span></h3><ul class="tasks">${list.map((t) => taskRow(ctx, t, tags.get(t.id) ?? [])).join("")}</ul>`
         : "";
-    body =
+    const main =
       shown.length === 0 && done.length === 0
         ? `<p class="muted">${counts.open === 0 ? `nothing open. <a href="/tasks/new">add a task</a>.` : "nothing open with that tag."}</p>`
         : board(ctx, todo, done, tags) +
           section("next 7 days", only(week)) +
           section("later", only(att.later));
+    // Two columns (owner, 2026-10-28): the board and lists, and beside them
+    // the proposed sidebar. Under 64rem the sidebar drops below the lists.
+    body = `<div class="cols"><div class="main">${main}</div>${proposedAside(ctx, pending)}</div>`;
   } else {
     const list = ctx.store.list("retired", { tag: tagFilter });
     const tags = ctx.store.tagsFor(list.map((t) => t.id));
@@ -270,19 +405,37 @@ export function tasksPage(
   );
 }
 
-export function newTaskPage(ctx: TasksCtx, notice: string): string {
+/**
+ * The create form — and, given a pending proposal, the accept form: the
+ * same form prefilled, the breadcrumb and notes above it, interval left on
+ * one-off because the interval is the human's call, and a quiet "similar
+ * open task" line when the token hint finds one. Its POST carries the
+ * proposal id, so the create and the status flip are one transaction.
+ */
+export function newTaskPage(ctx: TasksCtx, notice: string, proposal?: Proposal): string {
+  const p = proposal;
+  const hint = p ? similarTaskHint(p.title, ctx.store.list("open")) : null;
+  const head = p
+    ? `<h1>accept proposal</h1>${notice}
+       <div class="card">
+         <p><span class="chip">${KIND_LABEL[p.kind]}</span>${proposalDue(p, ctx)} <span class="muted">${sourceLine(p, ctx.tz)}</span></p>
+         ${p.notes ? `<pre class="notes">${esc(p.notes)}</pre>` : ""}
+         ${hint ? `<p class="muted">similar open task: <a href="/tasks/${esc(hint.id)}">${esc(hint.title)}</a></p>` : ""}
+       </div>`
+    : `<h1>new task</h1>${notice}`;
   return page(
-    "new task",
-    `<h1>new task</h1>${notice}
+    p ? "accept proposal" : "new task",
+    `${head}
      <form class="stack" method="post" action="/tasks">${csrfInput(ctx)}
-       <label>title</label><input type="text" name="title" required maxlength="200" autofocus>
-       <label>repeats</label>${intervalPick(undefined)}
+       ${p ? `<input type="hidden" name="proposal_id" value="${esc(p.id)}">` : ""}
+       <label>title</label><input type="text" name="title" required maxlength="200" value="${esc(p?.title ?? "")}" autofocus>
+       <label>repeats</label>${intervalPick(p ? null : undefined)}
        <label>next occurrence is measured</label>${anchorSelect("completion")}
        <label>first due <span class="muted">(blank = one interval from now)</span></label>
-       ${duePick(undefined, false, ctx.tz)}
+       ${duePick(p?.dueAt ?? undefined, p?.hasTime ?? false, ctx.tz)}
        <label>tags</label>${tagPick(ctx.store.tags(), [])}
-       <label>notes</label><textarea name="notes" maxlength="4000"></textarea>
-       <p class="row actions"><button class="btn primary" type="submit">create</button> <a class="btn quiet" href="/tasks">cancel</a></p>
+       <label>notes</label><textarea name="notes" maxlength="4000">${esc(p?.notes ?? "")}</textarea>
+       <p class="row actions"><button class="btn primary" type="submit">${p ? "accept — create task" : "create"}</button> <a class="btn quiet" href="/tasks">cancel</a></p>
      </form>`,
     { authed: true },
   );

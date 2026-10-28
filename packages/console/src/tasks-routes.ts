@@ -23,11 +23,17 @@ import {
   closePromptPage,
   newTaskPage,
   noticeFrom,
+  proposedPage,
   purgePromptPage,
+  STALE_DAYS,
   tagsPage,
   taskPage,
   tasksPage,
 } from "./tasks-view.ts";
+
+/** Where a proposal form returns to: only the two pages that carry the list. */
+const PROPOSAL_BACK = new Set(["/tasks", "/tasks/proposed"]);
+const RESOLVED_WINDOW_MS = 30 * 86_400_000;
 
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const TAG_ID_RE = /^\d{1,9}$/;
@@ -120,10 +126,35 @@ export async function handleTasks(
       }
     }
 
-    if (seg.length === 0) {
+    // ── proposed tasks (§16.8): dismiss / restore / the manual stale trim ──
+    if (seg[0] === "proposed") {
+      const back = PROPOSAL_BACK.has(f("back")) ? f("back") : "/tasks";
       try {
+        if (seg.length === 2 && seg[1] === "dismiss-stale") {
+          const n = store.dismissStaleProposals(STALE_DAYS);
+          return redirect(`${back}?ok=stale&n=${n}`);
+        }
+        const [, pid, action] = seg;
+        if (!pid || !ID_RE.test(pid) || seg.length !== 3) return refused("not found", 404);
+        if (action === "dismiss") store.dismissProposal(pid, "owner");
+        else if (action === "restore") store.restoreProposal(pid);
+        else return refused("not found", 404);
+        return redirect(`${back}?ok=${action === "dismiss" ? "dismissed" : "restored"}`);
+      } catch (err) {
+        if (err instanceof TaskError) return withErr(back, err.message);
+        throw err;
+      }
+    }
+
+    if (seg.length === 0) {
+      // With a proposal id this is the accept form: the same create, plus
+      // the status flip, in one transaction (§16.8).
+      const pid = f("proposal_id");
+      const formBack = pid ? `/tasks/new?proposal=${encodeURIComponent(pid)}` : "/tasks/new";
+      try {
+        if (pid && !ID_RE.test(pid)) return refused("not found", 404);
         const due = dueFromForm(false);
-        const t = store.create({
+        const input = {
           title: f("title"),
           notes: f("notes"),
           intervalMs: intervalMs(),
@@ -131,10 +162,15 @@ export async function handleTasks(
           dueAt: due?.at,
           hasTime: due?.hasTime,
           tags: tagsFromForm(),
-        });
+        };
+        if (pid) {
+          const { task } = store.acceptProposal(pid, input);
+          return redirect(`/tasks/${task.id}?ok=accepted`);
+        }
+        const t = store.create(input);
         return redirect(`/tasks/${t.id}?ok=created`);
       } catch (err) {
-        if (err instanceof TaskError) return withErr("/tasks/new", err.message);
+        if (err instanceof TaskError) return withErr(formBack, err.message);
         throw err;
       }
     }
@@ -200,9 +236,28 @@ export async function handleTasks(
         url.searchParams.get("tag") ?? undefined,
       ),
     );
-  if (seg.length === 1 && seg[0] === "new") return html(newTaskPage(ctx, noticeFrom(url)));
+  if (seg.length === 1 && seg[0] === "new") {
+    const pid = url.searchParams.get("proposal");
+    if (!pid) return html(newTaskPage(ctx, noticeFrom(url)));
+    if (!ID_RE.test(pid)) return refused("not found", 404);
+    const p = store.proposal(pid);
+    if (!p) return refused(`no proposal “${esc(pid)}”`, 404);
+    if (p.status !== "pending")
+      return withErr("/tasks/proposed", `proposal is already ${p.status}`);
+    return html(newTaskPage(ctx, noticeFrom(url), p));
+  }
   if (seg.length === 1 && seg[0] === "tags")
     return html(tagsPage(ctx, store.tags(), store.systemTags(), noticeFrom(url)));
+  if (seg.length === 1 && seg[0] === "proposed")
+    return html(
+      proposedPage(
+        ctx,
+        store.proposals("pending"),
+        store.proposals("all", { resolvedSince: ctx.now - RESOLVED_WINDOW_MS }),
+        noticeFrom(url),
+      ),
+    );
+  if (seg[0] === "proposed") return refused("not found", 404);
   const [id, action] = seg;
   if (!id || !ID_RE.test(id) || seg.length > 2) return refused("not found", 404);
   const task = store.get(id);

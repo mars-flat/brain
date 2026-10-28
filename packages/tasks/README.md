@@ -260,6 +260,23 @@ console's second script after the graph's, same-origin as the CSP
 requires. Retired tasks gain **delete forever**, which lands on its own
 confirmation page before the POST; open tasks must be retired first.
 
+**The proposed sidebar** (owner, 2026-10-28; §16.8): the open view is a
+two-column grid — the board and lists on the left, *proposed · N* on the
+right, dropping under the lists below 64rem. Each pending row shows the
+title, a kind chip, the due guess, and the breadcrumb (*account · sender
+· date* — no link; the notes carry the subject), with **accept** and
+**dismiss**. Accept is `GET /tasks/new?proposal=<id>`: the ordinary create
+form, prefilled, interval on *one-off* because the interval is the human's
+call, with the proposal's notes above it and a quiet *similar open task*
+line when the token hint finds one; its POST carries `proposal_id`, so the
+create and the status flip are one transaction and a refused create
+returns to the same form with the id kept. Dismiss is a POST + 303, and
+because it is one click, every dismissed row on `/tasks/proposed` carries
+**restore**. The quiet **dismiss older than 7 days** form appears only
+when something qualifies — the stale trim is manual, never run by the
+tick. The retired view has no sidebar. Layout rules: `brain-console-design`
+§2 and §4.
+
 **Notices are toasts** (owner, 2026-09-18): the result of any POST — done,
 skipped, retired, deleted forever, tag changes, and every rule violation —
 arrives as a fixed bottom-right toast rather than a line in the page.
