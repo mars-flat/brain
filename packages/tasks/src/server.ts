@@ -22,10 +22,16 @@ import {
   TaskError,
   type TaskEvent,
 } from "./core.ts";
-import type { ListFilter, TaskStore } from "./store.ts";
+import {
+  PROPOSAL_KINDS,
+  type Proposal,
+  type ProposalKind,
+  type ProposalSource,
+} from "./proposals.ts";
+import type { ListFilter, ProposalFilter, TaskStore } from "./store.ts";
 import { describeDue, formatWhen, parseDue } from "./time.ts";
 
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 
 export interface TasksServerOptions {
   /** IANA zone for day boundaries and human renderings (§16.3). */
@@ -168,7 +174,150 @@ const TOOLS: ToolDef[] = [
       "Bring a retired task back with a new open occurrence (default due: now + interval).",
     inputSchema: { type: "object", properties: { id: ID, due_at: WHEN }, required: ["id"] },
   },
+  // ── proposed tasks (§16.8): a second list only a human promotes ─────────
+  {
+    name: "proposals",
+    description:
+      "List proposed tasks — candidates waiting for the owner to accept or dismiss (from the mail tick, a session, any adapter). Default: pending, newest first. Not tasks: never in due or list.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: {
+          type: "string",
+          enum: ["pending", "accepted", "dismissed", "all"],
+          default: "pending",
+        },
+        kind: { type: "string", enum: [...PROPOSAL_KINDS] },
+      },
+    },
+    annotations: readOnly,
+  },
+  {
+    name: "propose",
+    description:
+      'Add a candidate to the proposed list for the owner to vet. Never creates a task. Idempotent and duplicate-aware: the same dedupe_key, the same thread_key, or the same entity as an existing proposal returns outcome "folded" (merged into the pending one) or "duplicate" (already accepted, or dismissed by the owner) instead of a new row. entity is the canonical thing the task is about — "cs348 a3", "shopify interview", "netflix" — and is required.',
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string", maxLength: 200 },
+        kind: { type: "string", enum: [...PROPOSAL_KINDS] },
+        entity: { type: "string", maxLength: 120 },
+        dedupe_key: {
+          type: "string",
+          maxLength: 200,
+          description: 'unique per source unit, e.g. "gmail:<server>:<message_id>"',
+        },
+        source: {
+          type: "object",
+          description:
+            'where it came from: { kind: "gmail", account, from, subject, received_at (unix ms) } or { kind: "session" }',
+          properties: { kind: { type: "string" } },
+          required: ["kind"],
+        },
+        thread_key: {
+          type: "string",
+          maxLength: 200,
+          description:
+            'e.g. "gmail:<server>:<thread_id>" — replies and reminders fold into one row',
+        },
+        notes: { type: "string", maxLength: 4000 },
+        due_at: WHEN,
+        confidence: { type: "number", minimum: 0, maximum: 1 },
+      },
+      required: ["title", "kind", "entity", "dedupe_key", "source"],
+    },
+  },
+  {
+    name: "accept_proposal",
+    description:
+      "The owner's yes: create a task from a pending proposal (the ordinary create, every rule intact — interval required unless one-off) and mark the proposal accepted. Title, notes, due_at, and tags default to the proposal's.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "proposal id" },
+        interval: INTERVAL,
+        anchor: ANCHOR,
+        title: { type: "string", maxLength: 200 },
+        notes: { type: "string", maxLength: 4000 },
+        due_at: WHEN,
+        tags: TAGS,
+      },
+      required: ["id", "interval"],
+    },
+  },
+  {
+    name: "dismiss_proposal",
+    description:
+      "The owner's no: mark a pending proposal dismissed. The row stays, and the same thread or entity will not be proposed again for a while. Reversible with restore_proposal.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string", description: "proposal id" } },
+      required: ["id"],
+    },
+  },
+  {
+    name: "restore_proposal",
+    description: "Bring a dismissed proposal back to pending.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string", description: "proposal id" } },
+      required: ["id"],
+    },
+  },
+  {
+    name: "dismiss_stale_proposals",
+    description:
+      "Dismiss every pending proposal older than older_than_days (default 7) as stale. A stale dismissal never suppresses later proposals about the same thing.",
+    inputSchema: {
+      type: "object",
+      properties: { older_than_days: { type: "integer", minimum: 1, maximum: 365, default: 7 } },
+    },
+  },
 ];
+
+export interface ProposalOut {
+  id: string;
+  title: string;
+  notes: string;
+  kind: ProposalKind;
+  entity: string;
+  thread_key: string | null;
+  due_at: string | null;
+  has_time: boolean;
+  due_human: string | null;
+  source: Record<string, unknown>;
+  confidence: number | null;
+  status: string;
+  dismiss_reason: string | null;
+  task_id: string | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+}
+
+export function proposalOut(p: Proposal, tz: string): ProposalOut {
+  return {
+    id: p.id,
+    title: p.title,
+    notes: p.notes,
+    kind: p.kind,
+    entity: p.entity,
+    thread_key: p.threadKey,
+    due_at: iso(p.dueAt),
+    has_time: p.hasTime,
+    due_human: p.dueAt == null ? null : formatWhen(p.dueAt, tz, p.hasTime),
+    source: p.source,
+    confidence: p.confidence,
+    status: p.status,
+    dismiss_reason: p.dismissReason,
+    task_id: p.taskId,
+    created_at: iso(p.createdAt) as string,
+    updated_at: iso(p.updatedAt) as string,
+    resolved_at: iso(p.resolvedAt),
+  };
+}
+
+const iso = (ms: number | null): string | null => (ms == null ? null : new Date(ms).toISOString());
 
 export interface TaskOut {
   id: string;
@@ -188,8 +337,6 @@ export interface TaskOut {
   created_at: string;
   updated_at: string;
 }
-
-const iso = (ms: number | null): string | null => (ms == null ? null : new Date(ms).toISOString());
 
 export function taskOut(t: Task, now: number, tz: string, tags: string[] = []): TaskOut {
   return {
@@ -342,6 +489,63 @@ export function buildTasksServer(
       case "reopen": {
         const due = when(a.due_at);
         return { task: out(store.reopen(need(a.id, "id"), due?.at, due?.hasTime)) };
+      }
+      case "proposals": {
+        const status = (str(a.status) ?? "pending") as ProposalFilter;
+        if (!["pending", "accepted", "dismissed", "all"].includes(status))
+          throw new TaskError("status must be pending, accepted, dismissed, or all");
+        const kind = str(a.kind) as ProposalKind | undefined;
+        const ps = store.proposals(status, { kind });
+        return {
+          proposals: ps.map((p) => proposalOut(p, tz)),
+          counts: store.proposalCounts(),
+          tz,
+        };
+      }
+      case "propose": {
+        const due = when(a.due_at);
+        const source = a.source;
+        if (!source || typeof source !== "object" || Array.isArray(source))
+          throw new TaskError("source must be an object with a kind");
+        const r = store.propose({
+          title: need(a.title, "title"),
+          kind: need(a.kind, "kind") as ProposalKind,
+          entity: need(a.entity, "entity"),
+          dedupeKey: need(a.dedupe_key, "dedupe_key"),
+          source: source as ProposalSource,
+          threadKey: str(a.thread_key) ?? null,
+          notes: str(a.notes),
+          dueAt: due?.at ?? null,
+          hasTime: due?.hasTime,
+          confidence: typeof a.confidence === "number" ? a.confidence : null,
+        });
+        return {
+          outcome: r.outcome,
+          ...(r.outcome === "duplicate" ? { reason: r.reason } : {}),
+          proposal: proposalOut(r.proposal, tz),
+        };
+      }
+      case "accept_proposal": {
+        const id = need(a.id, "id");
+        const due = when(a.due_at);
+        const r = store.acceptProposal(id, {
+          title: str(a.title),
+          notes: str(a.notes),
+          intervalMs: parseInterval(str(a.interval) ?? "none"),
+          anchor: str(a.anchor) as Anchor | undefined,
+          dueAt: due?.at,
+          hasTime: due?.hasTime,
+          tags: strList(a.tags),
+        });
+        return { task: out(r.task), proposal: proposalOut(r.proposal, tz) };
+      }
+      case "dismiss_proposal":
+        return { proposal: proposalOut(store.dismissProposal(need(a.id, "id"), "owner"), tz) };
+      case "restore_proposal":
+        return { proposal: proposalOut(store.restoreProposal(need(a.id, "id")), tz) };
+      case "dismiss_stale_proposals": {
+        const days = typeof a.older_than_days === "number" ? a.older_than_days : 7;
+        return { dismissed: store.dismissStaleProposals(days) };
       }
       default:
         throw new TaskError(`unknown tool ${name}`);

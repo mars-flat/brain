@@ -36,9 +36,28 @@ import {
   type TaskStatus,
   type Transition,
 } from "./core.ts";
+import {
+  type DismissReason,
+  type DuplicateLookup,
+  findDuplicate,
+  foldIntoProposal,
+  isStale,
+  markAccepted,
+  markDismissed,
+  markRestored,
+  newProposal,
+  type Proposal,
+  type ProposalKind,
+  type ProposalSource,
+  type ProposalSourceRow,
+  type ProposalStatus,
+  type ProposeInput,
+  type ProposeResult,
+  validatePropose,
+} from "./proposals.ts";
 import { DAY_MS, dayBounds, localDate } from "./time.ts";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS tasks_meta (
@@ -88,6 +107,40 @@ BEGIN SELECT RAISE(ABORT, 'task_events is append-only'); END;
 CREATE TRIGGER IF NOT EXISTS task_events_no_delete_v2 BEFORE DELETE ON task_events
 WHEN NOT EXISTS (SELECT 1 FROM task_purges WHERE task_id = OLD.task_id)
 BEGIN SELECT RAISE(ABORT, 'task_events is append-only — only purging a retired task removes its log'); END;
+-- Proposed tasks (§16.8, schema v3): a second list, not tasks. task_id is
+-- deliberately NOT a foreign key — purge nulls it rather than failing.
+CREATE TABLE IF NOT EXISTS task_proposals (
+  id             TEXT PRIMARY KEY,
+  title          TEXT NOT NULL,
+  notes          TEXT NOT NULL DEFAULT '',
+  kind           TEXT NOT NULL CHECK (kind IN ('university', 'job', 'subscription', 'other')),
+  entity         TEXT NOT NULL,
+  entity_norm    TEXT NOT NULL,
+  thread_key     TEXT,
+  due_at         INTEGER,
+  has_time       INTEGER NOT NULL DEFAULT 0,
+  source         TEXT NOT NULL,
+  confidence     REAL,
+  status         TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'dismissed')),
+  dismiss_reason TEXT CHECK (dismiss_reason IS NULL OR dismiss_reason IN ('owner', 'stale', 'duplicate')),
+  created_at     INTEGER NOT NULL,
+  updated_at     INTEGER NOT NULL,
+  resolved_at    INTEGER,
+  task_id        TEXT,
+  CHECK ((status = 'pending') = (resolved_at IS NULL)),
+  CHECK ((status = 'dismissed') = (dismiss_reason IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS task_proposals_status ON task_proposals (status, created_at);
+CREATE INDEX IF NOT EXISTS task_proposals_entity ON task_proposals (entity_norm, status);
+CREATE INDEX IF NOT EXISTS task_proposals_thread ON task_proposals (thread_key);
+-- Every message that fed a proposal, folds included: the message-key net.
+CREATE TABLE IF NOT EXISTS proposal_sources (
+  dedupe_key  TEXT PRIMARY KEY,
+  proposal_id TEXT NOT NULL REFERENCES task_proposals(id),
+  subject     TEXT NOT NULL DEFAULT '',
+  received_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS proposal_sources_proposal ON proposal_sources (proposal_id);
 `;
 
 /** v1 → v2 (2026-09-18): date-only tasks, tags, and the purge carve-out. */
@@ -97,6 +150,15 @@ function migrateV1(db: Database): void {
   db.exec(SCHEMA);
   db.query("UPDATE tasks_meta SET value = ? WHERE key = 'schema_version'").run("2");
 }
+
+/** v2 → v3 (2026-10-28): the proposals tables. Additive — every statement is IF NOT EXISTS. */
+function migrateV2(db: Database): void {
+  db.exec(SCHEMA);
+  db.query("UPDATE tasks_meta SET value = ? WHERE key = 'schema_version'").run("3");
+}
+
+/** The chain: each step takes the file one version forward; a v1 file runs both. */
+const MIGRATIONS: Record<number, (db: Database) => void> = { 1: migrateV1, 2: migrateV2 };
 
 export function openTasksDb(path: string): Database {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
@@ -114,10 +176,12 @@ export function openTasksDb(path: string): Database {
     db.query("INSERT INTO tasks_meta (key, value) VALUES ('schema_version', ?)").run(
       String(SCHEMA_VERSION),
     );
-  } else if (version === 1) {
-    db.transaction(() => migrateV1(db))();
   } else if (version === SCHEMA_VERSION) {
     db.exec(SCHEMA);
+  } else if (version >= 1 && version < SCHEMA_VERSION) {
+    db.transaction(() => {
+      for (let v = version; v < SCHEMA_VERSION; v++) (MIGRATIONS[v] as (db: Database) => void)(db);
+    })();
   } else {
     throw new Error(
       `tasks.db schema_version ${version} != ${SCHEMA_VERSION} — this store is source of truth, not a cache (§16.3): migrate it, never delete it`,
@@ -200,6 +264,54 @@ const fromRow = (r: Row): Task => ({
 });
 
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+export type ProposalFilter = ProposalStatus | "all";
+
+export interface ProposalListOptions {
+  kind?: ProposalKind;
+  /** Only rows resolved at or after this instant (unix ms). */
+  resolvedSince?: number;
+}
+
+interface ProposalRow {
+  id: string;
+  title: string;
+  notes: string;
+  kind: ProposalKind;
+  entity: string;
+  entity_norm: string;
+  thread_key: string | null;
+  due_at: number | null;
+  has_time: number;
+  source: string;
+  confidence: number | null;
+  status: ProposalStatus;
+  dismiss_reason: DismissReason | null;
+  created_at: number;
+  updated_at: number;
+  resolved_at: number | null;
+  task_id: string | null;
+}
+
+const proposalFromRow = (r: ProposalRow): Proposal => ({
+  id: r.id,
+  title: r.title,
+  notes: r.notes,
+  kind: r.kind,
+  entity: r.entity,
+  entityNorm: r.entity_norm,
+  threadKey: r.thread_key,
+  dueAt: r.due_at,
+  hasTime: r.has_time !== 0,
+  source: JSON.parse(r.source) as ProposalSource,
+  confidence: r.confidence,
+  status: r.status,
+  dismissReason: r.dismiss_reason,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+  resolvedAt: r.resolved_at,
+  taskId: r.task_id,
+});
 
 const sameSet = (a: string[], b: string[]) =>
   a.length === b.length && [...a].sort().every((v, i) => v === [...b].sort()[i]);
@@ -315,6 +427,8 @@ export class TaskStore {
       this.db.query("DELETE FROM task_events WHERE task_id = ?").run(id);
       this.db.query("DELETE FROM tasks WHERE id = ?").run(id);
       this.db.query("DELETE FROM task_purges WHERE task_id = ?").run(id);
+      // A proposal that became this task keeps its history; the pointer goes.
+      this.db.query("UPDATE task_proposals SET task_id = NULL WHERE task_id = ?").run(id);
     });
     tx();
   }
@@ -460,6 +574,224 @@ export class TaskStore {
       return next;
     });
     return tx();
+  }
+
+  // ── proposals (§16.8) ─────────────────────────────────────────────────
+
+  /** Pending newest first; resolved ones most recently resolved first. */
+  proposals(filter: ProposalFilter = "pending", opts: ProposalListOptions = {}): Proposal[] {
+    const where: string[] = [];
+    const args: Array<string | number> = [];
+    if (filter !== "all") {
+      where.push("status = ?");
+      args.push(filter);
+    }
+    if (opts.kind) {
+      where.push("kind = ?");
+      args.push(opts.kind);
+    }
+    if (opts.resolvedSince != null) {
+      where.push("resolved_at >= ?");
+      args.push(opts.resolvedSince);
+    }
+    const sql = `SELECT * FROM task_proposals${where.length ? ` WHERE ${where.join(" AND ")}` : ""}
+      ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, COALESCE(resolved_at, created_at) DESC, created_at DESC, id ASC`;
+    return (this.db.query(sql).all(...args) as ProposalRow[]).map(proposalFromRow);
+  }
+
+  proposal(id: string): Proposal | null {
+    if (!ID_RE.test(id)) return null;
+    const row = this.db
+      .query("SELECT * FROM task_proposals WHERE id = ?")
+      .get(id) as ProposalRow | null;
+    return row ? proposalFromRow(row) : null;
+  }
+
+  proposalSources(id: string): ProposalSourceRow[] {
+    const rows = this.db
+      .query(
+        "SELECT proposal_id, dedupe_key, subject, received_at FROM proposal_sources WHERE proposal_id = ? ORDER BY received_at ASC, dedupe_key ASC",
+      )
+      .all(id) as Array<{
+      proposal_id: string;
+      dedupe_key: string;
+      subject: string;
+      received_at: number;
+    }>;
+    return rows.map((r) => ({
+      proposalId: r.proposal_id,
+      dedupeKey: r.dedupe_key,
+      subject: r.subject,
+      receivedAt: r.received_at,
+    }));
+  }
+
+  proposalCounts(): Record<ProposalStatus, number> {
+    const rows = this.db
+      .query("SELECT status, COUNT(*) AS c FROM task_proposals GROUP BY status")
+      .all() as Array<{ status: ProposalStatus; c: number }>;
+    const out: Record<ProposalStatus, number> = { pending: 0, accepted: 0, dismissed: 0 };
+    for (const r of rows) out[r.status] = r.c;
+    return out;
+  }
+
+  /**
+   * Add to the proposed list, or discover it is already there. Never errors
+   * on a duplicate: the result says what it matched and why, so the caller
+   * can log it and the audit can show it. One transaction, so two callers
+   * racing on the same key cannot both create (the key is a primary key).
+   */
+  propose(input: ProposeInput): ProposeResult {
+    const now = this.now();
+    const c = validatePropose(input);
+    const tx = this.db.transaction((): ProposeResult => {
+      const keyRow = this.db
+        .query("SELECT proposal_id FROM proposal_sources WHERE dedupe_key = ?")
+        .get(c.dedupeKey) as { proposal_id: string } | null;
+      const found: DuplicateLookup = {
+        byKey: keyRow ? this.proposal(keyRow.proposal_id) : null,
+        byThread: c.threadKey
+          ? (
+              this.db
+                .query(
+                  "SELECT * FROM task_proposals WHERE thread_key = ? ORDER BY created_at DESC, id ASC",
+                )
+                .all(c.threadKey) as ProposalRow[]
+            ).map(proposalFromRow)
+          : [],
+        byEntity: (
+          this.db
+            .query(
+              "SELECT * FROM task_proposals WHERE entity_norm = ? ORDER BY created_at DESC, id ASC",
+            )
+            .all(c.entityNorm) as ProposalRow[]
+        ).map(proposalFromRow),
+      };
+      const verdict = findDuplicate(c, found, now);
+      if (verdict?.action === "duplicate")
+        return { outcome: "duplicate", reason: verdict.reason, proposal: verdict.row };
+      if (verdict?.action === "fold") {
+        const folded = foldIntoProposal(verdict.row, c, now, this.tz);
+        this.writeProposal(folded);
+        this.addSource(folded.id, c, now);
+        return { outcome: "folded", proposal: folded };
+      }
+      const p = newProposal(c, now, this.newId());
+      this.writeProposal(p);
+      this.addSource(p.id, c, now);
+      return { outcome: "created", proposal: p };
+    });
+    return tx();
+  }
+
+  /**
+   * The human's yes: the ordinary create, every rule intact, and the row
+   * flipped to accepted — one transaction, so a refused create leaves the
+   * proposal exactly as it was.
+   */
+  acceptProposal(
+    id: string,
+    input: Partial<CreateInput> & { tags?: string[] } = {},
+  ): { task: Task; proposal: Proposal } {
+    const now = this.now();
+    const tx = this.db.transaction(() => {
+      const p = this.proposal(id);
+      if (!p) throw new NotFound(`no proposal ${id}`);
+      if (p.status !== "pending") throw new TaskError(`proposal is ${p.status}, not pending`);
+      const task = this.create({
+        title: input.title ?? p.title,
+        notes: input.notes ?? p.notes,
+        intervalMs: input.intervalMs ?? null,
+        anchor: input.anchor,
+        dueAt: input.dueAt ?? p.dueAt ?? undefined,
+        hasTime: input.hasTime ?? (input.dueAt == null ? p.hasTime : undefined),
+        tags: input.tags,
+      });
+      const accepted = markAccepted(p, task.id, now);
+      this.writeProposal(accepted);
+      return { task, proposal: accepted };
+    });
+    return tx();
+  }
+
+  dismissProposal(id: string, reason: DismissReason = "owner"): Proposal {
+    return this.applyProposal(id, (p, now) => markDismissed(p, reason, now));
+  }
+
+  restoreProposal(id: string): Proposal {
+    return this.applyProposal(id, (p, now) => markRestored(p, now));
+  }
+
+  /** The manual trim (Q16): dismiss every pending proposal older than `days`. Returns how many. */
+  dismissStaleProposals(days = 7): number {
+    const now = this.now();
+    const tx = this.db.transaction(() => {
+      let n = 0;
+      for (const p of this.proposals("pending")) {
+        if (!isStale(p, now, days)) continue;
+        this.writeProposal(markDismissed(p, "stale", now));
+        n++;
+      }
+      return n;
+    });
+    return tx();
+  }
+
+  private applyProposal(id: string, fn: (p: Proposal, now: number) => Proposal): Proposal {
+    const now = this.now();
+    const tx = this.db.transaction(() => {
+      const p = this.proposal(id);
+      if (!p) throw new NotFound(`no proposal ${id}`);
+      const next = fn(p, now);
+      this.writeProposal(next);
+      return next;
+    });
+    return tx();
+  }
+
+  private addSource(
+    proposalId: string,
+    c: { dedupeKey: string; subject: string; receivedAt: number | null },
+    now: number,
+  ): void {
+    this.db
+      .query(
+        "INSERT INTO proposal_sources (dedupe_key, proposal_id, subject, received_at) VALUES (?, ?, ?, ?)",
+      )
+      .run(c.dedupeKey, proposalId, c.subject, c.receivedAt ?? now);
+  }
+
+  private writeProposal(p: Proposal): void {
+    this.db
+      .query(
+        `INSERT INTO task_proposals (id, title, notes, kind, entity, entity_norm, thread_key, due_at, has_time, source, confidence, status, dismiss_reason, created_at, updated_at, resolved_at, task_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
+         ON CONFLICT(id) DO UPDATE SET
+           title = excluded.title, notes = excluded.notes, kind = excluded.kind,
+           entity = excluded.entity, entity_norm = excluded.entity_norm, thread_key = excluded.thread_key,
+           due_at = excluded.due_at, has_time = excluded.has_time, source = excluded.source,
+           confidence = excluded.confidence, status = excluded.status, dismiss_reason = excluded.dismiss_reason,
+           updated_at = excluded.updated_at, resolved_at = excluded.resolved_at, task_id = excluded.task_id`,
+      )
+      .run(
+        p.id,
+        p.title,
+        p.notes,
+        p.kind,
+        p.entity,
+        p.entityNorm,
+        p.threadKey,
+        p.dueAt,
+        p.hasTime ? 1 : 0,
+        JSON.stringify(p.source),
+        p.confidence,
+        p.status,
+        p.dismissReason,
+        p.createdAt,
+        p.updatedAt,
+        p.resolvedAt,
+        p.taskId,
+      );
   }
 
   private tagByName(name: string): { id: number; name: string } | null {

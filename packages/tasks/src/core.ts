@@ -102,14 +102,14 @@ export class TaskError extends Error {}
 const TITLE_MAX = 200;
 const NOTES_MAX = 4000;
 
-function assertTitle(title: string): string {
+export function assertTitle(title: string): string {
   const t = title.trim();
   if (!t) throw new TaskError("title is required");
   if (t.length > TITLE_MAX) throw new TaskError(`title too long (${TITLE_MAX} max)`);
   return t;
 }
 
-function assertNotes(notes: string | undefined): string {
+export function assertNotes(notes: string | undefined): string {
   const n = (notes ?? "").trim();
   if (n.length > NOTES_MAX) throw new TaskError(`notes too long (${NOTES_MAX} max)`);
   return n;

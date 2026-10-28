@@ -28,6 +28,10 @@ the package's whole documentation — the design and the operator's card.
   assigned by name; the interval and status of a task are tags too,
   derived and read-only. Permanent deletion of a retired task (purge) is
   console-only.
+- **Proposed tasks (§16.8):** a second list anything behind the gateway
+  can add to (`tasks.propose`) and only a human promotes (`accept_proposal`
+  in the console or over MCP). Not tasks until accepted; duplicates are
+  caught in the store by exact identity, never by title similarity.
 - **Roster entry:** see `examples/vault-example/config/servers.yaml` —
   copy it into the private vault's `config/servers.yaml` on the VM.
 
@@ -159,7 +163,9 @@ at the engine; and `TASKS_DB_PATH` **must be absolute** or the upstream
 refuses to start — the §4.3 spawn-boundary lesson, applied before it bites
 again.
 
-**Schema versions are migrations, and v2 is the first** (2026-09-18):
+**Schema versions are migrations, and v2 was the first** (2026-09-18; v3
+followed on 2026-10-28 with the proposals tables, §16.8 — additive, and
+the chain runs v1→v2→v3 in one transaction for a file that never saw v2):
 `has_time`, the tag tables, and the purge carve-out. A v1 file migrates in
 place on open, inside one transaction, and the migration is tested against
 a verbatim v1 fixture — the VM's live store crossed it on the next deploy.
@@ -267,8 +273,8 @@ use the same toast.
 
 `packages/tasks/src/main.ts` is a stdio MCP server the gateway spawns from
 the private vault's `config/servers.yaml`, exactly like `brain` and the
-Google instances (the example vault carries the synthetic entry). Ten tools,
-plain JSON Schemas, risk kinds via annotations (§4.4):
+Google instances (the example vault carries the synthetic entry). Sixteen
+tools, plain JSON Schemas, risk kinds via annotations (§4.4):
 
 ```
 tasks.list(status=open|retired|all, tag?)   read
@@ -278,6 +284,12 @@ tasks.create(title, interval, notes?, anchor?, due_at?, tags?)   write
 tasks.complete(id, repeat?, next_due_at?)                         write
 tasks.cancel(id, repeat?, next_due_at?)                           write
 tasks.reschedule(id, due_at)  tasks.update(id, …, tags?)  tasks.retire(id)  tasks.reopen(id, due_at?)   write
+
+tasks.proposals(status=pending|accepted|dismissed|all, kind?)                     read   (§16.8)
+tasks.propose(title, kind, entity, dedupe_key, source, thread_key?, notes?, due_at?, confidence?)
+                                                                                   write  → created | folded | duplicate
+tasks.accept_proposal(id, interval, anchor?, title?, notes?, due_at?, tags?)      write  → task
+tasks.dismiss_proposal(id)   tasks.restore_proposal(id)   tasks.dismiss_stale_proposals(older_than_days=7)   write
 ```
 
 A date argument that is a bare date (`2026-09-24`) makes the occurrence
@@ -322,13 +334,14 @@ complete through the real gateway against the shared mount.
   timer-driven Gmail reader that extracts tasks with a model call and
   writes the store directly. **Deferred by the owner (2026-09-24), with a
   direction:** services stay isolated — the tasks package reads no other
-  service's data, and no other service reads its store. Collecting tasks
-  from other sources (mail, university sites, whatever comes next) is done
-  by connecting further MCP upstreams behind the gateway and letting an
-  LLM act as the adapter, calling `tasks.*` (§16.5) the way any surface
-  does — so the intake lives in a session or a routine, not in a package
-  that couples two upstreams. The owner confirmed every §12 Q10–Q14 default
-  the same day; the surface is considered done as built.
+  service's data, and no other service reads its store. What was built
+  instead (2026-10-28) is the **proposed list** (§16.8): the store grew a
+  second list with an API any caller can add to, and the collector is a
+  separate *gateway client* package (`packages/mail-tick`, like
+  `tasks-reminder`) that reads mail through the `g-*` upstreams and writes
+  only `tasks.propose`. It couples no upstreams — it is a client of both,
+  through the gateway's policy and audit — and the tasks package still
+  opens nothing but its own file.
 - **A `brain doctor` check on the store.** The console's `/healthz` runs a
   cheap query against the tasks store and answers 503 when the file cannot
   be read (2026-09-24; before that it answered `ok` unconditionally), and
@@ -337,3 +350,58 @@ complete through the real gateway against the shared mount.
   on first open, because first deploy needs that — so a bad mount that
   presents an empty directory looks like a fresh install, not a fault.
   `brain backup` and the task count on `/tasks` are the signals for that.
+
+### 16.8 Proposed tasks: the list, the dedupe nets, the accept flow
+
+**What it is** (owner, 2026-10-27/28). Tasks often arrive by mail, and
+the owner wanted them to land somewhere *other* than the task list until
+vetted: a side list of **proposed tasks** that the mail tick fills twice
+a day, that any other source — a Claude session, a future university-site
+adapter — can add to through the same API, and that a human promotes or
+dismisses. Direct add is untouched; the proposals list is a second way in,
+never a gate.
+
+**Not tasks.** `task_proposals` is its own table (schema v3), with no event
+log, never returned by `list`/`due`, never counted on the board, never
+auto-promoted. `task_id` is a plain column, not a foreign key: purging a
+task nulls it and the proposal keeps its history. A proposal carries a
+`kind` (`university` · `job` · `subscription` · `other`), a caller-supplied
+**entity** — the canonical thing it is about, `cs348 a3`, `shopify
+interview`, `netflix` — a `thread_key`, a free-form `source` JSON (for mail:
+account, sender, subject, received date; **no link**, the breadcrumb is
+enough to find the mail by search), the caller's due-date guess, and a
+confidence that sorts and never displays.
+
+**Accept** runs the ordinary `createTask` — interval required unless
+one-off, every title/date rule intact — and flips the row to `accepted` in
+the same transaction, so a refused create leaves the proposal exactly as
+it was. **Dismiss** keeps the row (reason `owner`), because the row is what
+stops the same thing coming back; **restore** reverses it. **The stale
+trim** (`dismiss_stale_proposals`, reason `stale`) is a manual console
+button, never something the tick runs (owner, Q16).
+
+**Duplicates are decided by exact identity, never by string similarity.**
+Measured on real task titles, character-trigram Jaccard scored two
+spellings of the same assignment at 0.29 and 0.02 and a *different*
+assignment in the same course at 0.67, so similarity survives only as the
+accept form's *similar open task* hint. The store applies three nets inside
+`propose`, in order, for every caller:
+
+| Net | Catches | Pending row | Accepted / owner-dismissed row | Stale- or duplicate-dismissed row |
+|---|---|---|---|---|
+| **message key** (`proposal_sources`, folds included) | the same mail twice | duplicate (`key`) | duplicate (`key`) | duplicate (`key`) |
+| **thread key**, no window | a reply, reminder, "deadline extended" in the thread | **fold** | duplicate (`accepted` / `dismissed`) | ignored — treated as new |
+| **entity**, windowed from resolution: 90 days for `subscription` (Q17), 60 otherwise | the same thing from another thread or account; another receipt for the same service | **fold** | duplicate within the window | ignored |
+
+A **fold** appends one line to the pending row's notes (`also: <subject> ·
+<date>`), keeps the later due date, bumps `updated_at`, and records the
+message in `proposal_sources` so a re-sent message is a key duplicate, not
+a second fold. `propose` never errors on a duplicate: the result says
+`outcome` and `reason`, so the tick logs it and the audit shows it. A row
+dismissed as stale never suppresses: the owner never looked at it, and a
+week away must not become a week of swallowed reminders.
+
+**What is deliberately absent:** suggested tags (the human picks tags on
+accept), a proposal detail page beyond the list and the accept form, any
+model call inside this package (the entity comes from the caller), and
+any read of another service's data.
