@@ -399,6 +399,33 @@ describe("one tick", () => {
     expect(s.created).toBe(2);
     expect(s.capped).toBe(1);
     expect(gw.proposals).toHaveLength(2);
+    // The capped message stays unmarked and comes back next tick; the matched one is marked and stays in the inbox.
+    expect(s.unmarked).toBe(1);
+    const capped = [...gw.mail.values()].find(
+      (m) => !(m.label_ids ?? []).includes("L_mark") && m.label_ids?.includes("INBOX"),
+    );
+    expect(capped).toBeDefined();
+    expect(gw.mail.get("m5")?.label_ids).toEqual(expect.arrayContaining(["INBOX", "L_mark"]));
+    expect(gw.mail.get("m5")?.label_ids).not.toContain("L_arch");
+    const again = one(await runTick(base(gw, { capPerAccount: 20 })));
+    expect(again.scanned).toBe(1);
+    expect(gw.proposals).toHaveLength(3);
+  });
+
+  test("a system label in the account's list never becomes addable; a display name cannot make a person automated", async () => {
+    const mail = inbox();
+    (mail.get("m3") as FakeMail).from = "Announcements Committee <jane@example.invalid>"; // model says digest/automated
+    const gw = new FakeGateway(mail);
+    gw.labels.push(
+      { id: "SPAM", name: "SPAM", type: "system" },
+      { id: "UNREAD", name: "UNREAD", type: "system" },
+    );
+    await runTick(base(gw));
+    for (const c of gw.calls.filter((c) => c.urn === "g-test.mail_modify_labels"))
+      expect((c.args.add_label_ids as string[]).some((l) => l === "SPAM" || l === "UNREAD")).toBe(
+        false,
+      );
+    expect(gw.mail.get("m3")?.label_ids).toEqual(["INBOX", "UNREAD", "L_mark"]); // marked only
   });
 
   test("dry run writes nothing at all", async () => {

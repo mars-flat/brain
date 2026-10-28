@@ -19,8 +19,10 @@ bun packages/mail-tick/src/main.ts --account g-2006            # one account
 On the VM it runs as `brain-mail-tick.timer` at 08:00 and 16:00
 America/Toronto, inside the gateway container
 (`docker compose exec -T gateway bun /app/packages/mail-tick/src/main.ts`),
-the same shape as the consolidate cadence (§5.8). `journalctl -u
-brain-mail-tick` shows one summary line per account per tick.
+the same shape as the consolidate cadence (§5.8). `provision.sh` writes
+the units but does not enable the timer; the owner arms it after the
+§13 T2 steps. `journalctl -u brain-mail-tick` shows one summary line per
+account per tick.
 
 ## One tick
 
@@ -37,6 +39,7 @@ per account
   extract  one model call per actionable survivor, body capped at 6k chars:
            { title, kind, entity, due_date, due_time, notes, keywords, confidence, matches_existing }
   propose  tasks.propose per item with confidence ≥ 0.6 and no matches_existing; ≤ 20 created rows an account a tick
+           (a message that hit the cap stays UNMARKED and is read again next tick — never a silent drop)
   file     mail_modify_labels, batched ≤ 50 ids, per the disposition table below — applied LAST
 summary    scanned · pages · triaged-in · extracted · created · folded · duplicate · matched-existing · dropped-low · capped · marked · labeled · archived
 ```
@@ -65,23 +68,26 @@ asserted before every label call.
 |---|---|---|---|
 | sender `person` or `unsure` (any kind) — an interviewer, a professor, a reply in a thread | none | **stays, untouched** (owner, Q20: only bots get filed) | `brain/triaged` |
 | automated, actionable, proposal created or folded | add if the model named one | **stays** — inbox is for action; the owner archives it | `brain/triaged` |
-| automated, actionable, but the same thing as an existing task (`matches_existing`, or a duplicate of an accepted proposal) | add | **archive** | `brain/triaged` + `brain/archived` |
 | automated, reference (news, security, receipts, `uw/*`…): lane named, not actionable | add | **archive** | both |
 | automated, no lane, reason marketing / notification / digest / social | none | **archive** (pure marketing may be archived unlabeled — 2026-08-28 policy) | both |
 | automated, reason `fyi` or `unsure` | add if named | **stays** | `brain/triaged` |
 | starred | add if named | **never archived**, never un-starred | `brain/triaged` |
 
-A human must never be filed: `looksAutomated()` (no-reply, notification,
-newsletter, list and billing address shapes) overrides a model
-`automated` to `unsure` when the address does not look like a system, and
-`unsure` never archives. Read-state is untouched (Q21). No follow-through:
+A human must never be filed: `looksAutomated()` looks at the address, not
+the display name, anchored on the local part (no-reply, notifications,
+newsletter, list, billing, recruiting shapes…), and overrides a model
+`automated` to `unsure` when the address does not look like a system —
+so "Announcements Committee <jane@…>" stays a person — and `unsure`
+never archives. Read-state is untouched (Q21). No follow-through:
 mail whose proposal was accepted or dismissed stays where it is until the
 owner archives it (Q20).
 
 **Hard limits** (`assertLabelChange`, unit-tested, visible as argument
 digests in the audit chain): `remove_label_ids ⊆ {INBOX}`; `add_label_ids
-⊆ {the account's listed label ids}` — which includes the two `brain/*`
-markers and nothing else; never `SPAM`, `TRASH`, `UNREAD`, `STARRED`. The
+⊆ {the account's *user* label ids}` — which includes the two `brain/*`
+markers — and never a Gmail system label (`SPAM`, `TRASH`, `UNREAD`,
+`STARRED`, `IMPORTANT`, the categories…), by a hard-coded deny list that
+holds whatever the allow-set says. The
 tick never creates a label, never touches a filter, never reads Drive,
 and the gateway's permanent no-send deny stays.
 

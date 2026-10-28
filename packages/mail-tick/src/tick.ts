@@ -74,6 +74,8 @@ export interface AccountSummary {
   droppedLow: number;
   capped: number;
   marked: number;
+  /** Left unmarked on purpose (cap or an unexplained propose result) — re-read next tick. */
+  unmarked: number;
   labeled: number;
   archived: number;
   kept: number;
@@ -99,6 +101,7 @@ const emptySummary = (account: string): AccountSummary => ({
   droppedLow: 0,
   capped: 0,
   marked: 0,
+  unmarked: 0,
   labeled: 0,
   archived: 0,
   kept: 0,
@@ -154,7 +157,6 @@ export async function runTick(opts: TickOptions): Promise<AccountSummary[]> {
     .map((s) => s.name)
     .filter((n) => !opts.only || opts.only.includes(n));
   if (accounts.length === 0) log("no g-* upstream is up; nothing to do");
-  const existing = accounts.length ? await existingContext(gw) : { openTasks: [], pending: [] };
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: opts.tz }).format(new Date(now()));
   const summaries: AccountSummary[] = [];
 
@@ -163,6 +165,8 @@ export async function runTick(opts: TickOptions): Promise<AccountSummary[]> {
     summaries.push(summary);
     const cfg = opts.accounts?.[account] ?? {};
     try {
+      // Per account, so account two's prompt knows what account one just proposed.
+      const existing = await existingContext(gw);
       // The account's real label tree: lanes come from here, never from the model.
       const labelList = (await gw.call(`${account}.mail_list_labels`, {})) as { labels?: Label[] };
       const labels = asArray<Label>(labelList.labels);
@@ -215,7 +219,10 @@ export async function runTick(opts: TickOptions): Promise<AccountSummary[]> {
       for (const v of verdicts) {
         const h = headers[v.i] as Header;
         let disposition: Disposition = v.disposition;
-        let archiveBecauseTracked = false;
+        // A message whose item hit the cap (or an unexplained propose result)
+        // stays unmarked so the next tick reads it again: the cap is "the rest
+        // next tick", never a silent drop.
+        let leaveUnmarked = false;
         if (v.kind !== "none" && v.actionable) {
           summary.triagedIn++;
           const msg = (await gw.call(`${account}.mail_get_message`, { id: h.id })) as {
@@ -231,10 +238,13 @@ export async function runTick(opts: TickOptions): Promise<AccountSummary[]> {
             const outcome = await proposeOne(opts, gw, account, h, item, summary, createdHere);
             if (outcome === "created") createdHere++;
             if (outcome === "created" || outcome === "folded") disposition = "keep";
-            if (outcome === "matched" || outcome === "duplicate-accepted")
-              archiveBecauseTracked = true;
+            if (outcome === "capped" || outcome === "unexplained") leaveUnmarked = true;
           }
           if (items.length === 0) summary.kept++;
+        }
+        if (leaveUnmarked) {
+          summary.unmarked++;
+          continue;
         }
         // Filing (PR D's organize, gated): only automated mail, only the allowed labels.
         const add: string[] = marker ? [marker] : [];
@@ -242,9 +252,7 @@ export async function runTick(opts: TickOptions): Promise<AccountSummary[]> {
         if (opts.organize && v.sender === "automated") {
           const laneId = v.lane ? byName.get(v.lane) : undefined;
           if (laneId) add.push(laneId);
-          const mayArchive =
-            (disposition === "archive" || (archiveBecauseTracked && !v.actionable)) &&
-            !(h.label_ids ?? []).includes("STARRED");
+          const mayArchive = disposition === "archive" && !(h.label_ids ?? []).includes("STARRED");
           if (mayArchive && (h.label_ids ?? []).includes("INBOX")) {
             remove.push("INBOX");
             if (archived) add.push(archived);
@@ -255,7 +263,7 @@ export async function runTick(opts: TickOptions): Promise<AccountSummary[]> {
       }
 
       // Stage 3 — labels, batched, hard-limited, last.
-      const allowedAdd = new Set(labels.map((l) => l.id));
+      const allowedAdd = new Set(labels.filter((l) => l.type !== "system").map((l) => l.id));
       const batches = labelBatches(changes);
       for (const b of batches) {
         assertLabelChange(b, allowedAdd);
@@ -282,7 +290,7 @@ type ProposeOutcome =
   | "created"
   | "folded"
   | "duplicate"
-  | "duplicate-accepted"
+  | "unexplained"
   | "matched"
   | "dropped"
   | "capped";
@@ -327,10 +335,10 @@ async function proposeOne(
       return "folded";
     case "duplicate":
       summary.duplicate++;
-      return res.reason === "accepted" ? "duplicate-accepted" : "duplicate";
+      return "duplicate";
     default:
       summary.warnings.push(`propose returned ${JSON.stringify(res).slice(0, 120)}`);
-      return "dropped";
+      return "unexplained";
   }
 }
 
@@ -347,6 +355,7 @@ export function summaryLine(s: AccountSummary): string {
     `dropped-low ${s.droppedLow}`,
     `capped ${s.capped}`,
     `marked ${s.marked}`,
+    `unmarked ${s.unmarked}`,
     `labeled ${s.labeled}`,
     `archived ${s.archived}`,
   ];

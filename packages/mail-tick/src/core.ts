@@ -226,12 +226,24 @@ export function parseTriage(parsed: unknown, headers: Header[], lanes: string[])
   return out;
 }
 
-/** Mechanical sender signals that override the model towards "person": a human must never be filed. */
+const AUTOMATED_LOCAL_PART =
+  /^(no-?reply|do-?not-?reply|donotreply|noreply|notifications?|notify|mailer(-daemon)?|newsletters?|digests?|alerts?|info|news|updates?|receipts?|billing|invoices?|support|hello|team|automated|bounces?|announce(ments)?|admin|system|calendar|jobs|careers|recruiting|talent)(-[a-z0-9-]+)?$|-list$|^list-|^bounce|noreply|no-reply|donotreply/;
+
+/**
+ * The mechanical sender signal: the ADDRESS, not the display name, and
+ * anchored on the local part — "Announcements Committee <jane@…>" is a
+ * person, "LEARN <noreply@learn.invalid>" is not. It overrides a model
+ * "automated" towards "unsure", never the other way: a human must never be
+ * filed, so this errs towards "person".
+ */
 export function looksAutomated(h: Header): boolean {
-  const from = (h.from ?? "").toLowerCase();
-  return /no-?reply|do-?not-?reply|notification|notifications|noreply|mailer|newsletter|digest|alerts?@|info@|news@|updates?@|receipts?@|billing@|support@|hello@|team@|automated|bounce|list-|-list@|announce/.test(
-    from,
-  );
+  const raw = (h.from ?? "").trim();
+  if (!raw) return false;
+  const addr = (/<([^>]+)>\s*$/.exec(raw)?.[1] ?? raw).trim().toLowerCase();
+  const at = addr.lastIndexOf("@");
+  if (at <= 0) return false;
+  const local = addr.slice(0, at);
+  return AUTOMATED_LOCAL_PART.test(local);
 }
 
 export interface ExistingContext {
@@ -442,12 +454,33 @@ export function labelBatches(
  * before every call, so a bug upstream cannot reach SPAM, TRASH, UNREAD or
  * STARRED.
  */
+/** Gmail's system labels: never added by the tick, whatever the allow-set says. */
+const NEVER_ADD = new Set([
+  "SPAM",
+  "TRASH",
+  "UNREAD",
+  "STARRED",
+  "IMPORTANT",
+  "INBOX",
+  "SENT",
+  "DRAFT",
+  "CHAT",
+  "CATEGORY_PERSONAL",
+  "CATEGORY_SOCIAL",
+  "CATEGORY_PROMOTIONS",
+  "CATEGORY_UPDATES",
+  "CATEGORY_FORUMS",
+]);
+
 export function assertLabelChange(
   change: { add_label_ids: string[]; remove_label_ids: string[] },
   allowedAdd: Set<string>,
 ): void {
   for (const r of change.remove_label_ids)
     if (r !== "INBOX") throw new Error(`refusing to remove label ${r}: only INBOX may be removed`);
-  for (const a of change.add_label_ids)
+  for (const a of change.add_label_ids) {
+    if (NEVER_ADD.has(a) || a.startsWith("CATEGORY_"))
+      throw new Error(`refusing to add system label ${a}`);
     if (!allowedAdd.has(a)) throw new Error(`refusing to add label ${a}: not an allowed label id`);
+  }
 }

@@ -175,6 +175,16 @@ describe("triage", () => {
     expect(looksAutomated(h())).toBe(true);
     expect(looksAutomated(h({ from: "Shopify Recruiting <no-reply@shopify.invalid>" }))).toBe(true);
     expect(looksAutomated(h({ from: "Ada Lovelace <ada@example.invalid>" }))).toBe(false);
+    // The address decides, anchored on the local part — not the display name, not a substring.
+    expect(looksAutomated(h({ from: "Announcements Committee <jane@example.invalid>" }))).toBe(
+      false,
+    );
+    expect(looksAutomated(h({ from: "Pat Digest <pat@example.invalid>" }))).toBe(false);
+    expect(looksAutomated(h({ from: "agnews@example.invalid" }))).toBe(false);
+    expect(looksAutomated(h({ from: "news@example.invalid" }))).toBe(true);
+    expect(looksAutomated(h({ from: "Piazza <no-reply@piazza.invalid>" }))).toBe(true);
+    expect(looksAutomated(h({ from: "cs348-list@uw.invalid" }))).toBe(true);
+    expect(looksAutomated(h({ from: "Careers <careers-noreply@shopify.invalid>" }))).toBe(true);
     expect(looksAutomated(h({ from: undefined }))).toBe(false);
   });
 });
@@ -350,7 +360,7 @@ describe("labels", () => {
     ).toThrow(/only INBOX/);
     expect(() =>
       assertLabelChange({ add_label_ids: ["SPAM"], remove_label_ids: [] }, allowed),
-    ).toThrow(/not an allowed/);
+    ).toThrow(/system label/);
     expect(() =>
       assertLabelChange({ add_label_ids: ["TRASH"], remove_label_ids: [] }, allowed),
     ).toThrow();

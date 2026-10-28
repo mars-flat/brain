@@ -115,7 +115,7 @@ cat >/etc/systemd/system/brain-mail-tick.timer <<UNIT
 [Unit]
 Description=brain mail tick cadence (08:00 and 16:00 ${MAIL_TICK_ZONE})
 [Timer]
-OnCalendar=*-*-* 08:00,16:00 ${MAIL_TICK_ZONE}
+OnCalendar=*-*-* 08,16:00:00 ${MAIL_TICK_ZONE}
 Persistent=true
 [Install]
 WantedBy=timers.target
@@ -162,7 +162,8 @@ EOF
 
 systemctl daemon-reload
 systemctl enable -q --now brain-consolidate.timer brain-vault-push.timer
-systemctl enable -q brain-mail-tick.timer # armed by the owner once the mail-tick client, policy and labels exist (§16.8)
+# brain-mail-tick.timer is written but NOT enabled here: the owner arms it once the
+# mail-tick client, policy rules and labels exist (§13 T2).
 systemctl enable -q brain-certs.timer 2>/dev/null || true # armed once the edge env exists
 
 # ── first bring-up: build locally (the GHCR package may still be private;
