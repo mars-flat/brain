@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome ci .",
     "format": "biome check --write .",
-    "depcruise": "bunx --bun depcruise packages adapters --config .dependency-cruiser.cjs",
+    "depcruise": "bunx --bun depcruise packages adapters --config .dependency-cruiser.cjs && bun scripts/depcruise-floor.ts",
     "check": "bun run lint && bun run typecheck && bun run depcruise && bun test"
   },
   "devDependencies": {
@@ -22,6 +22,6 @@
     "@modelcontextprotocol/sdk": "1.32.0",
     "@types/bun": "1.4.2",
     "dependency-cruiser": "18.5.0",
-    "typescript": "7.0.2"
+    "typescript": "6.0.3"
   }
 }
