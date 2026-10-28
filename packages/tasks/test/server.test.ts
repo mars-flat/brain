@@ -57,13 +57,27 @@ const isoUtc = (y: number, m: number, d: number, h: number, mi = 0) =>
   new Date(Date.UTC(y, m - 1, d, h, mi)).toISOString();
 
 describe("tool surface", () => {
-  test("ten tools; reads carry readOnlyHint, writes carry no destructive hint", async () => {
+  test("sixteen tools; reads carry readOnlyHint, writes carry no destructive hint", async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([...TASK_TOOL_NAMES].sort());
-    expect(tools).toHaveLength(10);
+    expect(tools).toHaveLength(16);
     const ann = new Map(tools.map((t) => [t.name, t.annotations ?? {}]));
-    for (const r of ["list", "get", "due"]) expect(ann.get(r)).toHaveProperty("readOnlyHint", true);
-    for (const w of ["create", "complete", "cancel", "reschedule", "update", "retire", "reopen"]) {
+    for (const r of ["list", "get", "due", "proposals"])
+      expect(ann.get(r)).toHaveProperty("readOnlyHint", true);
+    for (const w of [
+      "create",
+      "complete",
+      "cancel",
+      "reschedule",
+      "update",
+      "retire",
+      "reopen",
+      "propose",
+      "accept_proposal",
+      "dismiss_proposal",
+      "restore_proposal",
+      "dismiss_stale_proposals",
+    ]) {
       expect(ann.get(w)).not.toHaveProperty("readOnlyHint");
       expect(ann.get(w)).not.toHaveProperty("destructiveHint");
     }
@@ -167,5 +181,113 @@ describe("lifecycle through the tools", () => {
     expect(oneOff.interval).toBe("one-off");
     const done = await call("complete", { id: oneOff.id });
     expect((done.out.task as TaskOut).status).toBe("retired");
+  });
+});
+
+describe("proposed tasks through the tools", () => {
+  test("propose → proposals → fold → accept creates a task; duplicates report, never error", async () => {
+    const source = {
+      kind: "gmail",
+      account: "g-test",
+      from: "LEARN",
+      subject: "A3 posted",
+      received_at: now,
+    };
+    const p1 = await call("propose", {
+      title: "CS 348 A3 due",
+      kind: "university",
+      entity: "CS348 A3",
+      dedupe_key: "gmail:g-test:m1",
+      thread_key: "gmail:g-test:t1",
+      source,
+      due_at: "2026-09-24",
+      confidence: 0.8,
+    });
+    expect(p1.isError).toBe(false);
+    expect(p1.out.outcome).toBe("created");
+    const prop = p1.out.proposal as {
+      id: string;
+      due_at: string;
+      has_time: boolean;
+      due_human: string;
+    };
+    expect(prop.has_time).toBe(false);
+    expect(prop.due_human).toMatch(/Sep 24/);
+    const listed = await call("proposals");
+    expect((listed.out.proposals as unknown[]).length).toBe(1);
+    expect(listed.out.counts).toEqual({ pending: 1, accepted: 0, dismissed: 0 });
+    const p2 = await call("propose", {
+      title: "A3 extended",
+      kind: "university",
+      entity: "cs-348 a3",
+      dedupe_key: "gmail:g-test:m2",
+      source: { ...source, subject: "A3 extended" },
+    });
+    expect(p2.out.outcome).toBe("folded");
+    const bad = await call("propose", {
+      title: "x",
+      kind: "chore",
+      entity: "x",
+      dedupe_key: "k",
+      source,
+    });
+    expect(bad.isError).toBe(true);
+    expect(bad.text).toMatch(/kind must be/);
+    const noInterval = await call("accept_proposal", { id: prop.id });
+    expect(noInterval.isError).toBe(false); // interval "none" → one-off
+    const task = noInterval.out.task as TaskOut & { title: string };
+    expect(task.status).toBe("open");
+    expect((noInterval.out.proposal as { status: string; task_id: string }).task_id).toBe(task.id);
+    const dup = await call("propose", {
+      title: "CS 348 A3 due",
+      kind: "university",
+      entity: "CS348 A3",
+      dedupe_key: "gmail:g-test:m3",
+      source,
+    });
+    expect(dup.out).toMatchObject({ outcome: "duplicate", reason: "accepted" });
+    // Proposals never surface as tasks.
+    const due = await call("due", { horizon_days: 60 });
+    const all = [
+      due.out.overdue,
+      due.out.today,
+      due.out.upcoming,
+      due.out.later,
+    ].flat() as TaskOut[];
+    expect(all.some((t) => t.id === task.id)).toBe(true);
+    expect((await call("list", { status: "open" })).out.tasks).toHaveLength(all.length);
+  });
+
+  test("dismiss → restore → stale trim", async () => {
+    const source = { kind: "session" };
+    const p = await call("propose", {
+      title: "review/cancel Netflix",
+      kind: "subscription",
+      entity: "netflix",
+      dedupe_key: "session:1",
+      source,
+    });
+    const id = (p.out.proposal as { id: string }).id;
+    expect((await call("dismiss_proposal", { id })).out.proposal).toMatchObject({
+      status: "dismissed",
+      dismiss_reason: "owner",
+    });
+    expect(
+      (
+        await call("propose", {
+          title: "Netflix receipt",
+          kind: "subscription",
+          entity: "Netflix",
+          dedupe_key: "session:2",
+          source,
+        })
+      ).out,
+    ).toMatchObject({ outcome: "duplicate", reason: "dismissed" });
+    expect((await call("restore_proposal", { id })).out.proposal).toMatchObject({
+      status: "pending",
+    });
+    now += 8 * DAY_MS;
+    expect((await call("dismiss_stale_proposals", { older_than_days: 7 })).out.dismissed).toBe(1);
+    expect((await call("restore_proposal", { id: "nope" })).isError).toBe(true);
   });
 });
