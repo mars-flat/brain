@@ -771,7 +771,6 @@ describe("tasks (§16) — the console's one write path", () => {
     body = await get(cookie, "/tasks/proposed");
     expect(body).toContain("dismissed");
     expect(body).toContain(`action="/tasks/proposed/${pid}/restore"`);
-    expect((await get(cookie, `/tasks/new?proposal=${pid}`)).length).toBeGreaterThan(0);
     expect(
       (
         await fetch(`${console_.url}/tasks/new?proposal=${pid}`, {
@@ -786,16 +785,19 @@ describe("tasks (§16) — the console's one write path", () => {
     });
     expect(res.headers.get("location")).toBe("/tasks/proposed?ok=restored");
     // Accept for real: the task exists, the proposal points at it, the sidebar is empty again.
+    // A blank date clears the proposal's guess: a one-off then defaults to tomorrow.
     const ok = await post(cookie, "/tasks", {
       csrf,
       proposal_id: pid,
       title: "CS 348 A3",
       interval: "none",
       notes: "",
+      due: "",
     });
     expect(ok.status).toBe(303);
     const tid = idFrom(ok);
     expect(ok.headers.get("location")).toContain("?ok=accepted");
+    expect(await get(cookie, `/tasks/${tid}`)).toContain("tomorrow");
     expect(side.proposal(pid)).toMatchObject({ status: "accepted", taskId: tid });
     body = await get(cookie, "/tasks");
     expect(body).toContain("nothing proposed.");

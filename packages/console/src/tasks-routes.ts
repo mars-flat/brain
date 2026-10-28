@@ -164,7 +164,9 @@ export async function handleTasks(
           tags: tagsFromForm(),
         };
         if (pid) {
-          const { task } = store.acceptProposal(pid, input);
+          // A blank date on the accept form means "no date, use the default",
+          // not "keep the proposal's guess" — the human confirms the date.
+          const { task } = store.acceptProposal(pid, { ...input, dueAt: due?.at ?? null });
           return redirect(`/tasks/${task.id}?ok=accepted`);
         }
         const t = store.create(input);
