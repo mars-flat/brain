@@ -241,4 +241,29 @@ describe("attention buckets follow the LOCAL day", () => {
     expect(tokyo.overdue.map((t) => t.title)).toEqual(["late"]);
     expect(tokyo.today.map((t) => t.title)).toEqual(["tonight"]); // now is already Sep 18 there
   });
+
+  test("closedToday reads the log by LOCAL day, newest first, with the task as it stands now", () => {
+    // Closures at Sep 17 14:00Z (morning in Toronto, 23:00 in Tokyo), Sep 17
+    // 23:30Z (evening in Toronto, 08:30 Sep 18 in Tokyo), and one the day
+    // before. Viewed at 23:30Z: Toronto's day holds both; Tokyo's only the last.
+    let now = Date.UTC(2026, 8, 16, 12);
+    const store = new TaskStore(openTasksDb(":memory:"), () => now);
+    const timed = { intervalMs: 7 * DAY_MS, hasTime: true };
+    const old = store.create({ title: "yesterday's", dueAt: now, ...timed });
+    store.close(old.id, "completed");
+    now = Date.UTC(2026, 8, 17, 14);
+    const a = store.create({ title: "afternoon", dueAt: now, ...timed });
+    store.close(a.id, "completed");
+    now = Date.UTC(2026, 8, 17, 23, 30);
+    const b = store.create({ title: "late skip", dueAt: now, ...timed });
+    store.close(b.id, "cancelled", { repeat: false });
+    const toronto = store.closedToday("America/Toronto");
+    expect(toronto.map((c) => [c.task.title, c.kind])).toEqual([
+      ["late skip", "cancelled"],
+      ["afternoon", "completed"],
+    ]);
+    expect(toronto[0]?.task.status).toBe("retired"); // the task as it is now, not as closed
+    expect(toronto[1]?.task.dueAt).toBe(Date.UTC(2026, 8, 24, 14)); // rolled a week on
+    expect(store.closedToday("Asia/Tokyo").map((c) => c.task.title)).toEqual(["late skip"]);
+  });
 });
