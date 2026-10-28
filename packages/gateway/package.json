@@ -14,7 +14,7 @@
     "@brain/contracts": "workspace:*",
     "@brain/core": "workspace:*",
     "@brain/secrets-file": "workspace:*",
-    "@modelcontextprotocol/sdk": "1.32.0",
-    "jose": "6.2.12"
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "jose": "6.2.13"
   }
 }

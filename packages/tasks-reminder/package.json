@@ -13,6 +13,6 @@
   },
   "dependencies": {
     "@brain/harness-claude-code": "workspace:*",
-    "@modelcontextprotocol/sdk": "1.32.0"
+    "@modelcontextprotocol/sdk": "1.32.2"
   }
 }
