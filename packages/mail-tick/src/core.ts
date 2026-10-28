@@ -239,7 +239,11 @@ const AUTOMATED_LOCAL_PART =
 export function looksAutomated(h: Header): boolean {
   const raw = (h.from ?? "").trim();
   if (!raw) return false;
-  const addr = (/<([^>]+)>\s*$/.exec(raw)?.[1] ?? raw).trim().toLowerCase();
+  // String ops, not a regex: a `<…>` pattern over untrusted mail headers is
+  // exactly the polynomial-backtracking shape CodeQL flags.
+  const lt = raw.lastIndexOf("<");
+  const gt = lt >= 0 ? raw.indexOf(">", lt) : -1;
+  const addr = (lt >= 0 && gt > lt ? raw.slice(lt + 1, gt) : raw).trim().toLowerCase();
   const at = addr.lastIndexOf("@");
   if (at <= 0) return false;
   const local = addr.slice(0, at);
