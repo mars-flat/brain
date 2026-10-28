@@ -125,8 +125,47 @@ export const ENTITY_WINDOW_MS: Record<ProposalKind, number> = {
  * and "CS 348 / A3" are one entity. Spaces are dropped too — spacing is
  * exactly the kind of thing two mails disagree on.
  */
+const ENTITY_ALIASES: Record<string, string> = {
+  assignment: "a",
+  assignments: "a",
+  asst: "a",
+  asgn: "a",
+  homework: "hw",
+  quiz: "q",
+  quizzes: "q",
+  tutorial: "t",
+  tut: "t",
+  lecture: "lec",
+  project: "p",
+  proj: "p",
+  problem: "ps",
+  set: "",
+  due: "",
+  deadline: "",
+  the: "",
+  for: "",
+  of: "",
+  and: "",
+  updated: "",
+  update: "",
+  reminder: "",
+};
+
+/**
+ * The equality key: lowercase alphanumerics only, so "CS348 A3", "cs-348 a3"
+ * and "CS 348 / A3" are one entity, and course-work words collapse to the
+ * form models most often choose — "STAT 231 Assignment 1", "stat231 asst 1"
+ * and "stat231 a1" are all `stat231a1` (first live dry run, 2026-10-28:
+ * one assignment spelled five ways across five mails). Spaces are dropped
+ * too — spacing is exactly the kind of thing two mails disagree on.
+ */
 export function normalizeEntity(entity: string): string {
-  return entity.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return entity
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .map((tok) => ENTITY_ALIASES[tok] ?? tok)
+    .join("");
 }
 
 function assertKey(value: unknown, what: string, required: boolean): string | null {

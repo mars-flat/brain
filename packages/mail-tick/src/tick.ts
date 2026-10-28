@@ -265,9 +265,25 @@ export async function runTick(opts: TickOptions): Promise<AccountSummary[]> {
       // Stage 3 — labels, batched, hard-limited, last.
       const allowedAdd = new Set(labels.filter((l) => l.type !== "system").map((l) => l.id));
       const batches = labelBatches(changes);
+      const byId = new Map(headers.map((h) => [h.id, h]));
+      const nameOf = new Map(labels.map((l) => [l.id, l.name]));
       for (const b of batches) {
         assertLabelChange(b, allowedAdd);
-        if (opts.dryRun) continue;
+        if (opts.dryRun) {
+          // Say what would move, so the owner can judge a tick before it writes.
+          const lanes = b.add_label_ids
+            .filter((l) => l !== marker && l !== archived)
+            .map((l) => nameOf.get(l) ?? l);
+          const archive = b.remove_label_ids.includes("INBOX");
+          if (!archive && lanes.length === 0) continue;
+          for (const id of b.message_ids) {
+            const h = byId.get(id);
+            log(
+              `${account}: would ${archive ? "archive" : "label"}${lanes.length ? ` [${lanes.join(", ")}]` : ""} · ${(h?.from ?? "").slice(0, 60)} · "${(h?.subject ?? "").slice(0, 80)}"`,
+            );
+          }
+          continue;
+        }
         await gw.call(`${account}.mail_modify_labels`, b);
         if (b.add_label_ids.includes(marker ?? "")) summary.marked += b.message_ids.length;
         if (b.remove_label_ids.includes("INBOX")) summary.archived += b.message_ids.length;
