@@ -62,6 +62,18 @@ describe("validation and normalization", () => {
   test("entity normalizes to lowercase alphanumerics with single spaces", () => {
     expect(normalizeEntity("  CS-348 / A3!! ")).toBe("cs348a3");
     expect(normalizeEntity("CS348 A3")).toBe("cs348a3");
+    // Course-work aliases: the same assignment spelled five ways is one entity.
+    for (const v of [
+      "STAT 231 Assignment 1",
+      "stat231 assignment 1",
+      "stat231 a1",
+      "STAT231 A1 due",
+      "stat 231 asst 1 (updated)",
+    ])
+      expect(normalizeEntity(v)).toBe("stat231a1");
+    expect(normalizeEntity("MATH 239 Tutorial 6")).toBe("math239t6");
+    expect(normalizeEntity("cs240 midterm regrade")).toBe("cs240midtermregrade");
+    expect(normalizeEntity("Shopify interview")).toBe("shopifyinterview");
     expect(normalizeEntity("Netflix")).toBe("netflix");
     expect(normalizeEntity("***")).toBe("");
   });
