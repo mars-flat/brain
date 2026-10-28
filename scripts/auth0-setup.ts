@@ -7,6 +7,7 @@
  *   - `brain-hook`     M2M, granted brain:write only  (SessionEnd delivery)
  *   - `agent-runtime`  M2M, granted read+write scopes (P6)
  *   - `tasks-reminder` M2M, granted tools:read only  (daily Mac reminder, §16.6)
+ *   - `mail-tick`      M2M, granted tools:read+write (the mail tick, §16.8; policy narrows it)
  *
  * Needs a Management API credential in the environment (owner creates one
  * M2M app authorized for the Management API — see QUESTIONS P5-1):
@@ -163,6 +164,13 @@ const reminder = await ensureClient("tasks-reminder", {
   grant_types: ["client_credentials"],
 });
 
+// The mail tick (§16.8) proposes tasks and labels mail through the gateway;
+// the private policy narrows its tools:write to exactly those two tools.
+const mailTick = await ensureClient("mail-tick", {
+  app_type: "non_interactive",
+  grant_types: ["client_credentials"],
+});
+
 // ── client grants (M2M → the API, least privilege each) ───────────────────
 interface Grant {
   id: string;
@@ -181,6 +189,7 @@ async function ensureGrant(client: Client, scope: string[]): Promise<void> {
 await ensureGrant(hook, ["brain:write"]);
 await ensureGrant(runtime, ["brain:read", "brain:write", "tools:read", "tools:write"]);
 await ensureGrant(reminder, ["tools:read"]);
+await ensureGrant(mailTick, ["tools:read", "tools:write"]);
 
 // ── what goes where ────────────────────────────────────────────────────────
 console.log(`
@@ -194,6 +203,9 @@ Done. Copy into the LAPTOP .env (SessionEnd delivery, §6.4):
 And into the VM's deploy/compose/.env:
   GATEWAY_ISSUER=https://${DOMAIN}/
   GATEWAY_AUDIENCE=${AUDIENCE}
+  MAIL_TICK_CLIENT_ID=${mailTick.client_id}
+  MAIL_TICK_CLIENT_SECRET=<Applications → mail-tick → Settings → Client Secret>
+  (then the three policy rules for ${mailTick.client_id}@clients — packages/mail-tick/README.md)
 
 brain-cli (${cli.client_id}) is public+PKCE — Claude Code discovers it via
 the OAuth flow; no secret exists for it.`);

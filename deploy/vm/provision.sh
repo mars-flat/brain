@@ -96,6 +96,31 @@ OnUnitActiveSec=15min
 WantedBy=timers.target
 EOF
 
+# ── the mail tick (§16.8): 08:00 and 16:00 in the owner's zone, inside the
+# gateway container like consolidate. The zone is a provision-time constant
+# beside TASKS_TZ (the unit cannot read .env). Run `--since 3d` by hand once
+# for the first run; the timer uses the 2d default.
+MAIL_TICK_ZONE="${MAIL_TICK_ZONE:-America/Toronto}"
+cat >/etc/systemd/system/brain-mail-tick.service <<'UNIT'
+[Unit]
+Description=brain mail tick: proposed tasks + inbox filing (§16.8)
+After=docker.service
+[Service]
+Type=oneshot
+Environment=HOME=/root
+WorkingDirectory=/opt/brain/deploy/compose
+ExecStart=/usr/bin/docker compose exec -T gateway bun /app/packages/mail-tick/src/main.ts
+UNIT
+cat >/etc/systemd/system/brain-mail-tick.timer <<UNIT
+[Unit]
+Description=brain mail tick cadence (08:00 and 16:00 ${MAIL_TICK_ZONE})
+[Timer]
+OnCalendar=*-*-* 08:00,16:00 ${MAIL_TICK_ZONE}
+Persistent=true
+[Install]
+WantedBy=timers.target
+UNIT
+
 # ── monthly edge-cert renewal (§15.1; deploy/vm/certs.sh is lego DNS-01) ─
 cat >/etc/systemd/system/brain-certs.service <<'EOF'
 [Unit]
@@ -137,6 +162,7 @@ EOF
 
 systemctl daemon-reload
 systemctl enable -q --now brain-consolidate.timer brain-vault-push.timer
+systemctl enable -q brain-mail-tick.timer # armed by the owner once the mail-tick client, policy and labels exist (§16.8)
 systemctl enable -q brain-certs.timer 2>/dev/null || true # armed once the edge env exists
 
 # ── first bring-up: build locally (the GHCR package may still be private;
