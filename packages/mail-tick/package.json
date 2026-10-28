@@ -1,0 +1,19 @@
+{
+  "name": "@brain/mail-tick",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The twice-daily mail tick: a gateway client that reads the owner's inboxes through the g-* upstreams, triages and extracts with the model, and writes only tasks.propose and Gmail labels. One tick, two outputs (§16.8).",
+  "bin": {
+    "mail-tick": "./src/main.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@brain/contracts": "workspace:*",
+    "@brain/harness-claude-code": "workspace:*",
+    "@brain/model-openai": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.0"
+  }
+}

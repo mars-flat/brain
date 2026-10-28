@@ -2,7 +2,7 @@
 
 **Status:** Revision 5 built through P5 — Azure host, OpenAI `gpt-5.6-luna`, Bun runtime. **P0–P5 complete (2026-08-27): the brain serves remotely** from `brain-vm` over the tailnet with Auth0 auth. **P6 (Discord) deferred by the owner.** See Current status below.
 **Code repo:** `mars-flat/brain` — **public** · **Vault:** private repo `mars-flat/brain-vault` — the VM's clone is the only writer; `brain/vault/` on the laptop is a read-only clone, never tracked here ([§9.1](./11-repo-safety.md))
-**MCP:** SDK 1.32.0 pinned (protocol `2025-11-25`; 1.30.0 → 1.32.0 on 2026-10-27 for the §9.3 audit gate) · **Last updated:** 2026-10-27
+**MCP:** SDK 1.32.0 pinned (protocol `2025-11-25`; 1.30.0 → 1.32.0 on 2026-10-27 for the §9.3 audit gate) · **Last updated:** 2026-10-28
 
 ---
 
@@ -191,3 +191,5 @@ console's `/healthz` reads the tasks store and returns 503 when it cannot.
 **One human blocker remains, and it only gates P6: the Discord bot** ([§13](./13-setup.md) has the walkthrough) — **deferred by the owner** for now. Open questions accumulate in `QUESTIONS-FOR-OWNER.md` at the repo root (local-only, gitignored).
 
 **Keeping this document true:** the `architecture-sync` skill (`.claude/skills/`) is the protocol. Read the relevant chapter before building; when an implementation decision differs from what's written here, edit the doc in the same commit as the code. Stale docs are a bug.
+
+**T2 — proposed tasks and the mail tick** (2026-10-28, TODO step 3; PRs A–D): the tasks store grew a second list, **proposed tasks** (schema v3, `packages/tasks` §16.8) that anything behind the gateway can add to with `tasks.propose` and only a human promotes — duplicates decided by exact identity (message key, thread key, a caller-supplied canonical entity), never by title similarity, which measured wrong on real titles. The console shows them as a sidebar on `/tasks` with accept (the create form prefilled) and dismiss. The collector is `packages/mail-tick`: a gateway client on a VM systemd timer at 08:00/16:00 that reads the three inboxes through the `g-*` upstreams, triages headers in one model call, extracts from the survivors, proposes, and files **automated** mail per the standing lane policy (inbox for action, labels for reference, archive the rest; never a person's mail, never stars or read-state; `brain/triaged` is the seen-marker, `brain/archived` the undo). Its only writes are `tasks.propose` and `g-*.mail_modify_labels`, narrowed by three private-policy rules on its own M2M principal plus argument-level hard limits. Owner-run steps in §13 (T2).

@@ -140,6 +140,19 @@
         "@modelcontextprotocol/sdk": "1.32.0",
       },
     },
+    "packages/mail-tick": {
+      "name": "@brain/mail-tick",
+      "version": "0.1.0",
+      "bin": {
+        "mail-tick": "./src/main.ts",
+      },
+      "dependencies": {
+        "@brain/contracts": "workspace:*",
+        "@brain/harness-claude-code": "workspace:*",
+        "@brain/model-openai": "workspace:*",
+        "@modelcontextprotocol/sdk": "1.32.0",
+      },
+    },
     "packages/mcp-google": {
       "name": "@brain/mcp-google",
       "version": "0.1.0",
@@ -212,6 +225,8 @@
     "@brain/gateway": ["@brain/gateway@workspace:packages/gateway"],
 
     "@brain/harness-claude-code": ["@brain/harness-claude-code@workspace:packages/harness-claude-code"],
+
+    "@brain/mail-tick": ["@brain/mail-tick@workspace:packages/mail-tick"],
 
     "@brain/mcp-google": ["@brain/mcp-google@workspace:packages/mcp-google"],
 

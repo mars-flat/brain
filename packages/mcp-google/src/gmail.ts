@@ -35,6 +35,8 @@ export interface MessageSummary {
   to?: string;
   subject?: string;
   date?: string;
+  /** Gmail's internalDate as epoch ms — when Gmail received it; the Date header is the sender's word. */
+  internal_date?: number;
   snippet?: string;
   label_ids?: string[];
 }
@@ -81,6 +83,7 @@ function summarize(m: WireMessage): MessageSummary {
     to: header(m.payload, "To"),
     subject: header(m.payload, "Subject"),
     date: header(m.payload, "Date"),
+    ...(m.internalDate ? { internal_date: Number(m.internalDate) } : {}),
     snippet: m.snippet,
     label_ids: m.labelIds,
   };

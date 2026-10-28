@@ -25,6 +25,7 @@ mars-flat/brain/                    # PUBLIC
 │   ├── mcp-google/                 # W2: per-account Google mail+Drive MCP
 │   ├── tasks/                      # T1: recurrence core + own SQLite store + tasks.* MCP (§16)
 │   ├── tasks-reminder/             # T1: the Mac launchd reminder — laptop-only, never deployed
+│   ├── mail-tick/                  # T2: the twice-daily mail tick — a gateway client: proposes tasks, files mail (§16.8)
 │   ├── console/                    # W1: web console + dashboard (§15) — /tasks tab writes §16's store
 │   ├── harness-claude-code/        # MCP config + SessionEnd hook + CLAUDE.md
 │   └── cli/                        # brain init | rebuild | recall | expand | eval | tune | doctor |

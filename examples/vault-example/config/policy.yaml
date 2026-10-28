@@ -23,6 +23,18 @@
   effect: deny
   reason: "email sending is disabled at the gateway, permanently, by owner rule"
 
+# The mail tick (§16.8): a headless M2M principal that may propose tasks and
+# relabel mail, and nothing else that writes. Principal = the Auth0 client's
+# sub. These rules sit above the read allow so the deny wins for every other
+# write before the default confirm could stall a headless run.
+- match: { principal: ["mail-tick-client-id@clients"], tool: "tasks.propose" }
+  effect: allow
+- match: { principal: ["mail-tick-client-id@clients"], tool: "g-*.mail_modify_labels" }
+  effect: allow
+- match: { principal: ["mail-tick-client-id@clients"], kind: [write, admin] }
+  effect: deny
+  reason: "the mail tick proposes and labels; it creates, closes, dismisses, filters, sends nothing"
+
 - match: { kind: read }
   effect: allow
 
