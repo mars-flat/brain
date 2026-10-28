@@ -9,6 +9,11 @@ updates:
     groups:
       all-deps:
         patterns: ["*"]
+    ignore:
+      # ADR 0001: dependency-cruiser cannot parse TS7, so the §3 purity gate
+      # passes vacuously under it. Hold at 6.x until depcruise supports 7.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

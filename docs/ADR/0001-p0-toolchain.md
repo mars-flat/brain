@@ -33,6 +33,13 @@ gate, verified by canary. TS6's `tsc --noEmit` typechecks this codebase fine.
 Revisit when dependency-cruiser supports the TS7 API. depcruise itself runs
 under Bun (`bunx --bun`) because its CLI rejects non-LTS system Nodes.
 
+*2026-10-27:* the canary came true. Dependabot's grouped bump (#81) took
+typescript to 7.0.2 and the gate passed on 2 modules for one merge before
+anyone noticed. Two guards now: `.github/dependabot.yml` ignores typescript
+majors, and `bun run depcruise` also runs `scripts/depcruise-floor.ts`,
+which fails unless depcruise actually cruised a sane number of modules —
+so a vacuous gate is a red build, never a green one.
+
 ## Example vault is generated, committed, and freshness-checked
 
 `scripts/gen-example-vault.ts` holds the node data and validates every node
