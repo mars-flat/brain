@@ -14,6 +14,6 @@
     "@brain/contracts": "workspace:*",
     "@brain/harness-claude-code": "workspace:*",
     "@brain/model-openai": "workspace:*",
-    "@modelcontextprotocol/sdk": "1.32.0"
+    "@modelcontextprotocol/sdk": "1.32.2"
   }
 }
